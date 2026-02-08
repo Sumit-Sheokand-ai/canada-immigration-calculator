@@ -2,6 +2,21 @@ import * as D from '../data/crsData.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Normalize French scores: convert TEF/TCF to NCLC if needed
+function normalizeFrench(a) {
+  const norm = { ...a };
+  if (a.hasFrench === 'yes' && a.frenchTestType === 'tef') {
+    for (const s of ['listening','reading','writing','speaking']) {
+      norm[`french_${s}`] = String(D.convertTEFtoNCLC(s, parseInt(a[`tef_${s}`]) || 0));
+    }
+  } else if (a.hasFrench === 'yes' && a.frenchTestType === 'tcf') {
+    for (const s of ['listening','reading','writing','speaking']) {
+      norm[`french_${s}`] = String(D.convertTCFtoNCLC(s, parseInt(a[`tcf_${s}`]) || 0));
+    }
+  }
+  return norm;
+}
+
 export function hasAccompanyingSpouse(a) {
   return a.hasSpouse === 'yes' && a.spouseIsCanadian !== 'yes' && a.spouseAccompanying !== 'no';
 }
@@ -157,12 +172,14 @@ function calcAdditionalPoints(a) {
   return Math.min(total, 600);
 }
 
-export function calculate(answers) {
+export function calculate(rawAnswers) {
+  const answers = normalizeFrench(rawAnswers);
   const age = calcAge(answers);
   const education = calcEducation(answers);
   const firstLanguage = calcFirstLanguage(answers);
   const secondLanguage = calcSecondLanguage(answers);
   const canadianWork = calcCanadianWork(answers);
+  const foreignWork = parseInt(answers.foreignWorkExp) || 0;
   const core = age + education + firstLanguage + secondLanguage + canadianWork;
   const spouse = calcSpouseFactors(answers);
   const skill = calcSkillTransferability(answers);
@@ -170,7 +187,7 @@ export function calculate(answers) {
   return {
     total: Math.min(core + spouse + skill + addl, 1200),
     breakdown: { coreHumanCapital: core, spouseFactors: spouse, skillTransferability: skill, additionalPoints: addl },
-    details: { age, education, firstLanguage, secondLanguage, canadianWork, spouseTotal: spouse, skillTotal: skill, additionalTotal: addl }
+    details: { age, education, firstLanguage, secondLanguage, canadianWork, foreignWork, spouseTotal: spouse, skillTotal: skill, additionalTotal: addl }
   };
 }
 

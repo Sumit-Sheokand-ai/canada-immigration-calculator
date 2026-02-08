@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { nocTEER, ieltsBands, celpipLevels, clbLevels } from '../data/crsData';
+import { nocTEER, ieltsBands, celpipLevels, clbLevels, tefBands, tcfBands } from '../data/crsData';
+import { useLanguage } from '../i18n/LanguageContext';
 
 /* ─── Step definitions ─── */
 function buildAgeOptions() {
@@ -100,8 +101,28 @@ const STEPS = [
     { value: 'yes', label: 'Yes — I have TEF or TCF results', example: 'I have taken a French language test' },
     { value: 'no', label: 'No — I don\'t have French test results', example: 'I haven\'t taken a French test (no penalty)' },
   ]},
-  { id: 'frenchScores', label: 'French CLB', title: 'French Language – NCLC/CLB Levels', subtitle: 'Enter your NCLC (Niveaux de compétence linguistique canadiens) level for each ability. Your TEF/TCF score report will show your NCLC level. CLB 7+ in all four = eligible for French category draws.', type: 'grouped',
-    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes', groups: [
+  { id: 'frenchTestType', label: 'French Test', title: 'Which French Language Test Did You Take?', subtitle: 'Select your French test. We\'ll convert your scores to NCLC levels automatically.', type: 'single', answerKey: 'frenchTestType',
+    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes', options: [
+    { value: 'tef', label: 'TEF Canada', example: 'Test d\'évaluation de français — scored by number of points per section' },
+    { value: 'tcf', label: 'TCF Canada', example: 'Test de connaissance du français — scored by levels and points' },
+    { value: 'clb', label: 'I know my NCLC/CLB levels directly', example: 'I already know my NCLC level for each ability' },
+  ]},
+  { id: 'tefScores', label: 'TEF Scores', title: 'TEF Canada Scores', subtitle: 'Select your TEF score range for each ability. We convert these to NCLC levels.', type: 'grouped',
+    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes' && a.frenchTestType === 'tef', groups: [
+    { title: 'Compréhension orale (Listening)', answerKey: 'tef_listening', type: 'grid-wide', options: bandOpts(tefBands.listening, '') },
+    { title: 'Compréhension écrite (Reading)', answerKey: 'tef_reading', type: 'grid-wide', options: bandOpts(tefBands.reading, '') },
+    { title: 'Expression écrite (Writing)', answerKey: 'tef_writing', type: 'grid-wide', options: bandOpts(tefBands.writing, '') },
+    { title: 'Expression orale (Speaking)', answerKey: 'tef_speaking', type: 'grid-wide', options: bandOpts(tefBands.speaking, '') },
+  ]},
+  { id: 'tcfScores', label: 'TCF Scores', title: 'TCF Canada Scores', subtitle: 'Select your TCF score range for each ability. We convert these to NCLC levels.', type: 'grouped',
+    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes' && a.frenchTestType === 'tcf', groups: [
+    { title: 'Compréhension orale (Listening)', answerKey: 'tcf_listening', type: 'grid-wide', options: bandOpts(tcfBands.listening, '') },
+    { title: 'Compréhension écrite (Reading)', answerKey: 'tcf_reading', type: 'grid-wide', options: bandOpts(tcfBands.reading, '') },
+    { title: 'Expression écrite (Writing)', answerKey: 'tcf_writing', type: 'grid-wide', options: bandOpts(tcfBands.writing, '') },
+    { title: 'Expression orale (Speaking)', answerKey: 'tcf_speaking', type: 'grid-wide', options: bandOpts(tcfBands.speaking, '') },
+  ]},
+  { id: 'frenchScores', label: 'French CLB', title: 'French Language – NCLC/CLB Levels', subtitle: 'Enter your NCLC (Niveaux de compétence linguistique canadiens) level for each ability. CLB 7+ in all four = eligible for French category draws.', type: 'grouped',
+    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes' && a.frenchTestType === 'clb', groups: [
     { title: 'Listening', answerKey: 'french_listening', type: 'grid', options: clbOpts },
     { title: 'Reading', answerKey: 'french_reading', type: 'grid', options: clbOpts },
     { title: 'Writing', answerKey: 'french_writing', type: 'grid', options: clbOpts },
@@ -225,10 +246,12 @@ function OptionList({ options, answerKey, layout, answers, onAnswer }) {
 }
 
 /* ─── Wizard ─── */
-export default function Wizard({ onFinish }) {
-  const [answers, setAnswers] = useState({});
+export default function Wizard({ onFinish, onProgress, initialAnswers }) {
+  const { t } = useLanguage();
+  const [answers, setAnswers] = useState(initialAnswers || {});
   const [currentIdx, setCurrentIdx] = useState(() => {
-    for (let i = 0; i < STEPS.length; i++) if (isApplicable(STEPS[i], {})) return i;
+    const init = initialAnswers || {};
+    for (let i = 0; i < STEPS.length; i++) if (isApplicable(STEPS[i], init)) return i;
     return 0;
   });
   const [history, setHistory] = useState([]);
@@ -237,8 +260,12 @@ export default function Wizard({ onFinish }) {
   const step = STEPS[currentIdx];
 
   const handleAnswer = useCallback((key, value) => {
-    setAnswers(prev => ({ ...prev, [key]: value }));
-  }, []);
+    setAnswers(prev => {
+      const next = { ...prev, [key]: value };
+      if (onProgress) onProgress(next);
+      return next;
+    });
+  }, [onProgress]);
 
   const visibleCount = useMemo(() => STEPS.filter(s => isApplicable(s, answers)).length, [answers]);
   const visibleNum = useMemo(() => {
@@ -282,11 +309,13 @@ export default function Wizard({ onFinish }) {
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -30, transition: { duration: 0.25 } }}
+      role="form"
+      aria-label="CRS Calculator wizard"
     >
       {/* Progress */}
       <div className="progress-bar-wrap">
         <div className="progress-info">
-          <span>Step {visibleNum} of {visibleCount}</span>
+          <span>{t('wizard.step')} {visibleNum} {t('wizard.of')} {visibleCount}</span>
           <span>{pct}%</span>
         </div>
         <div className="progress-track">
@@ -338,8 +367,8 @@ export default function Wizard({ onFinish }) {
       {/* Navigation */}
       <div className="wizard-nav">
         {history.length > 0 && (
-          <motion.button className="btn-back" onClick={goBack} whileHover={{ x: -3 }} whileTap={{ scale: 0.95 }}>
-            ← Back
+          <motion.button className="btn-back" onClick={goBack} whileHover={{ x: -3 }} whileTap={{ scale: 0.95 }} aria-label="Go back">
+            {t('wizard.back')}
           </motion.button>
         )}
         <motion.button
@@ -348,8 +377,9 @@ export default function Wizard({ onFinish }) {
           onClick={goNext}
           whileHover={complete ? { scale: 1.02 } : {}}
           whileTap={complete ? { scale: 0.97 } : {}}
+          aria-label={isLastVisible ? 'Calculate score' : 'Next step'}
         >
-          {isLastVisible ? 'Calculate Score ✓' : 'Next →'}
+          {isLastVisible ? t('wizard.calculate') : t('wizard.next')}
         </motion.button>
       </div>
     </motion.div>

@@ -215,3 +215,53 @@ export const pathways = {
 export const ieltsBands = ["0","0.5","1.0","1.5","2.0","2.5","3.0","3.5","4.0","4.5","5.0","5.5","6.0","6.5","7.0","7.5","8.0","8.5","9.0"];
 export const celpipLevels = ["M","1","2","3","4","5","6","7","8","9","10","11","12"];
 export const clbLevels = ["1","2","3","4","5","6","7","8","9","10","11","12"];
+
+// TEF Canada score ranges (display values for wizard grid)
+export const tefBands = {
+  listening: ["145","181","217","249","280","298","316","334","349","360"],
+  reading:  ["121","151","181","207","233","248","263","278","294","310"],
+  writing:  ["181","226","271","310","349","371","393","415","437","450"],
+  speaking: ["181","226","271","310","349","371","393","415","437","450"]
+};
+
+// TEF → NCLC conversion
+const tefToNCLCMap = {
+  listening: [{min:360,nclc:10},{min:349,nclc:9},{min:334,nclc:8},{min:316,nclc:7},{min:298,nclc:6},{min:280,nclc:5},{min:249,nclc:4},{min:217,nclc:3},{min:181,nclc:2},{min:145,nclc:1}],
+  reading:  [{min:310,nclc:10},{min:294,nclc:9},{min:278,nclc:8},{min:263,nclc:7},{min:248,nclc:6},{min:233,nclc:5},{min:207,nclc:4},{min:181,nclc:3},{min:151,nclc:2},{min:121,nclc:1}],
+  writing:  [{min:450,nclc:10},{min:437,nclc:9},{min:415,nclc:8},{min:393,nclc:7},{min:371,nclc:6},{min:349,nclc:5},{min:310,nclc:4},{min:271,nclc:3},{min:226,nclc:2},{min:181,nclc:1}],
+  speaking: [{min:450,nclc:10},{min:437,nclc:9},{min:415,nclc:8},{min:393,nclc:7},{min:371,nclc:6},{min:349,nclc:5},{min:310,nclc:4},{min:271,nclc:3},{min:226,nclc:2},{min:181,nclc:1}]
+};
+
+export function convertTEFtoNCLC(skill, score) {
+  const thresholds = tefToNCLCMap[skill];
+  if (!thresholds) return 0;
+  for (const t of thresholds) {
+    if (score >= t.min) return t.nclc;
+  }
+  return 0;
+}
+
+// TCF Canada score ranges
+export const tcfBands = {
+  listening: ["331","369","398","453","503","523","549","570","590","610"],
+  reading:  ["342","375","406","453","499","524","549","575","600","625"],
+  writing:  ["4","6","7","10","12","14","16","18","19","20"],
+  speaking: ["4","6","7","10","12","14","16","18","19","20"]
+};
+
+// TCF → NCLC conversion
+const tcfToNCLCMap = {
+  listening: [{min:610,nclc:10},{min:590,nclc:9},{min:570,nclc:8},{min:549,nclc:7},{min:523,nclc:6},{min:503,nclc:5},{min:453,nclc:4},{min:398,nclc:3},{min:369,nclc:2},{min:331,nclc:1}],
+  reading:  [{min:625,nclc:10},{min:600,nclc:9},{min:575,nclc:8},{min:549,nclc:7},{min:524,nclc:6},{min:499,nclc:5},{min:453,nclc:4},{min:406,nclc:3},{min:375,nclc:2},{min:342,nclc:1}],
+  writing:  [{min:20,nclc:10},{min:19,nclc:9},{min:18,nclc:8},{min:16,nclc:7},{min:14,nclc:6},{min:12,nclc:5},{min:10,nclc:4},{min:7,nclc:3},{min:6,nclc:2},{min:4,nclc:1}],
+  speaking: [{min:20,nclc:10},{min:19,nclc:9},{min:18,nclc:8},{min:16,nclc:7},{min:14,nclc:6},{min:12,nclc:5},{min:10,nclc:4},{min:7,nclc:3},{min:6,nclc:2},{min:4,nclc:1}]
+};
+
+export function convertTCFtoNCLC(skill, score) {
+  const thresholds = tcfToNCLCMap[skill];
+  if (!thresholds) return 0;
+  for (const t of thresholds) {
+    if (score >= t.min) return t.nclc;
+  }
+  return 0;
+}

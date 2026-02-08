@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { calculate } from '../scoring/scoring';
+import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
+import { useLanguage } from '../i18n/LanguageContext';
+import { encodeAnswers } from '../App';
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
@@ -11,14 +13,13 @@ const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transi
 function AnimatedNumber({ value, duration = 1.2 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
-    let start = 0;
     const end = value;
     const startTime = performance.now();
     const tick = (now) => {
       const elapsed = (now - startTime) / (duration * 1000);
       if (elapsed >= 1) { setDisplay(end); return; }
       const ease = 1 - Math.pow(1 - elapsed, 3);
-      setDisplay(Math.round(start + (end - start) * ease));
+      setDisplay(Math.round(end * ease));
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -31,7 +32,7 @@ function ScoreGauge({ score, statusColor }) {
   const r = 54, circ = 2 * Math.PI * r;
   const pct = Math.min(score / 1200, 1);
   return (
-    <div className="score-gauge">
+    <div className="score-gauge" aria-label={`CRS Score: ${score} out of 1200`}>
       <svg viewBox="0 0 120 120" width="180" height="180">
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-2)" strokeWidth="8" />
         <motion.circle
@@ -44,7 +45,7 @@ function ScoreGauge({ score, statusColor }) {
         />
       </svg>
       <div className="gauge-text">
-        <div className="gauge-number"><AnimatedNumber value={score} /></div>
+        <div className="gauge-number" aria-live="polite"><AnimatedNumber value={score} /></div>
         <div className="gauge-max">/ 1,200</div>
       </div>
     </div>
@@ -52,14 +53,14 @@ function ScoreGauge({ score, statusColor }) {
 }
 
 /* ── Breakdown Bar ── */
-function BreakdownItem({ icon, label, value, max }) {
+function BreakdownItem({ icon, label, value, max, note }) {
   const pct = Math.round((value / max) * 100);
   return (
     <motion.div className="bd-item" variants={fadeUp}>
       <span className="bd-icon">{icon}</span>
       <div className="bd-info">
         <div className="bd-top">
-          <span className="bd-label">{label}</span>
+          <span className="bd-label">{label}{note && <small className="bd-note"> ({note})</small>}</span>
           <span className="bd-pts">{value} <small>/ {max}</small></span>
         </div>
         <div className="bd-bar-bg">
@@ -87,10 +88,108 @@ function DrawRow({ draw, userScore }) {
   );
 }
 
+/* ── What-If Comparison ── */
+const wiEducationOpts = [
+  { value: 'secondary', label: 'High School' },
+  { value: 'one_year_post', label: '1-Year Diploma' },
+  { value: 'two_year_post', label: '2-Year Diploma' },
+  { value: 'bachelors', label: "Bachelor's" },
+  { value: 'two_or_more', label: '2+ Credentials' },
+  { value: 'masters', label: "Master's" },
+  { value: 'doctoral', label: 'PhD' },
+];
+
+function WhatIfPanel({ answers, originalScore, t }) {
+  const [wiAge, setWiAge] = useState(answers.age || '');
+  const [wiEdu, setWiEdu] = useState(answers.education || '');
+  const [wiCWE, setWiCWE] = useState(answers.canadianWorkExp || '0');
+  const [wiCLB, setWiCLB] = useState('');
+
+  const projected = useMemo(() => {
+    const overrides = {};
+    if (wiAge && wiAge !== answers.age) overrides.age = wiAge;
+    if (wiEdu && wiEdu !== answers.education) overrides.education = wiEdu;
+    if (wiCWE && wiCWE !== answers.canadianWorkExp) overrides.canadianWorkExp = wiCWE;
+    if (wiCLB) {
+      const skills = ['listening', 'reading', 'writing', 'speaking'];
+      const prefix = answers.langTestType === 'celpip' ? 'celpip' : 'ielts';
+      for (const s of skills) {
+        const key = `${prefix}_${s}`;
+        if (answers.langTestType === 'celpip') {
+          overrides[key] = String(Math.max(parseInt(answers[key]) || 0, parseInt(wiCLB)));
+        } else {
+          overrides[key] = String(Math.max(parseFloat(answers[key]) || 0, parseFloat(wiCLB)));
+        }
+      }
+    }
+    if (Object.keys(overrides).length === 0) return null;
+    return recalcWith(answers, overrides);
+  }, [answers, wiAge, wiEdu, wiCWE, wiCLB]);
+
+  const delta = projected ? projected.total - originalScore : 0;
+
+  return (
+    <div className="whatif-panel">
+      <div className="wi-grid">
+        <label className="wi-field">
+          <span>Age</span>
+          <select value={wiAge} onChange={e => setWiAge(e.target.value)}>
+            <option value="">Current</option>
+            {Array.from({ length: 30 }, (_, i) => i + 18).map(a => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </label>
+        <label className="wi-field">
+          <span>Education</span>
+          <select value={wiEdu} onChange={e => setWiEdu(e.target.value)}>
+            <option value="">Current</option>
+            {wiEducationOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+        <label className="wi-field">
+          <span>Canadian Work (yrs)</span>
+          <select value={wiCWE} onChange={e => setWiCWE(e.target.value)}>
+            {[0,1,2,3,4,5].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </label>
+        <label className="wi-field">
+          <span>Min Language CLB</span>
+          <select value={wiCLB} onChange={e => setWiCLB(e.target.value)}>
+            <option value="">Current</option>
+            {[5,6,7,8,9,10].map(c => <option key={c} value={c}>CLB {c}+</option>)}
+          </select>
+        </label>
+      </div>
+      {projected && (
+        <motion.div className="wi-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="wi-scores">
+            <div className="wi-score-block">
+              <small>{t('results.original')}</small>
+              <strong>{originalScore}</strong>
+            </div>
+            <span className="wi-arrow">→</span>
+            <div className="wi-score-block projected">
+              <small>{t('results.projected')}</small>
+              <strong>{projected.total}</strong>
+            </div>
+            <span className={`wi-delta ${delta > 0 ? 'pos' : delta < 0 ? 'neg' : ''}`}>
+              {delta > 0 ? '+' : ''}{delta} pts
+            </span>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Results ── */
 export default function Results({ answers, onRestart }) {
+  const { t } = useLanguage();
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
+  const [whatifOpen, setWhatifOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const result = useMemo(() => {
     if (answers.knowsScore === 'yes') {
@@ -98,7 +197,7 @@ export default function Results({ answers, onRestart }) {
       return {
         total: approxScore,
         breakdown: { coreHumanCapital: approxScore, spouseFactors: 0, skillTransferability: 0, additionalPoints: 0 },
-        details: { age: 0, education: 0, firstLanguage: 0, secondLanguage: 0, canadianWork: 0, spouseTotal: 0, skillTotal: 0, additionalTotal: 0 }
+        details: { age: 0, education: 0, firstLanguage: 0, secondLanguage: 0, canadianWork: 0, foreignWork: 0, spouseTotal: 0, skillTotal: 0, additionalTotal: 0 }
       };
     }
     return calculate(answers);
@@ -125,31 +224,70 @@ export default function Results({ answers, onRestart }) {
       { icon: '🎓', label: 'Education', value: d.education, max: 150 },
       { icon: '💬', label: 'English Language', value: d.firstLanguage, max: 136 },
       { icon: '💼', label: 'Canadian Work', value: d.canadianWork, max: 80 },
-      { icon: '⚡', label: 'Skill Bonus', value: d.skillTotal, max: 100 },
     ];
     if (d.secondLanguage > 0) items.splice(3, 0, { icon: '🇫🇷', label: 'French', value: d.secondLanguage, max: 24 });
+    if (d.foreignWork > 0) items.push({ icon: '🌍', label: t('results.foreignWork'), value: d.skillTotal, max: 100, note: 'via skill transferability' });
+    else items.push({ icon: '⚡', label: 'Skill Bonus', value: d.skillTotal, max: 100 });
     if (d.spouseTotal > 0) items.push({ icon: '💑', label: 'Spouse', value: d.spouseTotal, max: 40 });
     if (d.additionalTotal > 0) items.push({ icon: '⭐', label: 'Bonus Points', value: d.additionalTotal, max: 600 });
     return items;
-  }, [d]);
+  }, [d, t]);
 
   const topSuggestions = suggestions.slice(0, 3);
   const moreSuggestions = suggestions.slice(3);
-
   const pw = answers.pathway;
   const pwInfo = pathways[pw];
 
+  // Share link
+  const shareUrl = `${window.location.origin}${window.location.pathname}#${encodeAnswers(answers)}`;
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'My CRS Score', text: `My CRS score is ${score}/1200!`, url: shareUrl });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handlePrint = () => window.print();
+
+  const handleEmail = () => {
+    const subject = encodeURIComponent(`My CRS Score: ${score}/1200`);
+    const body = encodeURIComponent(
+      `My Canada Immigration CRS Score\n================================\n\n` +
+      `Total Score: ${score} / 1,200\nRecent Cut-off: ${cutoff}\nStatus: ${status.title}\n\n` +
+      (isSelfCalc ? `Breakdown:\n` +
+        `• Age: ${d.age}/110\n• Education: ${d.education}/150\n• English: ${d.firstLanguage}/136\n` +
+        `• Canadian Work: ${d.canadianWork}/80\n• Skill Bonus: ${d.skillTotal}/100\n` +
+        (d.spouseTotal > 0 ? `• Spouse: ${d.spouseTotal}/40\n` : '') +
+        (d.additionalTotal > 0 ? `• Bonus: ${d.additionalTotal}/600\n` : '') + '\n' : '') +
+      `Timeline: ${timeline.label} (est. ${timeline.months} months)\n\nCalculate your score: https://bostify.me\n`
+    );
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
+  };
+
   return (
-    <motion.div
-      className="results"
-      variants={stagger}
-      initial="hidden"
-      animate="show"
-      exit={{ opacity: 0, transition: { duration: 0.2 } }}
-    >
+    <motion.div className="results" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0, transition: { duration: 0.2 } }}>
       {/* Score Hero */}
       <motion.div className="score-hero" variants={fadeUp}>
         <ScoreGauge score={score} statusColor={status.color} />
+      </motion.div>
+
+      {/* Action Buttons */}
+      <motion.div className="result-actions" variants={fadeUp}>
+        <button className="action-btn" onClick={handleShare} aria-label="Share results">
+          {copied ? '✓ Copied!' : `🔗 ${t('results.share')}`}
+        </button>
+        <button className="action-btn" onClick={handlePrint} aria-label="Print results">
+          🖨️ {t('results.print')}
+        </button>
+        <button className="action-btn" onClick={handleEmail} aria-label="Email results">
+          ✉️ {t('results.email')}
+        </button>
       </motion.div>
 
       {/* Status Card */}
@@ -165,7 +303,7 @@ export default function Results({ answers, onRestart }) {
       {/* Breakdown */}
       {isSelfCalc && (
         <motion.div className="card" variants={fadeUp}>
-          <h3>Your Score Breakdown</h3>
+          <h3>{t('results.breakdown')}</h3>
           <motion.div className="breakdown-grid" variants={stagger} initial="hidden" animate="show">
             {breakdownItems.map(it => <BreakdownItem key={it.label} {...it} />)}
           </motion.div>
@@ -176,10 +314,25 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
+      {/* What-If */}
+      {isSelfCalc && (
+        <motion.div className="card whatif-card" variants={fadeUp}>
+          <h3 className="draws-toggle" onClick={() => setWhatifOpen(!whatifOpen)}>
+            {t('results.whatif')} <span className="toggle-arrow">{whatifOpen ? '▲' : '▼'}</span>
+          </h3>
+          {whatifOpen && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <p className="cat-intro">{t('results.whatifDesc')}</p>
+              <WhatIfPanel answers={answers} originalScore={score} t={t} />
+            </motion.div>
+          )}
+        </motion.div>
+      )}
+
       {/* Suggestions */}
       {suggestions.length > 0 && (
         <motion.div className="card" variants={fadeUp}>
-          <h3>💡 How to Improve Your Score</h3>
+          <h3>{t('results.improve')}</h3>
           {topSuggestions.map((sug, i) => (
             <motion.div className="action-card" key={i} variants={fadeUp}>
               <div className="action-rank">{i + 1}</div>
@@ -222,21 +375,17 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
-      {/* Category-Based Draw Eligibility */}
+      {/* Category Draws */}
       {isSelfCalc && (
         <motion.div className="card" variants={fadeUp}>
-          <h3>🎯 Category-Based Draw Eligibility</h3>
-          <p className="cat-intro">Canada runs special draws for specific groups with <strong>lower cutoff scores</strong>. Here's what you may qualify for:</p>
+          <h3>{t('results.category')}</h3>
+          <p className="cat-intro">{t('results.catIntro')}</p>
           <div className="cat-grid">
             {categoryBasedInfo.map(cat => {
               const eligible = cat.check(answers);
               const aboveCutoff = eligible && score >= cat.recentCutoff;
               return (
-                <motion.div
-                  key={cat.id}
-                  className={`cat-card ${eligible ? (aboveCutoff ? 'cat-above' : 'cat-eligible') : 'cat-na'}`}
-                  variants={fadeUp}
-                >
+                <motion.div key={cat.id} className={`cat-card ${eligible ? (aboveCutoff ? 'cat-above' : 'cat-eligible') : 'cat-na'}`} variants={fadeUp}>
                   <div className="cat-header">
                     <span className="cat-icon">{cat.icon}</span>
                     <div>
@@ -253,12 +402,9 @@ export default function Results({ answers, onRestart }) {
                   {eligible && (
                     <div className="cat-compare">
                       <div className="cat-bar-wrap">
-                        <motion.div
-                          className={`cat-bar ${aboveCutoff ? 'bar-above' : 'bar-below'}`}
-                          initial={{ width: 0 }}
+                        <motion.div className={`cat-bar ${aboveCutoff ? 'bar-above' : 'bar-below'}`} initial={{ width: 0 }}
                           animate={{ width: `${Math.min((score / Math.max(score, cat.recentCutoff + 50)) * 100, 100)}%` }}
-                          transition={{ duration: 0.8, ease: 'easeOut' }}
-                        />
+                          transition={{ duration: 0.8, ease: 'easeOut' }} />
                         <div className="cat-marker" style={{ left: `${(cat.recentCutoff / Math.max(score, cat.recentCutoff + 50)) * 100}%` }} />
                       </div>
                       <div className="cat-labels">
@@ -277,7 +423,7 @@ export default function Results({ answers, onRestart }) {
 
       {/* Timeline */}
       <motion.div className="card" variants={fadeUp}>
-        <h3>📊 Estimated Timeline</h3>
+        <h3>{t('results.timeline')}</h3>
         <div className={`timeline-badge tl-${status.cls}`}>
           <strong>{timeline.label}</strong> — est. {timeline.months} months
         </div>
@@ -287,7 +433,7 @@ export default function Results({ answers, onRestart }) {
       {/* Recent Draws */}
       <motion.div className="card" variants={fadeUp}>
         <h3 className="draws-toggle" onClick={() => setDrawsOpen(!drawsOpen)}>
-          📈 Recent Express Entry Draws <span className="toggle-arrow">{drawsOpen ? '▲' : '▼'}</span>
+          {t('results.draws')} <span className="toggle-arrow">{drawsOpen ? '▲' : '▼'}</span>
         </h3>
         {drawsOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="draws-content">
@@ -309,26 +455,18 @@ export default function Results({ answers, onRestart }) {
       {pwInfo && (
         <motion.div className="card" variants={fadeUp}>
           <h3>📘 {pwInfo.name} Requirements</h3>
-          <ul className="pathway-list">
-            {pwInfo.requirements.map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
+          <ul className="pathway-list">{pwInfo.requirements.map((r, i) => <li key={i}>{r}</li>)}</ul>
         </motion.div>
       )}
 
       {/* Disclaimer */}
       <motion.div className="card disclaimer" variants={fadeUp}>
-        <p><strong>Disclaimer:</strong> This calculator provides an <em>estimate</em> based on publicly available CRS criteria. It is not affiliated with IRCC. For official assessments, visit <a href="https://www.canada.ca/en/immigration-refugees-citizenship.html" target="_blank" rel="noopener noreferrer">canada.ca</a>.</p>
+        <p><strong>Disclaimer:</strong> {t('results.disclaimer')} <a href="https://www.canada.ca/en/immigration-refugees-citizenship.html" target="_blank" rel="noopener noreferrer">canada.ca</a></p>
       </motion.div>
 
       {/* Restart */}
-      <motion.button
-        className="btn-restart"
-        onClick={onRestart}
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.96 }}
-        variants={fadeUp}
-      >
-        ↻ Start Over
+      <motion.button className="btn-restart" onClick={onRestart} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} variants={fadeUp}>
+        {t('results.restart')}
       </motion.button>
     </motion.div>
   );
@@ -340,13 +478,8 @@ function CutoffBar({ label, value, max, color }) {
     <div className="cutoff-row">
       <span className="cutoff-label">{label}</span>
       <div className="cutoff-bar-wrap">
-        <motion.div
-          className="cutoff-bar"
-          style={{ background: color }}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        >
+        <motion.div className="cutoff-bar" style={{ background: color }} initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }}>
           {value}
         </motion.div>
       </div>

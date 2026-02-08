@@ -2,7 +2,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
+:root, :root[data-theme='light'] {
   --primary: #c1272d;
   --primary-dark: #a01f24;
   --accent: #e63946;
@@ -13,10 +13,28 @@
   --text: #1a1d23;
   --text-2: #495057;
   --text-3: #868e96;
+  --header-bg: rgba(255,255,255,0.85);
   --radius: 12px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
   --shadow: 0 4px 16px rgba(0,0,0,0.06);
   --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+}
+
+:root[data-theme='dark'] {
+  --primary: #e63946;
+  --primary-dark: #c1272d;
+  --accent: #ff6b6b;
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-2: #2a2d37;
+  --surface-3: #3a3d47;
+  --text: #e8eaed;
+  --text-2: #adb5bd;
+  --text-3: #6c757d;
+  --header-bg: rgba(15,17,23,0.88);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow: 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.4);
 }
 
 html { scroll-behavior: smooth; }
@@ -36,5 +54,8 @@ a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 button { font-family: inherit; cursor: pointer; }
+button:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px;
+}
 
 #root { min-height: 100vh; display: flex; flex-direction: column; }
