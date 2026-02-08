@@ -13,7 +13,6 @@ export default function Header() {
           <span style={{ fontSize: '1.6rem' }}>🍁</span>
           <span>CRS Calculator</span>
         </div>
-        <div className="header-badge">Express Entry 2025</div>
       </div>
     </motion.header>
   );
