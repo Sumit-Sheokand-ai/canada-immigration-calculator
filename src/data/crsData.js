@@ -91,8 +91,79 @@ export const additionalPointsTable = {
   pnp_nomination:600, job_offer_00:200, job_offer_other:50,
   canadian_edu_short:15, canadian_edu_long:30,
   sibling_in_canada:15,
-  french_strong_weak_english:50, french_strong_strong_english:50
+  // IRCC: French NCLC 7+ with English CLB 4 or less = 25 pts
+  // IRCC: French NCLC 7+ with English CLB 5+ = 50 pts
+  french_strong_weak_english:25, french_strong_strong_english:50
 };
+
+// Category-based selection draws (IRCC introduced June 2023)
+// Each category has eligibility criteria and recent cutoff ranges
+export const categoryBasedInfo = [
+  {
+    id: 'french',
+    name: 'French-Language Proficiency',
+    icon: '🇫🇷',
+    description: 'For candidates with strong French language skills. Cutoffs are significantly lower than general draws.',
+    eligibility: 'You need NCLC/CLB 7 or higher in ALL four French abilities (listening, reading, writing, speaking).',
+    recentCutoff: 400,
+    cutoffRange: '379–416',
+    check: (answers) => {
+      if (answers.hasFrench !== 'yes') return false;
+      const skills = ['listening','reading','writing','speaking'];
+      return skills.every(s => (parseInt(answers[`french_${s}`]) || 0) >= 7);
+    }
+  },
+  {
+    id: 'healthcare',
+    name: 'Healthcare Occupations',
+    icon: '🏥',
+    description: 'For candidates working in healthcare and social services (nurses, doctors, pharmacists, medical technicians, etc.).',
+    eligibility: 'Your primary occupation must be in a healthcare or social services NOC code (e.g., NOC 31, 32, 33).',
+    recentCutoff: 476,
+    cutoffRange: '422–476',
+    check: (answers) => answers.occupationCategory === 'healthcare'
+  },
+  {
+    id: 'stem',
+    name: 'STEM Occupations',
+    icon: '💻',
+    description: 'For candidates in Science, Technology, Engineering, and Mathematics fields (software developers, engineers, data scientists, etc.).',
+    eligibility: 'Your primary occupation must be in a STEM-related NOC code (e.g., NOC 21, 22).',
+    recentCutoff: 481,
+    cutoffRange: '470–500',
+    check: (answers) => answers.occupationCategory === 'stem'
+  },
+  {
+    id: 'trade',
+    name: 'Trade Occupations',
+    icon: '🔧',
+    description: 'For candidates in skilled trades (electricians, plumbers, welders, carpenters, etc.).',
+    eligibility: 'Your primary occupation must be in a trade-related NOC code (e.g., NOC 72, 73).',
+    recentCutoff: 433,
+    cutoffRange: '388–433',
+    check: (answers) => answers.occupationCategory === 'trade'
+  },
+  {
+    id: 'transport',
+    name: 'Transport Occupations',
+    icon: '🚛',
+    description: 'For candidates in transport occupations (truck drivers, pilots, railway workers, etc.).',
+    eligibility: 'Your primary occupation must be in a transport-related NOC code (e.g., NOC 73, 75).',
+    recentCutoff: 435,
+    cutoffRange: '410–435',
+    check: (answers) => answers.occupationCategory === 'transport'
+  },
+  {
+    id: 'agriculture',
+    name: 'Agriculture & Agri-food',
+    icon: '🌾',
+    description: 'For candidates in agriculture and agri-food occupations (farm workers, food processing, meat cutters, etc.).',
+    eligibility: 'Your primary occupation must be in an agriculture or agri-food NOC code (e.g., NOC 82, 84, 85).',
+    recentCutoff: 440,
+    cutoffRange: '354–440',
+    check: (answers) => answers.occupationCategory === 'agriculture'
+  }
+];
 
 export const nocTEER = [
   {value:"teer_0",label:"TEER 0 – Management",examples:"Financial managers, HR managers"},

@@ -19,13 +19,13 @@ const workOpts = [
 ];
 
 const STEPS = [
-  { id: 'pathway', label: 'Pathway', title: 'Select Your Immigration Pathway', subtitle: 'Which program are you applying through?', type: 'single', answerKey: 'pathway', options: [
-    { value: 'fsw', label: 'Express Entry – Federal Skilled Worker (FSW)' },
-    { value: 'cec', label: 'Express Entry – Canadian Experience Class (CEC)' },
-    { value: 'fst', label: 'Express Entry – Federal Skilled Trades (FST)' },
-    { value: 'pnp', label: 'Provincial Nominee Program (PNP)' },
-    { value: 'aip', label: 'Atlantic Immigration Program (AIP)' },
-    { value: 'other', label: 'Other Work / Study Pathways' },
+  { id: 'pathway', label: 'Pathway', title: 'Which Immigration Program Are You Applying Through?', subtitle: 'Not sure? Most skilled workers use Federal Skilled Worker (FSW). If you already work in Canada, choose Canadian Experience Class (CEC).', type: 'single', answerKey: 'pathway', options: [
+    { value: 'fsw', label: 'Federal Skilled Worker (FSW)', example: 'For skilled workers outside Canada with 1+ year work experience' },
+    { value: 'cec', label: 'Canadian Experience Class (CEC)', example: 'For people already working in Canada with 1+ year Canadian experience' },
+    { value: 'fst', label: 'Federal Skilled Trades (FST)', example: 'For qualified tradespeople (electricians, welders, plumbers, etc.)' },
+    { value: 'pnp', label: 'Provincial Nominee Program (PNP)', example: 'Nominated by a Canadian province — adds 600 CRS points' },
+    { value: 'aip', label: 'Atlantic Immigration Program (AIP)', example: 'For jobs in Nova Scotia, New Brunswick, PEI, or Newfoundland' },
+    { value: 'other', label: 'Other / Not Sure Yet', example: 'I\'m exploring my options' },
   ]},
   { id: 'knowsScore', label: 'Known Score', title: 'Do You Know Your Current CRS Points?', subtitle: 'If you\'ve already calculated your score, select Yes.', type: 'single', answerKey: 'knowsScore', options: [
     { value: 'yes', label: 'Yes, I know my approximate score' },
@@ -39,16 +39,16 @@ const STEPS = [
   ]},
   { id: 'age', label: 'Age', title: 'Your Age at Time of Application', subtitle: 'Select your current age or age when you plan to apply.', type: 'grid', answerKey: 'age',
     condition: a => a.knowsScore !== 'yes', options: buildAgeOptions() },
-  { id: 'education', label: 'Education', title: 'Highest Level of Education', subtitle: 'Select the Canadian equivalent of your highest completed credential.', type: 'single', answerKey: 'education',
+  { id: 'education', label: 'Education', title: 'What Is Your Highest Level of Education?', subtitle: 'Select the Canadian equivalent of your highest completed credential. If your degree is from outside Canada, choose the closest match. You may need an Educational Credential Assessment (ECA) to verify it.', type: 'single', answerKey: 'education',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'less_than_secondary', label: 'Less than High School' },
-    { value: 'secondary', label: 'High School Diploma' },
-    { value: 'one_year_post', label: '1-Year Post-Secondary Certificate' },
-    { value: 'two_year_post', label: '2-Year Post-Secondary Diploma' },
-    { value: 'bachelors', label: "Bachelor's Degree (3+ years)" },
-    { value: 'two_or_more', label: 'Two or More Credentials (one 3+ yr)' },
-    { value: 'masters', label: "Master's / Professional Degree" },
-    { value: 'doctoral', label: 'Doctoral Degree (PhD)' },
+    { value: 'less_than_secondary', label: 'Less than High School', example: 'Did not complete secondary/high school' },
+    { value: 'secondary', label: 'High School Diploma', example: 'Completed secondary school (Grade 12 / Class 12)' },
+    { value: 'one_year_post', label: '1-Year Post-Secondary Certificate', example: 'College diploma or trade certificate (1 year program)' },
+    { value: 'two_year_post', label: '2-Year Post-Secondary Diploma', example: 'Associate degree or 2-year college diploma' },
+    { value: 'bachelors', label: "Bachelor's Degree (3+ years)", example: '3 or 4 year university degree (B.Sc., B.A., B.Tech, etc.)' },
+    { value: 'two_or_more', label: 'Two or More Credentials (one 3+ yr)', example: 'E.g., Bachelor\'s degree + a diploma or second degree' },
+    { value: 'masters', label: "Master's / Professional Degree", example: 'M.Sc., MBA, M.Tech, Law degree, Medical degree, etc.' },
+    { value: 'doctoral', label: 'Doctoral Degree (PhD)', example: 'Ph.D. or equivalent research doctorate' },
   ]},
   { id: 'canadianEducation', label: 'Canadian Ed.', title: 'Do You Have a Canadian Education Credential?', subtitle: 'Completed at a Canadian institution.', type: 'single', answerKey: 'canadianEducation',
     condition: a => a.knowsScore !== 'yes', options: [
@@ -59,18 +59,27 @@ const STEPS = [
     { value: 'short', label: '1-2 Year Credential (certificate/diploma)' },
     { value: 'long', label: '3+ Year Credential or Graduate Degree' },
   ]},
-  { id: 'workExp', label: 'Experience', title: 'Work Experience', subtitle: 'Select years of skilled work experience.', type: 'grouped',
+  { id: 'workExp', label: 'Experience', title: 'How Many Years of Skilled Work Experience Do You Have?', subtitle: 'Count only full-time paid work (30+ hours/week) in a skilled occupation (NOC TEER 0, 1, 2, or 3). Part-time work can be combined: 2 years at 15 hrs/week = 1 year full-time.', type: 'grouped',
     condition: a => a.knowsScore !== 'yes', groups: [
-    { title: 'Work Experience Outside Canada', answerKey: 'foreignWorkExp', type: 'grid-wide', options: workOpts },
-    { title: 'Work Experience Inside Canada', answerKey: 'canadianWorkExp', type: 'grid-wide', options: workOpts },
+    { title: 'Years of Work Outside Canada', answerKey: 'foreignWorkExp', type: 'grid-wide', options: workOpts },
+    { title: 'Years of Work Inside Canada', answerKey: 'canadianWorkExp', type: 'grid-wide', options: workOpts },
   ]},
-  { id: 'nocTeer', label: 'Occupation', title: 'Job Type – NOC TEER Level', subtitle: 'Select the skill level of your primary occupation.', type: 'single', answerKey: 'nocTeer',
+  { id: 'nocTeer', label: 'Occupation', title: 'What Is the Skill Level of Your Job?', subtitle: 'Canada classifies jobs using NOC TEER levels (0-5). If you\'re not sure, search your job title on the Canada NOC website. Only TEER 0-3 qualify for Express Entry.', type: 'single', answerKey: 'nocTeer',
     condition: a => a.knowsScore !== 'yes', options: nocTEER.map(n => ({ value: n.value, label: n.label, example: n.examples })) },
-  { id: 'langTestType', label: 'Language Test', title: 'Which English Language Test Did You Take?', subtitle: 'Select the test you have results for (or plan to take).', type: 'single', answerKey: 'langTestType',
+  { id: 'occupationCategory', label: 'Job Category', title: 'Which Category Best Describes Your Occupation?', subtitle: 'Canada runs special "category-based" draws with LOWER cutoff scores for certain occupations. This helps us check if you qualify for any of these draws.', type: 'single', answerKey: 'occupationCategory',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'ielts', label: 'IELTS General Training' },
-    { value: 'celpip', label: 'CELPIP General' },
-    { value: 'none', label: "I haven't taken a test yet" },
+    { value: 'healthcare', label: 'Healthcare & Social Services', example: 'Nurses, doctors, pharmacists, dentists, physiotherapists, social workers, medical lab technicians' },
+    { value: 'stem', label: 'STEM (Science, Technology, Engineering, Math)', example: 'Software developers, engineers, data scientists, architects, biologists, mathematicians' },
+    { value: 'trade', label: 'Skilled Trades', example: 'Electricians, plumbers, welders, carpenters, heavy equipment operators, millwrights' },
+    { value: 'transport', label: 'Transport', example: 'Truck drivers, bus drivers, pilots, railway workers, delivery drivers' },
+    { value: 'agriculture', label: 'Agriculture & Agri-food', example: 'Farm workers, food processing, butchers/meat cutters, greenhouse workers, agriculture managers' },
+    { value: 'other', label: 'Other / None of the Above', example: 'My job doesn\'t fit any of the categories above' },
+  ]},
+  { id: 'langTestType', label: 'Language Test', title: 'Which English Language Test Did You Take (or Plan to Take)?', subtitle: 'An English language test is required for Express Entry. You need IELTS General Training or CELPIP General — NOT IELTS Academic. Results are valid for 2 years.', type: 'single', answerKey: 'langTestType',
+    condition: a => a.knowsScore !== 'yes', options: [
+    { value: 'ielts', label: 'IELTS General Training', example: 'Most popular worldwide — scored 0 to 9 in each ability' },
+    { value: 'celpip', label: 'CELPIP General', example: 'Canadian test — scored M, 1 to 12 in each ability' },
+    { value: 'none', label: "I haven't taken a test yet", example: 'Your score will be calculated as CLB 0 for language' },
   ]},
   { id: 'ielts', label: 'IELTS Scores', title: 'IELTS General Training Scores', subtitle: 'Select your band score for each ability.', type: 'grouped',
     condition: a => a.knowsScore !== 'yes' && a.langTestType === 'ielts', groups: [
@@ -86,11 +95,12 @@ const STEPS = [
     { title: 'Writing', answerKey: 'celpip_writing', type: 'grid', options: bandOpts(celpipLevels) },
     { title: 'Speaking', answerKey: 'celpip_speaking', type: 'grid', options: bandOpts(celpipLevels) },
   ]},
-  { id: 'hasFrench', label: 'French', title: 'Do You Have a French Language Test Result?', subtitle: 'TEF Canada, TCF Canada, or equivalent.', type: 'single', answerKey: 'hasFrench',
+  { id: 'hasFrench', label: 'French', title: 'Do You Have a French Language Test Result?', subtitle: 'French is NOT required, but having strong French scores (NCLC 7+) gives you 25-50 extra CRS points AND makes you eligible for French-language category draws with much lower cutoffs (~400 instead of ~520). Tests accepted: TEF Canada, TCF Canada.', type: 'single', answerKey: 'hasFrench',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' },
+    { value: 'yes', label: 'Yes — I have TEF or TCF results', example: 'I have taken a French language test' },
+    { value: 'no', label: 'No — I don\'t have French test results', example: 'I haven\'t taken a French test (no penalty)' },
   ]},
-  { id: 'frenchScores', label: 'French CLB', title: 'French Language – CLB Levels', subtitle: 'Select your CLB level for each ability.', type: 'grouped',
+  { id: 'frenchScores', label: 'French CLB', title: 'French Language – NCLC/CLB Levels', subtitle: 'Enter your NCLC (Niveaux de compétence linguistique canadiens) level for each ability. Your TEF/TCF score report will show your NCLC level. CLB 7+ in all four = eligible for French category draws.', type: 'grouped',
     condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes', groups: [
     { title: 'Listening', answerKey: 'french_listening', type: 'grid', options: clbOpts },
     { title: 'Reading', answerKey: 'french_reading', type: 'grid', options: clbOpts },
@@ -130,9 +140,10 @@ const STEPS = [
       { title: "Spouse CLB – Speaking", answerKey: 'spouseLang_speaking', type: 'grid', options: clbOpts },
       { title: "Spouse's Canadian Work Experience", answerKey: 'spouseCanadianWork', type: 'grid-wide', options: workOpts },
     ]},
-  { id: 'hasJobOffer', label: 'Job Offer', title: 'Do You Have a Valid Job Offer from a Canadian Employer?', subtitle: 'Must be supported by a Labour Market Impact Assessment (LMIA).', type: 'single', answerKey: 'hasJobOffer',
+  { id: 'hasJobOffer', label: 'Job Offer', title: 'Do You Have a Valid Job Offer from a Canadian Employer?', subtitle: 'The job offer must be supported by a positive LMIA (Labour Market Impact Assessment) or be LMIA-exempt. A valid job offer in a TEER 0-3 occupation adds 50 points (or 200 for senior management).', type: 'single', answerKey: 'hasJobOffer',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' },
+    { value: 'yes', label: 'Yes — I have an LMIA-backed job offer' },
+    { value: 'no', label: 'No — I don\'t have a Canadian job offer' },
   ]},
   { id: 'jobOfferTeer', label: 'Job TEER', title: 'Job Offer – NOC TEER Level', type: 'single', answerKey: 'jobOfferTeer',
     condition: a => a.knowsScore !== 'yes' && a.hasJobOffer === 'yes',
@@ -146,14 +157,15 @@ const STEPS = [
     condition: a => a.knowsScore !== 'yes' && a.pathway === 'fst', options: [
     { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' },
   ]},
-  { id: 'hasPNP', label: 'PNP', title: 'Do You Have a Provincial Nomination (PNP)?', type: 'single', answerKey: 'hasPNP',
+  { id: 'hasPNP', label: 'PNP', title: 'Do You Have a Provincial Nomination?', subtitle: 'A Provincial Nominee Program (PNP) nomination adds 600 CRS points — this virtually guarantees an Invitation to Apply. Each province has its own requirements.', type: 'single', answerKey: 'hasPNP',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'yes', label: 'Yes – I have a provincial nomination' },
-    { value: 'no', label: 'No' },
+    { value: 'yes', label: 'Yes — I have been nominated by a province', example: 'Ontario, BC, Alberta, Saskatchewan, Manitoba, etc.' },
+    { value: 'no', label: 'No — I have not received a PNP nomination' },
   ]},
-  { id: 'hasSibling', label: 'Sibling', title: 'Do You Have a Sibling in Canada?', subtitle: 'A brother or sister who is a Canadian citizen or permanent resident.', type: 'single', answerKey: 'hasSibling',
+  { id: 'hasSibling', label: 'Sibling', title: 'Do You Have a Brother or Sister Living in Canada?', subtitle: 'Having a sibling (brother or sister) who is a Canadian citizen or permanent resident and is 18 years or older adds 15 CRS points.', type: 'single', answerKey: 'hasSibling',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' },
+    { value: 'yes', label: 'Yes — I have a sibling who is a Canadian citizen or PR' },
+    { value: 'no', label: 'No' },
   ]},
 ];
 

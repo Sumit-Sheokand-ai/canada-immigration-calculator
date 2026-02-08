@@ -38,7 +38,7 @@ export function generateSuggestions(answers, result) {
   }
 
   // Education upgrade
-  const eduOrder = ['none', 'secondary', 'oneYear', 'twoYear', 'bachelors', 'twoOrMoreCreds', 'masters', 'doctoral'];
+  const eduOrder = ['less_than_secondary', 'secondary', 'one_year_post', 'two_year_post', 'bachelors', 'two_or_more', 'masters', 'doctoral'];
   const curIdx = eduOrder.indexOf(answers.education);
   if (curIdx >= 0 && curIdx < eduOrder.length - 1) {
     const nextEdu = eduOrder[curIdx + 1];
@@ -46,8 +46,8 @@ export function generateSuggestions(answers, result) {
     const gain = newResult.total - result.total;
     if (gain > 0) {
       const labels = {
-        secondary: 'high school diploma', oneYear: '1-year diploma', twoYear: '2-year diploma',
-        bachelors: "bachelor's degree", twoOrMoreCreds: 'two credentials', masters: "master's degree", doctoral: 'doctoral degree'
+        secondary: 'high school diploma', one_year_post: '1-year diploma', two_year_post: '2-year diploma',
+        bachelors: "bachelor's degree", two_or_more: 'two credentials', masters: "master's degree", doctoral: 'doctoral degree'
       };
       suggestions.push(makeSuggestion(
         'Higher Education',
@@ -79,8 +79,18 @@ export function generateSuggestions(answers, result) {
     if (gain > 0) {
       suggestions.push(makeSuggestion(
         'Learn French (TEF/TCF)',
-        `Strong French skills (CLB 7+) earn additional points, especially combined with good English.`,
+        `Strong French skills (NCLC 7+) earn ${minCLB >= 5 ? '50' : '25'} additional CRS points. Plus, French-language category draws have cutoffs around 400 — much lower than general draws (~520).`,
         gain, 'Hard', '6-12 months', 'french'
+      ));
+    }
+  } else {
+    // Already has French — check if they qualify for category draws
+    const minFr = getMinFrenchCLB(answers);
+    if (minFr >= 7 && result.total < 520 && result.total >= 370) {
+      suggestions.push(makeSuggestion(
+        'Target French-Language Category Draw',
+        `With your French NCLC 7+ scores, you qualify for French-language category draws where recent cutoffs are around 400 — your score of ${result.total} may already be competitive!`,
+        0, 'Easy', 'Immediate', 'french'
       ));
     }
   }

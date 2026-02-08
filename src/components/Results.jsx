@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { calculate } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
-import { latestDraws, pathways } from '../data/crsData';
+import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
@@ -219,6 +219,59 @@ export default function Results({ answers, onRestart }) {
               </button>
             </>
           )}
+        </motion.div>
+      )}
+
+      {/* Category-Based Draw Eligibility */}
+      {isSelfCalc && (
+        <motion.div className="card" variants={fadeUp}>
+          <h3>🎯 Category-Based Draw Eligibility</h3>
+          <p className="cat-intro">Canada runs special draws for specific groups with <strong>lower cutoff scores</strong>. Here's what you may qualify for:</p>
+          <div className="cat-grid">
+            {categoryBasedInfo.map(cat => {
+              const eligible = cat.check(answers);
+              const aboveCutoff = eligible && score >= cat.recentCutoff;
+              return (
+                <motion.div
+                  key={cat.id}
+                  className={`cat-card ${eligible ? (aboveCutoff ? 'cat-above' : 'cat-eligible') : 'cat-na'}`}
+                  variants={fadeUp}
+                >
+                  <div className="cat-header">
+                    <span className="cat-icon">{cat.icon}</span>
+                    <div>
+                      <strong className="cat-name">{cat.name}</strong>
+                      {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? '✓ Above Cutoff' : 'Eligible'}</span>}
+                      {!eligible && <span className="cat-badge badge-na">Not Eligible</span>}
+                    </div>
+                  </div>
+                  <p className="cat-desc">{cat.description}</p>
+                  <div className="cat-cutoff">
+                    <span>Recent cutoff: <strong>{cat.recentCutoff}</strong></span>
+                    <span className="cat-range">Range: {cat.cutoffRange}</span>
+                  </div>
+                  {eligible && (
+                    <div className="cat-compare">
+                      <div className="cat-bar-wrap">
+                        <motion.div
+                          className={`cat-bar ${aboveCutoff ? 'bar-above' : 'bar-below'}`}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min((score / Math.max(score, cat.recentCutoff + 50)) * 100, 100)}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                        />
+                        <div className="cat-marker" style={{ left: `${(cat.recentCutoff / Math.max(score, cat.recentCutoff + 50)) * 100}%` }} />
+                      </div>
+                      <div className="cat-labels">
+                        <span>Your score: {score}</span>
+                        <span>Cutoff: {cat.recentCutoff}</span>
+                      </div>
+                    </div>
+                  )}
+                  {!eligible && <p className="cat-req">{cat.eligibility}</p>}
+                </motion.div>
+              );
+            })}
+          </div>
         </motion.div>
       )}
 
