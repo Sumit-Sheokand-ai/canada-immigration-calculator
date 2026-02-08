@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
@@ -184,49 +184,71 @@ function WhatIfPanel({ answers, originalScore, t }) {
 }
 
 /* ── Loading Screen ── */
+const LOAD_PHASES = [
+  'Analyzing profile',
+  'Calculating core factors',
+  'Evaluating language scores',
+  'Computing skill transferability',
+  'Checking eligibility',
+  'Finalizing CRS score',
+];
+
 function LoadingScreen() {
+  const [progress, setProgress] = useState(0);
+  const [phaseIdx, setPhaseIdx] = useState(0);
+
+  useEffect(() => {
+    let raf;
+    const start = performance.now();
+    const dur = 2200;
+    const tick = (now) => {
+      const t = Math.min((now - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setProgress(Math.round(ease * 100));
+      setPhaseIdx(Math.min(Math.floor(ease * LOAD_PHASES.length), LOAD_PHASES.length - 1));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const R = 52, C = 2 * Math.PI * R;
+
   return (
-    <motion.div
-      className="loading-screen"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.3 } }}
-    >
-      <div className="loader-ring">
-        <svg viewBox="0 0 100 100" width="80" height="80">
-          <circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface-2)" strokeWidth="6" />
-          <motion.circle
-            cx="50" cy="50" r="40" fill="none" stroke="var(--primary)" strokeWidth="6"
-            strokeLinecap="round" transform="rotate(-90 50 50)"
-            strokeDasharray="251.2"
-            initial={{ strokeDashoffset: 251.2 }}
-            animate={{ strokeDashoffset: 0 }}
-            transition={{ duration: 1.5, ease: [0.4, 0, 0.2, 1] }}
-          />
+    <motion.div className="loading-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}>
+      <div className="loader-pulse" />
+      <div className="loader-gauge">
+        <svg viewBox="0 0 120 120" width="150" height="150">
+          <circle cx="60" cy="60" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="3" opacity="0.3" />
+          <circle cx="60" cy="60" r={R} fill="none" stroke="url(#lgGrad)" strokeWidth="5"
+            strokeLinecap="round" transform="rotate(-90 60 60)"
+            strokeDasharray={C} strokeDashoffset={C * (1 - progress / 100)}
+            className="loader-arc" />
+          <defs>
+            <linearGradient id="lgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="var(--primary)" />
+              <stop offset="100%" stopColor="var(--accent)" />
+            </linearGradient>
+          </defs>
         </svg>
-        <motion.span
-          className="loader-pct"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >Calculating...</motion.span>
+        <div className="loader-center">
+          <span className="loader-num">{progress}</span>
+          <span className="loader-pct-sign">%</span>
+        </div>
       </div>
-      <motion.div
-        className="loader-bars"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        {[0.6, 0.8, 0.4, 1, 0.7].map((w, i) => (
-          <motion.div
-            key={i}
-            className="loader-bar"
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: w }}
-            transition={{ duration: 0.6, delay: 0.5 + i * 0.1, ease: 'easeOut' }}
-          />
+      <AnimatePresence mode="wait">
+        <motion.p key={phaseIdx} className="loader-phase"
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+          {LOAD_PHASES[phaseIdx]}
+        </motion.p>
+      </AnimatePresence>
+      <div className="loader-dots">
+        {LOAD_PHASES.map((_, i) => (
+          <div key={i} className={`loader-dot${i <= phaseIdx ? ' active' : ''}`} />
         ))}
-      </motion.div>
+      </div>
     </motion.div>
   );
 }
@@ -241,7 +263,7 @@ export default function Results({ answers, onRestart }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1800);
+    const timer = setTimeout(() => setLoading(false), 2500);
     return () => clearTimeout(timer);
   }, []);
 
