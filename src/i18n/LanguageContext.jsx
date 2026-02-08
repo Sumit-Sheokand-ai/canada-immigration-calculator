@@ -1,9 +1,8 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import en from './en.json';
 import fr from './fr.json';
-import hi from './hi.json';
 
-const translations = { en, fr, hi };
+const translations = { en, fr };
 const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {

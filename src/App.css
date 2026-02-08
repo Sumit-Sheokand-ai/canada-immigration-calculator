@@ -376,6 +376,62 @@
 .btn-restart:hover { background: var(--surface-2); }
 
 /* ═══════════════════════════════════════════
+   LOADING SCREEN
+   ═══════════════════════════════════════════ */
+.loading-screen {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 50vh; gap: 32px;
+}
+.loader-ring { position: relative; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.loader-pct { font-size: 14px; font-weight: 600; color: var(--text-2); letter-spacing: 0.04em; }
+.loader-bars { display: flex; flex-direction: column; gap: 8px; width: 180px; }
+.loader-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); transform-origin: left; }
+
+/* ═══════════════════════════════════════════
+   FEATURE NUMBER ICONS
+   ═══════════════════════════════════════════ */
+.feature-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary); color: #fff;
+  font-size: 13px; font-weight: 700; font-family: serif;
+}
+
+/* ═══════════════════════════════════════════
+   STATUS MARKERS
+   ═══════════════════════════════════════════ */
+.status-marker {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  font-weight: 700; font-size: 16px; color: #fff;
+}
+.status-marker.above { background: #22c55e; }
+.status-marker.close { background: #f59e0b; }
+.status-marker.below { background: #ef4444; }
+
+/* ═══════════════════════════════════════════
+   BREAKDOWN ICON (letter badge)
+   ═══════════════════════════════════════════ */
+.bd-icon {
+  font-size: 12px !important; font-weight: 700;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--text-2);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   CATEGORY ICON (letter badge)
+   ═══════════════════════════════════════════ */
+.cat-icon {
+  font-size: 11px !important; font-weight: 700;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--text-2);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
@@ -409,7 +465,7 @@
 @media print {
   .header, .footer, .wizard-nav, .btn-restart, .btn-start,
   .btn-toggle, .draws-toggle, .theme-toggle, .lang-select,
-  .header-actions, .whatif-card { display: none !important; }
+  .header-actions, .whatif-card, .result-actions { display: none !important; }
   .app { min-height: auto; }
   .main { max-width: 100%; padding: 0; }
   .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }

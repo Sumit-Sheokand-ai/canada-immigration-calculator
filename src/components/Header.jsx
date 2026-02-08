@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
-const langLabels = { en: 'EN', fr: 'FR', hi: 'HI' };
+const langLabels = { en: 'EN', fr: 'FR' };
 
 export default function Header() {
   const { dark, toggle } = useTheme();
@@ -37,7 +37,7 @@ export default function Header() {
             aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
             title={dark ? 'Light mode' : 'Dark mode'}
           >
-            {dark ? '☀️' : '🌙'}
+            {dark ? 'Light' : 'Dark'}
           </button>
         </div>
       </div>

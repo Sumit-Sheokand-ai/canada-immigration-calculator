@@ -183,13 +183,67 @@ function WhatIfPanel({ answers, originalScore, t }) {
   );
 }
 
+/* ── Loading Screen ── */
+function LoadingScreen() {
+  return (
+    <motion.div
+      className="loading-screen"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.3 } }}
+    >
+      <div className="loader-ring">
+        <svg viewBox="0 0 100 100" width="80" height="80">
+          <circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface-2)" strokeWidth="6" />
+          <motion.circle
+            cx="50" cy="50" r="40" fill="none" stroke="var(--primary)" strokeWidth="6"
+            strokeLinecap="round" transform="rotate(-90 50 50)"
+            strokeDasharray="251.2"
+            initial={{ strokeDashoffset: 251.2 }}
+            animate={{ strokeDashoffset: 0 }}
+            transition={{ duration: 1.5, ease: [0.4, 0, 0.2, 1] }}
+          />
+        </svg>
+        <motion.span
+          className="loader-pct"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >Calculating...</motion.span>
+      </div>
+      <motion.div
+        className="loader-bars"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        {[0.6, 0.8, 0.4, 1, 0.7].map((w, i) => (
+          <motion.div
+            key={i}
+            className="loader-bar"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: w }}
+            transition={{ duration: 0.6, delay: 0.5 + i * 0.1, ease: 'easeOut' }}
+          />
+        ))}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ── Main Results ── */
 export default function Results({ answers, onRestart }) {
   const { t } = useLanguage();
+  const [loading, setLoading] = useState(true);
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [whatifOpen, setWhatifOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const result = useMemo(() => {
     if (answers.knowsScore === 'yes') {
@@ -209,10 +263,10 @@ export default function Results({ answers, onRestart }) {
   const diff = score - cutoff;
 
   const status = diff >= 20
-    ? { cls: 'above', emoji: '✅', title: 'Great News!', desc: `Your score is ${diff} points above the recent cut-off (${cutoff}). You have a strong chance of receiving an Invitation to Apply.`, color: '#22c55e' }
+    ? { cls: 'above', marker: '+', title: 'Great News!', desc: `Your score is ${diff} points above the recent cut-off (${cutoff}). You have a strong chance of receiving an Invitation to Apply.`, color: '#22c55e' }
     : diff >= -10
-    ? { cls: 'close', emoji: '🟡', title: 'Almost There!', desc: `You're just ${Math.abs(diff)} points ${diff >= 0 ? 'above' : 'below'} the recent cut-off (${cutoff}). A few small improvements could make the difference.`, color: '#f59e0b' }
-    : { cls: 'below', emoji: '🔴', title: 'Room to Improve', desc: `You're ${Math.abs(diff)} points below the recent cut-off (${cutoff}). Don't worry — see the suggestions below to boost your score.`, color: '#ef4444' };
+    ? { cls: 'close', marker: '~', title: 'Almost There!', desc: `You're just ${Math.abs(diff)} points ${diff >= 0 ? 'above' : 'below'} the recent cut-off (${cutoff}). A few small improvements could make the difference.`, color: '#f59e0b' }
+    : { cls: 'below', marker: '—', title: 'Room to Improve', desc: `You're ${Math.abs(diff)} points below the recent cut-off (${cutoff}). Don't worry — see the suggestions below to boost your score.`, color: '#ef4444' };
 
   const suggestions = useMemo(() => generateSuggestions(answers, result), [answers, result]);
   const timeline = useMemo(() => estimateTimeline(result), [result]);
@@ -220,16 +274,16 @@ export default function Results({ answers, onRestart }) {
 
   const breakdownItems = useMemo(() => {
     const items = [
-      { icon: '👤', label: 'Age', value: d.age, max: 110 },
-      { icon: '🎓', label: 'Education', value: d.education, max: 150 },
-      { icon: '💬', label: 'English Language', value: d.firstLanguage, max: 136 },
-      { icon: '💼', label: 'Canadian Work', value: d.canadianWork, max: 80 },
+      { icon: 'A', label: 'Age', value: d.age, max: 110 },
+      { icon: 'E', label: 'Education', value: d.education, max: 150 },
+      { icon: 'L', label: 'English Language', value: d.firstLanguage, max: 136 },
+      { icon: 'W', label: 'Canadian Work', value: d.canadianWork, max: 80 },
     ];
-    if (d.secondLanguage > 0) items.splice(3, 0, { icon: '🇫🇷', label: 'French', value: d.secondLanguage, max: 24 });
-    if (d.foreignWork > 0) items.push({ icon: '🌍', label: t('results.foreignWork'), value: d.skillTotal, max: 100, note: 'via skill transferability' });
-    else items.push({ icon: '⚡', label: 'Skill Bonus', value: d.skillTotal, max: 100 });
-    if (d.spouseTotal > 0) items.push({ icon: '💑', label: 'Spouse', value: d.spouseTotal, max: 40 });
-    if (d.additionalTotal > 0) items.push({ icon: '⭐', label: 'Bonus Points', value: d.additionalTotal, max: 600 });
+    if (d.secondLanguage > 0) items.splice(3, 0, { icon: 'F', label: 'French', value: d.secondLanguage, max: 24 });
+    if (d.foreignWork > 0) items.push({ icon: 'S', label: t('results.foreignWork'), value: d.skillTotal, max: 100, note: 'via skill transferability' });
+    else items.push({ icon: 'S', label: 'Skill Bonus', value: d.skillTotal, max: 100 });
+    if (d.spouseTotal > 0) items.push({ icon: 'P', label: 'Spouse', value: d.spouseTotal, max: 40 });
+    if (d.additionalTotal > 0) items.push({ icon: '+', label: 'Bonus Points', value: d.additionalTotal, max: 600 });
     return items;
   }, [d, t]);
 
@@ -242,33 +296,32 @@ export default function Results({ answers, onRestart }) {
   const shareUrl = `${window.location.origin}${window.location.pathname}#${encodeAnswers(answers)}`;
 
   const handleShare = async () => {
-    if (navigator.share) {
-      try {
+    try {
+      if (navigator.share) {
         await navigator.share({ title: 'My CRS Score', text: `My CRS score is ${score}/1200!`, url: shareUrl });
-      } catch {}
-    } else {
+        return;
+      }
+    } catch {}
+    try {
       await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for HTTP / older browsers
+      const ta = document.createElement('textarea');
+      ta.value = shareUrl;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const handlePrint = () => window.print();
+  const handlePDF = () => window.print();
 
-  const handleEmail = () => {
-    const subject = encodeURIComponent(`My CRS Score: ${score}/1200`);
-    const body = encodeURIComponent(
-      `My Canada Immigration CRS Score\n================================\n\n` +
-      `Total Score: ${score} / 1,200\nRecent Cut-off: ${cutoff}\nStatus: ${status.title}\n\n` +
-      (isSelfCalc ? `Breakdown:\n` +
-        `• Age: ${d.age}/110\n• Education: ${d.education}/150\n• English: ${d.firstLanguage}/136\n` +
-        `• Canadian Work: ${d.canadianWork}/80\n• Skill Bonus: ${d.skillTotal}/100\n` +
-        (d.spouseTotal > 0 ? `• Spouse: ${d.spouseTotal}/40\n` : '') +
-        (d.additionalTotal > 0 ? `• Bonus: ${d.additionalTotal}/600\n` : '') + '\n' : '') +
-      `Timeline: ${timeline.label} (est. ${timeline.months} months)\n\nCalculate your score: https://bostify.me\n`
-    );
-    window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
-  };
+  if (loading) return <LoadingScreen />;
 
   return (
     <motion.div className="results" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0, transition: { duration: 0.2 } }}>
@@ -280,19 +333,16 @@ export default function Results({ answers, onRestart }) {
       {/* Action Buttons */}
       <motion.div className="result-actions" variants={fadeUp}>
         <button className="action-btn" onClick={handleShare} aria-label="Share results">
-          {copied ? '✓ Copied!' : `🔗 ${t('results.share')}`}
+          {copied ? '✓ Copied!' : t('results.share')}
         </button>
-        <button className="action-btn" onClick={handlePrint} aria-label="Print results">
-          🖨️ {t('results.print')}
-        </button>
-        <button className="action-btn" onClick={handleEmail} aria-label="Email results">
-          ✉️ {t('results.email')}
+        <button className="action-btn" onClick={handlePDF} aria-label="Download PDF">
+          {t('results.pdf')}
         </button>
       </motion.div>
 
       {/* Status Card */}
       <motion.div className={`card status-card ${status.cls}-card`} variants={fadeUp}>
-        <div className="status-header">{status.emoji} <strong>{status.title}</strong></div>
+        <div className="status-header"><span className={`status-marker ${status.cls}`}>{status.marker}</span> <strong>{status.title}</strong></div>
         <p className="status-desc">{status.desc}</p>
         <div className="cutoff-compare">
           <CutoffBar label="Your Score" value={score} max={Math.max(score, cutoff, 600)} color="var(--primary)" />
@@ -343,7 +393,7 @@ export default function Results({ answers, onRestart }) {
                 </div>
                 <div className="action-desc">{sug.description}</div>
                 <div className="action-meta">
-                  <span className="action-time">⏱ {sug.timeframe}</span>
+                  <span className="action-time">{sug.timeframe}</span>
                   <span className={`action-diff diff-${sug.difficulty.toLowerCase()}`}>{sug.difficulty}</span>
                 </div>
               </div>
@@ -361,7 +411,7 @@ export default function Results({ answers, onRestart }) {
                     </div>
                     <div className="action-desc">{sug.description}</div>
                     <div className="action-meta">
-                      <span className="action-time">⏱ {sug.timeframe}</span>
+                      <span className="action-time">{sug.timeframe}</span>
                       <span className={`action-diff diff-${sug.difficulty.toLowerCase()}`}>{sug.difficulty}</span>
                     </div>
                   </div>
@@ -390,7 +440,7 @@ export default function Results({ answers, onRestart }) {
                     <span className="cat-icon">{cat.icon}</span>
                     <div>
                       <strong className="cat-name">{cat.name}</strong>
-                      {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? '✓ Above Cutoff' : 'Eligible'}</span>}
+                    {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? 'Above Cutoff' : 'Eligible'}</span>}
                       {!eligible && <span className="cat-badge badge-na">Not Eligible</span>}
                     </div>
                   </div>
@@ -454,7 +504,7 @@ export default function Results({ answers, onRestart }) {
       {/* Pathway Info */}
       {pwInfo && (
         <motion.div className="card" variants={fadeUp}>
-          <h3>📘 {pwInfo.name} Requirements</h3>
+          <h3>{pwInfo.name} Requirements</h3>
           <ul className="pathway-list">{pwInfo.requirements.map((r, i) => <li key={i}>{r}</li>)}</ul>
         </motion.div>
       )}

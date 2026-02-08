@@ -102,7 +102,7 @@ export const categoryBasedInfo = [
   {
     id: 'french',
     name: 'French-Language Proficiency',
-    icon: '🇫🇷',
+    icon: 'FR',
     description: 'For candidates with strong French language skills. Cutoffs are significantly lower than general draws.',
     eligibility: 'You need NCLC/CLB 7 or higher in ALL four French abilities (listening, reading, writing, speaking).',
     recentCutoff: 400,
@@ -116,7 +116,7 @@ export const categoryBasedInfo = [
   {
     id: 'healthcare',
     name: 'Healthcare Occupations',
-    icon: '🏥',
+    icon: 'HC',
     description: 'For candidates working in healthcare and social services (nurses, doctors, pharmacists, medical technicians, etc.).',
     eligibility: 'Your primary occupation must be in a healthcare or social services NOC code (e.g., NOC 31, 32, 33).',
     recentCutoff: 476,
@@ -126,7 +126,7 @@ export const categoryBasedInfo = [
   {
     id: 'stem',
     name: 'STEM Occupations',
-    icon: '💻',
+    icon: 'ST',
     description: 'For candidates in Science, Technology, Engineering, and Mathematics fields (software developers, engineers, data scientists, etc.).',
     eligibility: 'Your primary occupation must be in a STEM-related NOC code (e.g., NOC 21, 22).',
     recentCutoff: 481,
@@ -136,7 +136,7 @@ export const categoryBasedInfo = [
   {
     id: 'trade',
     name: 'Trade Occupations',
-    icon: '🔧',
+    icon: 'TR',
     description: 'For candidates in skilled trades (electricians, plumbers, welders, carpenters, etc.).',
     eligibility: 'Your primary occupation must be in a trade-related NOC code (e.g., NOC 72, 73).',
     recentCutoff: 433,
@@ -146,7 +146,7 @@ export const categoryBasedInfo = [
   {
     id: 'transport',
     name: 'Transport Occupations',
-    icon: '🚛',
+    icon: 'TP',
     description: 'For candidates in transport occupations (truck drivers, pilots, railway workers, etc.).',
     eligibility: 'Your primary occupation must be in a transport-related NOC code (e.g., NOC 73, 75).',
     recentCutoff: 435,
@@ -156,7 +156,7 @@ export const categoryBasedInfo = [
   {
     id: 'agriculture',
     name: 'Agriculture & Agri-food',
-    icon: '🌾',
+    icon: 'AG',
     description: 'For candidates in agriculture and agri-food occupations (farm workers, food processing, meat cutters, etc.).',
     eligibility: 'Your primary occupation must be in an agriculture or agri-food NOC code (e.g., NOC 82, 84, 85).',
     recentCutoff: 440,

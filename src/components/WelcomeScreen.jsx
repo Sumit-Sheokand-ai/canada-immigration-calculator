@@ -15,10 +15,10 @@ export default function WelcomeScreen({ onStart, hasSaved }) {
   const { t } = useLanguage();
 
   const features = [
-    { icon: '📊', title: t('feature.accurate'), desc: t('feature.accurateDesc') },
-    { icon: '🎯', title: t('feature.suggestions'), desc: t('feature.suggestionsDesc') },
-    { icon: '📅', title: t('feature.draws'), desc: t('feature.drawsDesc') },
-    { icon: '⚡', title: t('feature.instant'), desc: t('feature.instantDesc') },
+    { icon: 'I', iconClass: 'fi fi-score', title: t('feature.accurate'), desc: t('feature.accurateDesc') },
+    { icon: 'II', iconClass: 'fi fi-tips', title: t('feature.suggestions'), desc: t('feature.suggestionsDesc') },
+    { icon: 'III', iconClass: 'fi fi-data', title: t('feature.draws'), desc: t('feature.drawsDesc') },
+    { icon: 'IV', iconClass: 'fi fi-fast', title: t('feature.instant'), desc: t('feature.instantDesc') },
   ];
 
   return (
@@ -59,7 +59,7 @@ export default function WelcomeScreen({ onStart, hasSaved }) {
             variants={item}
             whileHover={{ y: -4, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
           >
-            <span className="feature-icon">{f.icon}</span>
+            <span className="feature-icon feature-num">{f.icon}</span>
             <strong>{f.title}</strong>
             <span className="feature-desc">{f.desc}</span>
           </motion.div>
