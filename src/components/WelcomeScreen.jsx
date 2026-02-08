@@ -28,9 +28,7 @@ export default function WelcomeScreen({ onStart }) {
     >
       <motion.div className="welcome-hero" variants={item}>
         <div className="hero-flag">
-          <span className="flag-bar left" />
           <span className="flag-leaf">🍁</span>
-          <span className="flag-bar right" />
         </div>
         <h1>Canada Immigration<br />Points Calculator</h1>
         <p className="hero-sub">
