@@ -212,31 +212,93 @@ function LoadingScreen() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const R = 52, C = 2 * Math.PI * R;
+  /* Zigzag tube: 8 segments, each ~53px long, total ~425 */
+  const tube = 'M 0,45 L 40,10 L 80,45 L 120,10 L 160,45 L 200,10 L 240,45 L 280,10 L 320,45';
+  const tubeLen = 425;
+  const off = tubeLen * (1 - progress / 100);
 
   return (
     <motion.div className="loading-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}>
       <div className="loader-pulse" />
-      <div className="loader-gauge">
-        <svg viewBox="0 0 120 120" width="150" height="150">
-          <circle cx="60" cy="60" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="3" opacity="0.3" />
-          <circle cx="60" cy="60" r={R} fill="none" stroke="url(#lgGrad)" strokeWidth="5"
-            strokeLinecap="round" transform="rotate(-90 60 60)"
-            strokeDasharray={C} strokeDashoffset={C * (1 - progress / 100)}
-            className="loader-arc" />
-          <defs>
-            <linearGradient id="lgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="var(--primary)" />
-              <stop offset="100%" stopColor="var(--accent)" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <div className="loader-center">
-          <span className="loader-num">{progress}</span>
-          <span className="loader-pct-sign">%</span>
-        </div>
+
+      {/* Percentage */}
+      <div className="loader-pct-wrap">
+        <span className="loader-num">{progress}</span>
+        <span className="loader-pct-sign">%</span>
       </div>
+
+      {/* 3D Zigzag Glass Tube */}
+      <div className="tube-perspective">
+        <svg viewBox="-4 -4 328 58" className="tube-svg" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="tubeGlass" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="white" stopOpacity="0.18" />
+              <stop offset="40%" stopColor="white" stopOpacity="0.04" />
+              <stop offset="100%" stopColor="white" stopOpacity="0.10" />
+            </linearGradient>
+            <linearGradient id="waterGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="var(--primary)" />
+              <stop offset="50%" stopColor="var(--accent)" />
+              <stop offset="100%" stopColor="var(--primary)" />
+            </linearGradient>
+            <linearGradient id="waterShine" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="white" stopOpacity="0.35" />
+              <stop offset="50%" stopColor="white" stopOpacity="0" />
+              <stop offset="100%" stopColor="white" stopOpacity="0.08" />
+            </linearGradient>
+            <filter id="tubeGlow">
+              <feGaussianBlur stdDeviation="4" result="b" />
+              <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <filter id="innerShadow">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
+              <feOffset dx="0" dy="2" result="shifted" />
+              <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadow" />
+              <feFlood floodColor="black" floodOpacity="0.2" result="color" />
+              <feComposite in="color" in2="shadow" operator="in" />
+            </filter>
+          </defs>
+
+          {/* 3D Shadow underneath */}
+          <path d={tube} fill="none" stroke="var(--surface-3)" strokeWidth="14"
+            strokeLinecap="round" strokeLinejoin="round"
+            opacity="0.12" transform="translate(3, 5)" />
+
+          {/* Glass tube outer wall */}
+          <path d={tube} fill="none" stroke="var(--surface-2)" strokeWidth="14"
+            strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+
+          {/* Glass tube inner highlight (top reflection) */}
+          <path d={tube} fill="none" stroke="url(#tubeGlass)" strokeWidth="12"
+            strokeLinecap="round" strokeLinejoin="round" />
+
+          {/* Water fill — glow layer */}
+          <path d={tube} fill="none" stroke="url(#waterGrad)" strokeWidth="10"
+            strokeLinecap="round" strokeLinejoin="round"
+            strokeDasharray={tubeLen} strokeDashoffset={off}
+            filter="url(#tubeGlow)" opacity="0.4" className="tube-water" />
+
+          {/* Water fill — main */}
+          <path d={tube} fill="none" stroke="url(#waterGrad)" strokeWidth="8"
+            strokeLinecap="round" strokeLinejoin="round"
+            strokeDasharray={tubeLen} strokeDashoffset={off}
+            className="tube-water" />
+
+          {/* Water fill — specular highlight on top */}
+          <path d={tube} fill="none" stroke="url(#waterShine)" strokeWidth="4"
+            strokeLinecap="round" strokeLinejoin="round"
+            strokeDasharray={tubeLen} strokeDashoffset={off}
+            className="tube-water" style={{ transform: 'translateY(-1.5px)' }} />
+
+          {/* Glass tube top reflection streak */}
+          <path d={tube} fill="none" stroke="white" strokeWidth="1.5"
+            strokeLinecap="round" strokeLinejoin="round"
+            opacity="0.12" style={{ transform: 'translateY(-5px)' }} />
+        </svg>
+      </div>
+
+      {/* Phase text */}
       <AnimatePresence mode="wait">
         <motion.p key={phaseIdx} className="loader-phase"
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -244,6 +306,8 @@ function LoadingScreen() {
           {LOAD_PHASES[phaseIdx]}
         </motion.p>
       </AnimatePresence>
+
+      {/* Step dots */}
       <div className="loader-dots">
         {LOAD_PHASES.map((_, i) => (
           <div key={i} className={`loader-dot${i <= phaseIdx ? ' active' : ''}`} />

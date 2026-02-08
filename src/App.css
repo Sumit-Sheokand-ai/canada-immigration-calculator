@@ -411,33 +411,53 @@
    LOADING SCREEN
    ═══════════════════════════════════════════ */
 @keyframes loaderPulse {
-  0%, 100% { transform: scale(0.8); opacity: 0.06; }
-  50% { transform: scale(1.5); opacity: 0.14; }
+  0%, 100% { transform: scale(0.8); opacity: 0.04; }
+  50% { transform: scale(1.6); opacity: 0.10; }
+}
+@keyframes waterShimmer {
+  0% { filter: drop-shadow(0 0 6px var(--primary)) brightness(1); }
+  50% { filter: drop-shadow(0 0 14px var(--primary)) brightness(1.15); }
+  100% { filter: drop-shadow(0 0 6px var(--primary)) brightness(1); }
 }
 .loading-screen {
   display: flex; flex-direction: column; align-items: center;
-  justify-content: center; min-height: 55vh; gap: 24px;
+  justify-content: center; min-height: 55vh; gap: 20px;
   position: relative;
 }
 .loader-pulse {
-  position: absolute; width: 220px; height: 220px; border-radius: 50%;
+  position: absolute; width: 280px; height: 280px; border-radius: 50%;
   background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-  opacity: 0.08; animation: loaderPulse 2.5s ease-in-out infinite;
+  opacity: 0.06; animation: loaderPulse 3s ease-in-out infinite;
   pointer-events: none;
 }
-.loader-gauge { position: relative; display: flex; align-items: center; justify-content: center; }
-.loader-arc {
-  filter: drop-shadow(0 0 8px var(--primary));
-  transition: stroke-dashoffset 0.12s linear;
-}
-.loader-center {
-  position: absolute; display: flex; align-items: baseline; gap: 2px;
+
+/* Percentage display */
+.loader-pct-wrap {
+  display: flex; align-items: baseline; gap: 3px;
 }
 .loader-num {
-  font-size: 2.4rem; font-weight: 700; color: var(--text);
-  font-variant-numeric: tabular-nums;
+  font-size: 3rem; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums; line-height: 1;
 }
-.loader-pct-sign { font-size: 1rem; font-weight: 600; color: var(--text-3); }
+.loader-pct-sign { font-size: 1.1rem; font-weight: 600; color: var(--text-3); }
+
+/* 3D Zigzag Glass Tube */
+.tube-perspective {
+  width: 100%; max-width: 340px;
+  perspective: 700px;
+  padding: 8px 0;
+}
+.tube-svg {
+  width: 100%; height: auto;
+  transform: rotateX(35deg);
+  transform-origin: center center;
+}
+.tube-water {
+  transition: stroke-dashoffset 0.12s linear;
+  animation: waterShimmer 2s ease-in-out infinite;
+}
+
+/* Phase + dots */
 .loader-phase {
   font-size: 14px; font-weight: 500; color: var(--text-2);
   letter-spacing: 0.02em; min-height: 22px;
