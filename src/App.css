@@ -443,9 +443,9 @@
 
 /* 3D Zigzag Glass Tube */
 .tube-perspective {
-  width: 100%; max-width: 340px;
+  width: 90%; max-width: 340px;
   perspective: 700px;
-  padding: 8px 0;
+  padding: 8px 10px;
 }
 .tube-svg {
   width: 100%; height: auto;
@@ -533,6 +533,25 @@
   .header-actions { position: static; }
   .logo { margin: 0; font-size: 17px; }
   .logo-leaf { font-size: 1.5rem; }
+
+  /* Loading screen mobile */
+  .loading-screen { min-height: 45vh; gap: 16px; }
+  .loader-num { font-size: 2.4rem; }
+  .loader-pct-sign { font-size: 0.9rem; }
+  .tube-perspective { width: 85%; max-width: 280px; perspective: 500px; padding: 6px 8px; }
+  .tube-svg { transform: rotateX(28deg); }
+  .loader-pulse { width: 200px; height: 200px; }
+  .loader-phase { font-size: 13px; }
+  .loader-dot { width: 6px; height: 6px; }
+  .loader-dots { gap: 6px; }
+
+  /* Results mobile */
+  .card { padding: 18px 14px; }
+  .result-actions { gap: 6px; }
+  .action-btn { padding: 8px 12px; font-size: 12px; }
+  .wi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wi-scores { flex-wrap: wrap; gap: 10px; padding: 10px; }
+  .cat-card { padding: 12px; }
 }
 
 @media (max-width: 380px) {
@@ -542,6 +561,14 @@
   .opt-grid { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 6px; }
   .step-title { font-size: 1.05rem; }
   .header-inner { flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+  /* Loading screen small */
+  .loading-screen { min-height: 40vh; gap: 14px; }
+  .loader-num { font-size: 2rem; }
+  .tube-perspective { width: 80%; max-width: 240px; perspective: 400px; }
+  .tube-svg { transform: rotateX(22deg); }
+  .loader-pulse { width: 160px; height: 160px; }
+  .loader-phase { font-size: 12px; }
 }
 
 /* ═══════════════════════════════════════════
