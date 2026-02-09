@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
+import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { encodeAnswers } from '../App';
 
@@ -317,6 +318,54 @@ function LoadingScreen() {
   );
 }
 
+/* ── Confetti Canvas ── */
+function useConfetti(trigger) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    if (!trigger) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const colors = ['#22c55e', '#4CC9F0', '#7C3AED', '#f59e0b', '#ec4899', '#3A0CA3'];
+    const pieces = Array.from({ length: 120 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 6 + 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * 3 + 2,
+      rot: Math.random() * 360,
+      rv: (Math.random() - 0.5) * 8,
+    }));
+    let raf;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      for (const p of pieces) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.rv;
+        p.vy += 0.05;
+        if (p.y < canvas.height + 20) alive = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rot * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      if (alive) raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    const cleanup = setTimeout(() => { cancelAnimationFrame(raf); ctx.clearRect(0, 0, canvas.width, canvas.height); }, 4000);
+    return () => { cancelAnimationFrame(raf); clearTimeout(cleanup); };
+  }, [trigger]);
+  return canvasRef;
+}
+
 /* ── Main Results ── */
 export default function Results({ answers, onRestart }) {
   const { t } = useLanguage();
@@ -324,6 +373,7 @@ export default function Results({ answers, onRestart }) {
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [whatifOpen, setWhatifOpen] = useState(false);
+  const [provOpen, setProvOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -377,6 +427,9 @@ export default function Results({ answers, onRestart }) {
   const moreSuggestions = suggestions.slice(3);
   const pw = answers.pathway;
   const pwInfo = pathways[pw];
+  const provinces = useMemo(() => isSelfCalc ? recommendProvinces(answers) : [], [answers, isSelfCalc]);
+  const showConfetti = !loading && diff >= 20;
+  const confettiRef = useConfetti(showConfetti);
 
   // Share link
   const shareUrl = `${window.location.origin}${window.location.pathname}#${encodeAnswers(answers)}`;
@@ -411,6 +464,9 @@ export default function Results({ answers, onRestart }) {
 
   return (
     <motion.div className="results" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+      {/* Confetti */}
+      {showConfetti && <canvas ref={confettiRef} className="confetti-canvas" />}
+
       {/* Score Hero */}
       <motion.div className="score-hero" variants={fadeUp}>
         <ScoreGauge score={score} statusColor={status.color} />
@@ -554,6 +610,46 @@ export default function Results({ answers, onRestart }) {
               );
             })}
           </div>
+        </motion.div>
+      )}
+
+      {/* Province Recommender */}
+      {isSelfCalc && provinces.length > 0 && (
+        <motion.div className="card" variants={fadeUp}>
+          <h3 className="draws-toggle" onClick={() => setProvOpen(!provOpen)}>
+            Province Recommender <span className="toggle-arrow">{provOpen ? '▲' : '▼'}</span>
+          </h3>
+          {provOpen && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <p className="cat-intro">Based on your profile, these provinces may be good matches for Provincial Nominee Programs.</p>
+              <div className="prov-grid">
+                {provinces.slice(0, 5).map(prov => (
+                  <div key={prov.id} className="prov-card">
+                    <div className="prov-header">
+                      <span className="prov-abbr">{prov.abbr}</span>
+                      <div>
+                        <strong className="prov-name">{prov.name}</strong>
+                        <span className={`prov-match ${prov.matchScore >= 70 ? 'match-high' : prov.matchScore >= 40 ? 'match-mid' : 'match-low'}`}>
+                          {prov.matchScore}% match
+                        </span>
+                      </div>
+                    </div>
+                    <div className="prov-bar-wrap">
+                      <motion.div className="prov-bar" initial={{ width: 0 }}
+                        animate={{ width: `${prov.matchScore}%` }}
+                        transition={{ duration: 0.8, ease: 'easeOut' }}
+                        style={{ background: prov.matchScore >= 70 ? '#22c55e' : prov.matchScore >= 40 ? '#f59e0b' : 'var(--surface-3)' }}
+                      />
+                    </div>
+                    <p className="prov-notes">{prov.notes}</p>
+                    <div className="prov-streams">
+                      {prov.streams.map(s => <span key={s} className="prov-stream">{s}</span>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       )}
 

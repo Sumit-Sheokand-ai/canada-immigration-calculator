@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import WelcomeScreen from './components/WelcomeScreen';
 import Wizard from './components/Wizard';
-import Results from './components/Results';
+const Results = lazy(() => import('./components/Results'));
 import { useLanguage } from './i18n/LanguageContext';
 import './App.css';
 
@@ -73,6 +73,14 @@ export default function App() {
 
   const hasSaved = !!loadProgress();
 
+  // Back-to-top button
+  const [showTop, setShowTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <div className="app">
       <Header />
@@ -80,12 +88,25 @@ export default function App() {
         <AnimatePresence mode="wait">
           {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} />}
           {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={saveProgress} initialAnswers={answers} />}
-          {mode === 'results' && <Results key="results" answers={answers} onRestart={handleRestart} />}
+          {mode === 'results' && (
+            <Suspense fallback={<div className="loading-fallback">Loading results…</div>}>
+              <Results key="results" answers={answers} onRestart={handleRestart} />
+            </Suspense>
+          )}
         </AnimatePresence>
       </main>
       <footer className="footer">
         <p>© {new Date().getFullYear()} {t('footer.copy')}</p>
       </footer>
+      {showTop && (
+        <button
+          className="btn-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+        >
+          ↑
+        </button>
+      )}
     </div>
   );
 }

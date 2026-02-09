@@ -1,9 +1,9 @@
 name: Update Express Entry Draw Data
 
 on:
-  # Run on the 1st and 15th of each month at 10:00 UTC
+  # Run every Monday at 10:00 UTC for fresh draw data
   schedule:
-    - cron: '0 10 1,15 * *'
+    - cron: '0 10 * * 1'
   # Allow manual trigger
   workflow_dispatch:
 
@@ -41,3 +41,9 @@ jobs:
           git add src/data/crsData.js
           git commit -m "chore: auto-update Express Entry draw data $(date +%Y-%m-%d)"
           git push
+
+      - name: Trigger deploy workflow
+        if: steps.changes.outputs.changed == 'true'
+        run: gh workflow run deploy.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
