@@ -210,79 +210,52 @@ const pageVariants = {
   exit: dir => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
 };
 
-/* ─── 3D Snake-Maze Glass Tube Progress ─── */
-// Snake path: right → down → left → down → right (like the viral loading bar)
-// Lengths: 300 + 24 + 280 + 24 + 300 = 928
-const WIZ_TUBE = 'M 0,8 L 300,8 L 300,32 L 20,32 L 20,56 L 320,56';
-const WIZ_TUBE_LEN = 928;
+/* ─── 3D Snake Progress Bar ─── */
+// Snake path: right → down → left → down → right
+// Segment lengths: 300 + 24 + 280 + 24 + 300 = 928
+const WIZ_PATH = 'M 0,10 L 300,10 L 300,34 L 20,34 L 20,58 L 320,58';
+const WIZ_LEN = 928;
 
 function ZigzagProgress({ pct }) {
-  const off = WIZ_TUBE_LEN * (1 - pct / 100);
+  const off = WIZ_LEN * (1 - pct / 100);
   return (
     <div className="wiz-tube-wrap">
-      <svg viewBox="-8 -6 338 72" className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox="-8 0 340 72" className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <linearGradient id="wizGlass" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="white" stopOpacity="0.22" />
-            <stop offset="40%" stopColor="white" stopOpacity="0.04" />
-            <stop offset="100%" stopColor="white" stopOpacity="0.12" />
-          </linearGradient>
-          <linearGradient id="wizWater" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id="wizFill" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="var(--primary)" />
             <stop offset="50%" stopColor="var(--accent)" />
             <stop offset="100%" stopColor="var(--primary)" />
           </linearGradient>
-          <linearGradient id="wizShine" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="white" stopOpacity="0.38" />
-            <stop offset="50%" stopColor="white" stopOpacity="0" />
-            <stop offset="100%" stopColor="white" stopOpacity="0.1" />
-          </linearGradient>
-          <filter id="wizGlow">
-            <feGaussianBlur stdDeviation="3.5" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
         </defs>
 
-        {/* 3D depth — deep shadow */}
-        <path d={WIZ_TUBE} fill="none" stroke="var(--surface-3)" strokeWidth="12"
+        {/* Track — 3D side face (depth extrusion) */}
+        <path d={WIZ_PATH} fill="none" stroke="var(--surface-3)" strokeWidth="12"
           strokeLinecap="round" strokeLinejoin="round"
-          opacity="0.08" transform="translate(5, 6)" />
+          opacity="0.3" transform="translate(3, 5)" />
 
-        {/* 3D depth — side face */}
-        <path d={WIZ_TUBE} fill="none" stroke="var(--surface-3)" strokeWidth="11"
-          strokeLinecap="round" strokeLinejoin="round"
-          opacity="0.22" transform="translate(3, 4)" />
-
-        {/* Glass tube outer wall */}
-        <path d={WIZ_TUBE} fill="none" stroke="var(--surface-2)" strokeWidth="12"
-          strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
-
-        {/* Glass tube inner highlight */}
-        <path d={WIZ_TUBE} fill="none" stroke="url(#wizGlass)" strokeWidth="10"
+        {/* Track — top face */}
+        <path d={WIZ_PATH} fill="none" stroke="var(--surface-2)" strokeWidth="12"
           strokeLinecap="round" strokeLinejoin="round" />
 
-        {/* Water fill — glow layer */}
-        <path d={WIZ_TUBE} fill="none" stroke="url(#wizWater)" strokeWidth="9"
+        {/* Fill — 3D side face (depth extrusion) */}
+        <path d={WIZ_PATH} fill="none" stroke="var(--primary)" strokeWidth="12"
           strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray={WIZ_TUBE_LEN} strokeDashoffset={off}
-          filter="url(#wizGlow)" opacity="0.35" className="wiz-water" />
+          strokeDasharray={WIZ_LEN} strokeDashoffset={off}
+          opacity="0.4" transform="translate(3, 5)" className="wiz-water" />
 
-        {/* Water fill — main */}
-        <path d={WIZ_TUBE} fill="none" stroke="url(#wizWater)" strokeWidth="8"
+        {/* Fill — top face */}
+        <path d={WIZ_PATH} fill="none" stroke="url(#wizFill)" strokeWidth="12"
           strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray={WIZ_TUBE_LEN} strokeDashoffset={off}
+          strokeDasharray={WIZ_LEN} strokeDashoffset={off}
           className="wiz-water" />
 
-        {/* Water fill — specular highlight */}
-        <path d={WIZ_TUBE} fill="none" stroke="url(#wizShine)" strokeWidth="4"
+        {/* Fill — highlight streak */}
+        <path d={WIZ_PATH} fill="none" stroke="white" strokeWidth="3"
           strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray={WIZ_TUBE_LEN} strokeDashoffset={off}
-          className="wiz-water" style={{ transform: 'translateY(-1.5px)' }} />
-
-        {/* Glass tube top reflection streak */}
-        <path d={WIZ_TUBE} fill="none" stroke="white" strokeWidth="1.2"
-          strokeLinecap="round" strokeLinejoin="round"
-          opacity="0.1" style={{ transform: 'translateY(-4.5px)' }} />
+          strokeDasharray={WIZ_LEN} strokeDashoffset={off}
+          opacity="0.18" className="wiz-water"
+          style={{ transform: 'translateY(-2.5px)' }} />
       </svg>
     </div>
   );
