@@ -434,33 +434,13 @@
 /* ═══════════════════════════════════════════
    LOADING SCREEN
    ═══════════════════════════════════════════ */
-@keyframes loaderPulse {
-  0%, 100% { transform: scale(0.8); opacity: 0.04; }
-  50% { transform: scale(1.6); opacity: 0.10; }
-}
 .loading-screen {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; min-height: 55vh; gap: 20px;
   position: relative;
 }
-.loader-pulse {
-  position: absolute; width: 280px; height: 280px; border-radius: 50%;
-  background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-  opacity: 0.06; animation: loaderPulse 3s ease-in-out infinite;
-  pointer-events: none;
-}
 
-/* Percentage display */
-.loader-pct-wrap {
-  display: flex; align-items: baseline; gap: 3px;
-}
-.loader-num {
-  font-size: 3rem; font-weight: 700; color: var(--text);
-  font-variant-numeric: tabular-nums; line-height: 1;
-}
-.loader-pct-sign { font-size: 1.1rem; font-weight: 600; color: var(--text-3); }
-
-/* Progress Bar (Uiverse by rust_1966) */
+/* Progress Bar (Uiverse by rust_1966 — wizard step bar) */
 .uv-progress-container {
   position: relative; width: 60%; max-width: 500px; height: 20px;
   background: radial-gradient(circle, #1b2735, #090a0f);
@@ -506,21 +486,6 @@
   0%   { transform: translateY(0) translateX(0); }
   50%  { transform: translateY(-20px) translateX(10px); }
   100% { transform: translateY(0) translateX(0); }
-}
-
-/* Phase + dots */
-.loader-phase {
-  font-size: 14px; font-weight: 500; color: var(--text-2);
-  letter-spacing: 0.02em; min-height: 22px;
-}
-.loader-dots { display: flex; gap: 8px; }
-.loader-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--surface-3); transition: all 0.3s ease;
-}
-.loader-dot.active {
-  background: var(--primary); transform: scale(1.25);
-  box-shadow: 0 0 10px var(--glow);
 }
 
 /* ═══════════════════════════════════════════
@@ -834,13 +799,7 @@
 
   /* Loading screen mobile */
   .loading-screen { min-height: 45vh; gap: 16px; }
-  .loader-num { font-size: 2.4rem; }
-  .loader-pct-sign { font-size: 0.9rem; }
   .uv-progress-container { width: 70%; }
-  .loader-pulse { width: 200px; height: 200px; }
-  .loader-phase { font-size: 13px; }
-  .loader-dot { width: 6px; height: 6px; }
-  .loader-dots { gap: 6px; }
 
   /* Results mobile */
   .card { padding: 18px 14px; }
@@ -864,10 +823,7 @@
 
   /* Loading screen small */
   .loading-screen { min-height: 40vh; gap: 14px; }
-  .loader-num { font-size: 2rem; }
   .uv-progress-container { width: 75%; }
-  .loader-pulse { width: 160px; height: 160px; }
-  .loader-phase { font-size: 12px; }
 }
 
 /* ═══════════════════════════════════════════

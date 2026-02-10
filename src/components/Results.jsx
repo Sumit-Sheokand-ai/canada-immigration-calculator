@@ -6,6 +6,7 @@ import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { encodeAnswers } from '../App';
+import Loader from './Loader';
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
@@ -185,73 +186,11 @@ function WhatIfPanel({ answers, originalScore, t }) {
 }
 
 /* ── Loading Screen ── */
-const LOAD_PHASES = [
-  'Analyzing profile',
-  'Calculating core factors',
-  'Evaluating language scores',
-  'Computing skill transferability',
-  'Checking eligibility',
-  'Finalizing CRS score',
-];
-
 function LoadingScreen() {
-  const [progress, setProgress] = useState(0);
-  const [phaseIdx, setPhaseIdx] = useState(0);
-
-  useEffect(() => {
-    let raf;
-    const start = performance.now();
-    const dur = 2200;
-    const tick = (now) => {
-      const t = Math.min((now - start) / dur, 1);
-      const ease = 1 - Math.pow(1 - t, 3);
-      setProgress(Math.round(ease * 100));
-      setPhaseIdx(Math.min(Math.floor(ease * LOAD_PHASES.length), LOAD_PHASES.length - 1));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   return (
     <motion.div className="loading-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}>
-      <div className="loader-pulse" />
-
-      {/* Percentage */}
-      <div className="loader-pct-wrap">
-        <span className="loader-num">{progress}</span>
-        <span className="loader-pct-sign">%</span>
-      </div>
-
-      {/* Progress Bar (Uiverse by rust_1966) */}
-      <div className="uv-progress-container">
-        <div className="uv-progress-bar" style={{ width: `${progress}%` }} />
-        <div className="uv-progress-text">{progress}%</div>
-        <div className="uv-particles">
-          <div className="uv-particle" />
-          <div className="uv-particle" />
-          <div className="uv-particle" />
-          <div className="uv-particle" />
-          <div className="uv-particle" />
-        </div>
-      </div>
-
-      {/* Phase text */}
-      <AnimatePresence mode="wait">
-        <motion.p key={phaseIdx} className="loader-phase"
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
-          {LOAD_PHASES[phaseIdx]}
-        </motion.p>
-      </AnimatePresence>
-
-      {/* Step dots */}
-      <div className="loader-dots">
-        {LOAD_PHASES.map((_, i) => (
-          <div key={i} className={`loader-dot${i <= phaseIdx ? ' active' : ''}`} />
-        ))}
-      </div>
+      <Loader />
     </motion.div>
   );
 }
