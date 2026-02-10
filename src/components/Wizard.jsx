@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { nocTEER, ieltsBands, celpipLevels, clbLevels, tefBands, tcfBands } from '../data/crsData';
 import { searchNOC } from '../data/nocCodes';
@@ -211,106 +211,19 @@ const pageVariants = {
   exit: dir => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
 };
 
-/* ─── 3D Snake Progress Bar (zigzag ribbon) ─── */
-// Path: right → down → left → down → right  |  ribbon 20px thick, 3D offset 8×10
-const DX = 8, DY = 10;
-const SEG_L = [300, 24, 280, 24, 300]; // segment lengths (total 928)
-const WIZ_TOTAL = 928;
-
-// Outer (top/left contour) & inner (bottom/right contour) vertices
-const OE = [[0,0],[310,0],[310,24],[10,24],[10,48],[320,48]];
-const IE = [[0,20],[290,20],[290,44],[30,44],[30,68],[320,68]];
-
-const p = a => a.map(v => v.join(',')).join(' ');
-const sh = a => a.map(([x, y]) => [x + DX, y + DY]);
-
-// Track outline polygon
-const TRACK_STR = p([...OE, ...[...IE].reverse()]);
-
-// Explicit track depth-face polygons (edges whose outward normal faces down or right)
-const TRACK_D = [
-  [[310,0],[310+DX,DY],[310+DX,24+DY],[310,24]],          // right face – vert 1
-  [[310,24],[10,24],[10+DX,24+DY],[310+DX,24+DY]],        // bottom face – gap between rows 1-2
-  [[10,24],[10+DX,24+DY],[10+DX,48+DY],[10,48]],          // right face – vert 2
-  [[320,48],[320+DX,48+DY],[320+DX,68+DY],[320,68]],      // right face – row 3 end
-  [[320,68],[30,68],[30+DX,68+DY],[320+DX,68+DY]],        // bottom face – row 3
-  [[290,20],[0,20],[0+DX,20+DY],[290+DX,20+DY]],          // bottom face – row 1
-];
-
-// Build fill polygon for a given percentage
-function buildFill(pct) {
-  if (pct <= 0) return null;
-  const len = WIZ_TOTAL * Math.min(pct, 100) / 100;
-  let rem = len, s = 0;
-  while (s < SEG_L.length - 1 && rem > SEG_L[s]) { rem -= SEG_L[s]; s++; }
-  const t = Math.min(rem / SEG_L[s], 1);
-  const mix = (a, b) => a + (b - a) * t;
-  const fo = [mix(OE[s][0], OE[s+1][0]), mix(OE[s][1], OE[s+1][1])];
-  const fi = [mix(IE[s][0], IE[s+1][0]), mix(IE[s][1], IE[s+1][1])];
-  const poly = [];
-  for (let i = 0; i <= s; i++) poly.push(OE[i]);
-  poly.push(fo, fi);
-  for (let i = s; i >= 0; i--) poly.push(IE[i]);
-  return { poly, fo, fi };
-}
-
-function ZigzagProgress({ pct }) {
-  const valRef = useRef(0);
-  const rafRef = useRef(null);
-  const [, bump] = useState(0);
-
-  useEffect(() => {
-    const from = valRef.current;
-    const to = pct;
-    const t0 = performance.now();
-    const dur = 600;
-    const tick = now => {
-      const pr = Math.min((now - t0) / dur, 1);
-      const ease = pr < 0.5 ? 2 * pr * pr : -1 + (4 - 2 * pr) * pr;
-      valRef.current = from + (to - from) * ease;
-      bump(n => n + 1);
-      if (pr < 1) rafRef.current = requestAnimationFrame(tick);
-    };
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [pct]);
-
-  const fill = buildFill(valRef.current);
-
-  // White leading block at fill front
-  let blk = null;
-  if (fill) {
-    const { fo, fi } = fill;
-    const dx = Math.abs(fo[0] - fi[0]);
-    if (dx < 2) {
-      blk = { x: fo[0] - 5, y: fo[1], w: 10, h: fi[1] - fo[1] };
-    } else {
-      blk = { x: Math.min(fo[0], fi[0]), y: fo[1] - 5, w: dx, h: 10 };
-    }
-  }
-
+/* ─── Step Progress Bar (Uiverse by rust_1966) ─── */
+function StepProgressBar({ pct }) {
   return (
-    <div className="wiz-tube-wrap">
-      <svg viewBox="-4 -4 338 88" className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
-        {/* Track 3D depth faces (behind everything) */}
-        {TRACK_D.map((face, i) => (
-          <polygon key={`td${i}`} points={p(face)} fill="var(--surface-3)" opacity="0.3" />
-        ))}
-
-        {/* Fill 3D depth shadow (offset fill polygon, behind track) */}
-        {fill && <polygon points={p(sh(fill.poly))} fill="var(--primary)" opacity="0.45" />}
-
-        {/* Track top face */}
-        <polygon points={TRACK_STR} fill="var(--surface-2)" stroke="var(--surface-3)" strokeWidth="1" />
-
-        {/* Fill top face */}
-        {fill && <polygon points={p(fill.poly)} fill="var(--primary)" />}
-
-        {/* White leading block */}
-        {fill && blk && <rect x={blk.x} y={blk.y} width={blk.w} height={blk.h}
-          fill="white" opacity="0.9" />}
-      </svg>
+    <div className="wiz-progress-container">
+      <div className="uv-progress-bar" style={{ width: `${pct}%` }} />
+      <div className="uv-progress-text">{pct}%</div>
+      <div className="uv-particles">
+        <div className="uv-particle" />
+        <div className="uv-particle" />
+        <div className="uv-particle" />
+        <div className="uv-particle" />
+        <div className="uv-particle" />
+      </div>
     </div>
   );
 }
@@ -458,13 +371,12 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
       role="form"
       aria-label="CRS Calculator wizard"
     >
-      {/* Zigzag Glass Tube Progress */}
+      {/* Step Progress Bar */}
       <div className="progress-bar-wrap">
         <div className="progress-info">
           <span>{t('wizard.step')} {visibleNum} {t('wizard.of')} {visibleCount}</span>
-          <span>{pct}%</span>
         </div>
-        <ZigzagProgress pct={pct} />
+        <StepProgressBar pct={pct} />
       </div>
 
       {/* Step content */}

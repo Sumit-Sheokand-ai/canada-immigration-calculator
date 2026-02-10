@@ -127,16 +127,15 @@
    ═══════════════════════════════════════════ */
 .wizard { padding-top: 8px; }
 
-/* 3D Snake Progress Bar */
+/* Step Progress Bar (Uiverse by rust_1966) */
 .progress-bar-wrap { margin-bottom: 16px; }
 .progress-info { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-3); margin-bottom: 6px; }
-.wiz-tube-wrap {
-  width: 100%;
-  padding: 2px 0 8px;
-}
-.wiz-tube-svg {
-  width: 100%; height: auto;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.06));
+.wiz-progress-container {
+  position: relative; width: 100%; height: 20px;
+  background: radial-gradient(circle, #1b2735, #090a0f);
+  border-radius: 30px; overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  border: 1px solid #313131;
 }
 
 /* Step */
