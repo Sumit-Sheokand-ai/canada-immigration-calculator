@@ -1,15 +1,20 @@
 # Google Indexing Roadmap for bostify.me
 
 ## ✅ Already Done (Technical SEO)
-- [x] Meta description tag
-- [x] Open Graph tags (og:title, og:description, og:image, og:url)
+- [x] Keyword-rich title: "CRS Calculator 2026 | Free Canada Express Entry Points Calculator"
+- [x] Meta description with 15+ target keywords
+- [x] Meta keywords tag
+- [x] Open Graph tags (og:title, og:description, og:image, og:url, og:locale)
 - [x] Twitter Card tags
-- [x] JSON-LD structured data (WebApplication schema)
+- [x] JSON-LD WebApplication schema with AggregateRating
+- [x] JSON-LD FAQPage schema (4 questions → rich snippets)
+- [x] JSON-LD BreadcrumbList schema
 - [x] Canonical URL
-- [x] robots.txt (allows all crawlers)
+- [x] robots.txt (allows all crawlers, points to sitemap)
 - [x] sitemap.xml
 - [x] Custom domain (bostify.me)
 - [x] HTTPS enabled (via GitHub Pages)
+- [x] DNS verification via Namecheap
 
 ---
 
@@ -18,13 +23,7 @@
 ### 1. Google Search Console Setup
 1. Go to [Google Search Console](https://search.google.com/search-console)
 2. Click "Add Property" → Choose "URL prefix" → Enter `https://bostify.me`
-3. Verify ownership using ONE of these methods:
-   - **HTML tag (recommended)**: Copy the verification meta tag, uncomment and replace in `index.html`:
-     ```html
-     <meta name="google-site-verification" content="YOUR_CODE_HERE" />
-     ```
-   - **DNS record**: Add a TXT record to your domain (if you control DNS)
-   - **HTML file**: Download the verification file and add to `/public/`
+3. Verify ownership via **DNS TXT record** (already configured in Namecheap)
 
 ### 2. Submit Sitemap
 1. In Search Console, go to **Sitemaps** (left sidebar)
@@ -36,19 +35,24 @@
 2. Enter: `https://bostify.me/`
 3. Click **Request Indexing**
 
+### 4. Verify Rich Results
+1. Go to [Rich Results Test](https://search.google.com/test/rich-results)
+2. Enter: `https://bostify.me`
+3. Confirm FAQ and WebApplication schemas are detected
+
 ---
 
 ## 📅 Week 1-2: Foundation
 
 ### Bing Webmaster Tools
 1. Go to [Bing Webmaster Tools](https://www.bing.com/webmasters)
-2. Import from Google Search Console (easiest method)
-3. Submit sitemap
+2. Import from Google Search Console (one-click)
+3. Sitemap auto-imported
 
 ### Check Core Web Vitals
 1. Run [PageSpeed Insights](https://pagespeed.web.dev/) on `https://bostify.me`
-2. Run [Lighthouse](chrome://lighthouse) in Chrome DevTools
-3. Fix any issues flagged (LCP, FID, CLS)
+2. Run Lighthouse in Chrome DevTools (F12 → Lighthouse tab)
+3. Target scores: Performance 90+, Accessibility 90+, SEO 100
 
 ### Mobile-Friendly Test
 1. Run [Mobile-Friendly Test](https://search.google.com/test/mobile-friendly)
@@ -56,48 +60,51 @@
 
 ---
 
-## 📅 Week 3-4: Content & Authority
+## 📅 Week 3-4: Build Authority (Backlinks)
 
-### Add More Content (Optional but helps SEO)
-Consider adding pages:
-- `/about` - About the calculator
-- `/faq` - Common CRS questions
-- `/guides/improve-crs-score` - How to improve your score
+### Reddit (High Impact)
+- r/ImmigrationCanada - Share as helpful tool
+- r/IWantOut - Help people asking about Canada
+- r/canada - When relevant to immigration discussions
+- r/PersonalFinanceCanada - Immigration planning threads
 
-### Build Backlinks
-- Share on Reddit: r/ImmigrationCanada, r/IWantOut
-- Post on Twitter/X with relevant hashtags
-- Share in Facebook immigration groups
-- Answer questions on Quora linking back
+### Social Media
+- Twitter/X: Post with #ExpressEntry #CanadaImmigration #CRS #CanadaPR
+- LinkedIn: Share as portfolio project
+- Facebook: Immigration groups (Canada Immigration Forum, etc.)
 
-### Social Profiles
-Create/link from:
-- GitHub repo description
-- LinkedIn post
-- Twitter profile
+### Q&A Sites
+- Quora: Answer CRS questions, link to calculator
+- Stack Exchange Expatriates: Help with Canada immigration Qs
+
+### Developer Communities
+- GitHub: Add link in repo description
+- Dev.to / Hashnode: Write "How I built a CRS Calculator" post
+- Product Hunt: Submit as a free tool
 
 ---
 
 ## 📅 Month 2-3: Monitor & Optimize
 
 ### Track in Search Console
-- Monitor **Performance** tab for impressions/clicks
-- Check **Coverage** for indexing issues
-- Review **Enhancements** for structured data validation
+- **Performance** tab: Monitor impressions, clicks, CTR, position
+- **Coverage** tab: Fix any indexing issues
+- **Enhancements** tab: Verify FAQ rich results appear
 
-### Keyword Research
-Target keywords to optimize for:
-- "CRS calculator"
-- "Canada immigration calculator"
-- "Express Entry points calculator"
-- "CRS score calculator 2026"
-- "Canada PR points calculator"
+### Target Keywords (Already Optimized)
+| Keyword | Search Volume | Difficulty |
+|---------|---------------|------------|
+| CRS calculator | High | Medium |
+| Canada immigration calculator | High | Medium |
+| Express Entry points calculator | Medium | Low |
+| CRS score calculator 2026 | Medium | Low |
+| Canada PR calculator | High | Medium |
+| FSW calculator | Low | Low |
+| CEC calculator | Low | Low |
 
-### Optimize Title/Description
-Current title could be more keyword-rich:
-```html
-<title>CRS Calculator 2026 - Canada Express Entry Points Calculator | Free</title>
-```
+### Monitor Rankings
+- Use [Google Search](https://www.google.com/search?q=crs+calculator) in incognito
+- Track weekly for first 2 months
 
 ---
 
@@ -108,10 +115,16 @@ Current title could be more keyword-rich:
 | robots.txt | ✅ | `/public/robots.txt` |
 | sitemap.xml | ✅ | `/public/sitemap.xml` |
 | Canonical URL | ✅ | `index.html` |
-| JSON-LD schema | ✅ | `index.html` |
+| Title tag (keyword-rich) | ✅ | `index.html` |
+| Meta description | ✅ | `index.html` |
+| Meta keywords | ✅ | `index.html` |
 | OG tags | ✅ | `index.html` |
 | Twitter cards | ✅ | `index.html` |
-| GSC verification | ⏳ | `index.html` (uncomment after setup) |
+| WebApplication schema | ✅ | `index.html` |
+| FAQPage schema | ✅ | `index.html` |
+| BreadcrumbList schema | ✅ | `index.html` |
+| AggregateRating schema | ✅ | `index.html` |
+| DNS verification | ✅ | Namecheap |
 | og-image.png | ⚠️ | Create 1200x630px image |
 
 ---
@@ -122,9 +135,11 @@ Current title could be more keyword-rich:
 |-----------|-----------|
 | Google crawls site | 1-3 days after sitemap submit |
 | Appears in search results | 1-2 weeks |
+| FAQ rich snippets appear | 2-3 weeks |
 | Ranking for brand name | 2-3 weeks |
-| Ranking for target keywords | 1-3 months |
-| Stable rankings | 3-6 months |
+| Ranking for long-tail keywords | 1-2 months |
+| Ranking for "CRS calculator" | 2-4 months |
+| Stable top 10 rankings | 4-6 months |
 
 ---
 
@@ -135,12 +150,24 @@ Current title could be more keyword-rich:
 - [PageSpeed Insights](https://pagespeed.web.dev/)
 - [Rich Results Test](https://search.google.com/test/rich-results)
 - [Mobile-Friendly Test](https://search.google.com/test/mobile-friendly)
+- [Schema Markup Validator](https://validator.schema.org/)
+
+---
+
+## 💡 Pro Tips
+
+1. **Request indexing** immediately after any content update
+2. **Share on social media** within 24 hours of publishing — social signals help
+3. **Respond to comments** on Reddit/Quora — engagement boosts visibility
+4. **Update sitemap lastmod** date when you make changes
+5. **Create og-image.png** (1200x630px) — improves click-through from social shares
 
 ---
 
 ## Notes
 
-- Google typically indexes new sites within 1-2 weeks
-- SPA (React) apps are fully indexable by Googlebot since 2019
-- Keep sitemap updated when adding new pages
-- Monitor Search Console weekly for the first month
+- Google indexes React SPAs without issues (since 2019)
+- FAQ schema can show 2-4 questions directly in search results
+- AggregateRating may show star ratings in search results
+- First 2 weeks are critical — monitor daily
+- Backlinks are the #1 ranking factor after content
