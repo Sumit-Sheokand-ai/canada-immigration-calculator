@@ -210,41 +210,10 @@ const pageVariants = {
   exit: dir => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
 };
 
-/* ─── 3D Snake Ribbon Progress Bar ─── */
-// Polygon-based 3D ribbon: proper depth faces at corners
-// Path: right → down → left → down → right
-const SEG_L = [300, 24, 280, 24, 300];   // segment lengths (total 928)
-const WIZ_TOTAL = 928;
-const D3 = [5, 7];                        // 3D depth offset [dx, dy]
-
-// Outer edge vertices (top/left contour following path forward)
-const OE = [[0,3],[307,3],[307,27],[13,27],[13,51],[320,51]];
-// Inner edge vertices (bottom/right contour following path forward)
-const IE = [[0,17],[293,17],[293,41],[27,41],[27,65],[320,65]];
-
-// SVG helpers
-const svgPts = a => a.map(p => p.join(',')).join(' ');
-const d3shift = a => a.map(([x, y]) => [x + D3[0], y + D3[1]]);
-
-// Full track polygon (outer CW then inner CCW)
-const TRACK_PTS = svgPts([...OE, ...[...IE].reverse()]);
-
-// Build fill polygon for a given percentage
-function buildFill(pct) {
-  if (pct <= 0) return null;
-  const len = WIZ_TOTAL * Math.min(pct, 100) / 100;
-  let rem = len, s = 0;
-  while (s < SEG_L.length - 1 && rem > SEG_L[s]) { rem -= SEG_L[s]; s++; }
-  const t = Math.min(rem / SEG_L[s], 1);
-  const mix = (a, b) => a + (b - a) * t;
-  const fo = [mix(OE[s][0], OE[s + 1][0]), mix(OE[s][1], OE[s + 1][1])];
-  const fi = [mix(IE[s][0], IE[s + 1][0]), mix(IE[s][1], IE[s + 1][1])];
-  const poly = [];
-  for (let i = 0; i <= s; i++) poly.push(OE[i]);
-  poly.push(fo, fi);
-  for (let i = s; i >= 0; i--) poly.push(IE[i]);
-  return { poly, fo, fi };
-}
+/* ─── 3D Ribbon Progress Bar ─── */
+const BAR_W = 320;           // bar width
+const BAR_H = 18;            // bar height (ribbon thickness)
+const D3X = 6, D3Y = 8;     // 3D depth offset
 
 function ZigzagProgress({ pct }) {
   const valRef = useRef(0);
@@ -268,46 +237,42 @@ function ZigzagProgress({ pct }) {
     return () => cancelAnimationFrame(rafRef.current);
   }, [pct]);
 
-  const fill = buildFill(valRef.current);
-
-  // Leading-edge white block
-  let blk = null;
-  if (fill) {
-    const { fo, fi } = fill;
-    const dx = Math.abs(fo[0] - fi[0]);
-    if (dx < 2) {
-      // Vertical front (on a horizontal segment)
-      blk = { x: fo[0] - 4, y: fo[1], w: 8, h: fi[1] - fo[1] };
-    } else {
-      // Horizontal front (on a vertical segment) or corner
-      blk = { x: Math.min(fo[0], fi[0]), y: fo[1] - 4, w: dx, h: 8 };
-    }
-  }
+  const fw = BAR_W * Math.min(Math.max(valRef.current, 0), 100) / 100;
 
   return (
     <div className="wiz-tube-wrap">
-      <svg viewBox="-4 -4 334 82" className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
-        {/* Fill 3D depth shadow — behind track, peeks out bottom/right */}
-        {fill && (
-          <polygon points={svgPts(d3shift(fill.poly))}
-            fill="var(--primary)" opacity="0.4" />
-        )}
+      <svg viewBox={`-2 -2 ${BAR_W + D3X + 4} ${BAR_H + D3Y + 4}`}
+        className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
 
-        {/* Track container (flat) */}
-        <polygon points={TRACK_PTS}
-          fill="var(--surface-2)" stroke="var(--surface-3)"
-          strokeWidth="1.5" strokeLinejoin="miter" />
+        {/* Track 3D — bottom face */}
+        <polygon
+          points={`0,${BAR_H} ${BAR_W},${BAR_H} ${BAR_W+D3X},${BAR_H+D3Y} ${D3X},${BAR_H+D3Y}`}
+          fill="var(--surface-3)" opacity="0.25" />
+        {/* Track 3D — right face */}
+        <polygon
+          points={`${BAR_W},0 ${BAR_W+D3X},${D3Y} ${BAR_W+D3X},${BAR_H+D3Y} ${BAR_W},${BAR_H}`}
+          fill="var(--surface-3)" opacity="0.2" />
+
+        {/* Fill 3D — bottom face */}
+        {fw > 0 && <polygon
+          points={`0,${BAR_H} ${fw},${BAR_H} ${fw+D3X},${BAR_H+D3Y} ${D3X},${BAR_H+D3Y}`}
+          fill="var(--primary)" opacity="0.4" />}
+        {/* Fill 3D — right face */}
+        {fw > 0 && <polygon
+          points={`${fw},0 ${fw+D3X},${D3Y} ${fw+D3X},${BAR_H+D3Y} ${fw},${BAR_H}`}
+          fill="var(--primary)" opacity="0.3" />}
+
+        {/* Track top face */}
+        <rect x="0" y="0" width={BAR_W} height={BAR_H}
+          fill="var(--surface-2)" stroke="var(--surface-3)" strokeWidth="1.5" />
 
         {/* Fill top face */}
-        {fill && (
-          <polygon points={svgPts(fill.poly)} fill="var(--primary)" />
-        )}
+        {fw > 0 && <rect x="0" y="0" width={fw} height={BAR_H}
+          fill="var(--primary)" />}
 
         {/* White leading block */}
-        {fill && blk && (
-          <rect x={blk.x} y={blk.y} width={blk.w} height={blk.h}
-            fill="white" opacity="0.9" rx="1" />
-        )}
+        {fw > 4 && <rect x={fw - 5} y="0" width="10" height={BAR_H}
+          fill="white" opacity="0.9" />}
       </svg>
     </div>
   );
