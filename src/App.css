@@ -439,11 +439,6 @@
   0%, 100% { transform: scale(0.8); opacity: 0.04; }
   50% { transform: scale(1.6); opacity: 0.10; }
 }
-@keyframes waterShimmer {
-  0% { filter: drop-shadow(0 0 6px var(--primary)) brightness(1); }
-  50% { filter: drop-shadow(0 0 14px var(--primary)) brightness(1.15); }
-  100% { filter: drop-shadow(0 0 6px var(--primary)) brightness(1); }
-}
 .loading-screen {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; min-height: 55vh; gap: 20px;
@@ -466,20 +461,52 @@
 }
 .loader-pct-sign { font-size: 1.1rem; font-weight: 600; color: var(--text-3); }
 
-/* 3D Zigzag Glass Tube */
-.tube-perspective {
-  width: 90%; max-width: 340px;
-  perspective: 700px;
-  padding: 8px 10px;
+/* Progress Bar (Uiverse by rust_1966) */
+.uv-progress-container {
+  position: relative; width: 60%; max-width: 500px; height: 20px;
+  background: radial-gradient(circle, #1b2735, #090a0f);
+  border-radius: 30px; overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  border: 1px solid #313131;
 }
-.tube-svg {
-  width: 100%; height: auto;
-  transform: rotateX(35deg);
-  transform-origin: center center;
+.uv-progress-bar {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: linear-gradient(90deg, #00f260, #0575e6);
+  border-radius: 30px; transition: width 0.12s linear;
+  box-shadow: 0 0 15px #00f260, 0 0 30px #0575e6;
 }
-.tube-water {
-  transition: stroke-dashoffset 0.12s linear;
-  animation: waterShimmer 2s ease-in-out infinite;
+.uv-progress-bar::before {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); width: 200%; height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.15), transparent);
+  opacity: 0.5; animation: uv-ripple 3s infinite;
+}
+.uv-progress-text {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px; font-weight: bold; letter-spacing: 1px;
+  color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.7); z-index: 2;
+}
+.uv-particles { position: absolute; width: 100%; height: 100%; overflow: hidden; }
+.uv-particle {
+  position: absolute; width: 4px; height: 4px;
+  background: #fff; border-radius: 50%; opacity: 0.6;
+  animation: uv-float 5s infinite ease-in-out;
+}
+.uv-particle:nth-child(1) { top: 10%; left: 20%; animation-delay: 0s; }
+.uv-particle:nth-child(2) { top: 30%; left: 70%; animation-delay: 1s; }
+.uv-particle:nth-child(3) { top: 50%; left: 50%; animation-delay: 2s; }
+.uv-particle:nth-child(4) { top: 80%; left: 40%; animation-delay: 1.5s; }
+.uv-particle:nth-child(5) { top: 90%; left: 60%; animation-delay: 2.5s; }
+
+@keyframes uv-ripple {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+@keyframes uv-float {
+  0%   { transform: translateY(0) translateX(0); }
+  50%  { transform: translateY(-20px) translateX(10px); }
+  100% { transform: translateY(0) translateX(0); }
 }
 
 /* Phase + dots */
@@ -810,8 +837,7 @@
   .loading-screen { min-height: 45vh; gap: 16px; }
   .loader-num { font-size: 2.4rem; }
   .loader-pct-sign { font-size: 0.9rem; }
-  .tube-perspective { width: 85%; max-width: 280px; perspective: 500px; padding: 6px 8px; }
-  .tube-svg { transform: rotateX(28deg); }
+  .uv-progress-container { width: 70%; }
   .loader-pulse { width: 200px; height: 200px; }
   .loader-phase { font-size: 13px; }
   .loader-dot { width: 6px; height: 6px; }
@@ -840,8 +866,7 @@
   /* Loading screen small */
   .loading-screen { min-height: 40vh; gap: 14px; }
   .loader-num { font-size: 2rem; }
-  .tube-perspective { width: 80%; max-width: 240px; perspective: 400px; }
-  .tube-svg { transform: rotateX(22deg); }
+  .uv-progress-container { width: 75%; }
   .loader-pulse { width: 160px; height: 160px; }
   .loader-phase { font-size: 12px; }
 }

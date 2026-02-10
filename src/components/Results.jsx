@@ -213,11 +213,6 @@ function LoadingScreen() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  /* Zigzag tube: 8 segments, each ~53px long, total ~425 */
-  const tube = 'M 0,45 L 40,10 L 80,45 L 120,10 L 160,45 L 200,10 L 240,45 L 280,10 L 320,45';
-  const tubeLen = 425;
-  const off = tubeLen * (1 - progress / 100);
-
   return (
     <motion.div className="loading-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}>
@@ -229,74 +224,17 @@ function LoadingScreen() {
         <span className="loader-pct-sign">%</span>
       </div>
 
-      {/* 3D Zigzag Glass Tube */}
-      <div className="tube-perspective">
-        <svg viewBox="-4 -4 328 58" className="tube-svg" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <linearGradient id="tubeGlass" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="white" stopOpacity="0.18" />
-              <stop offset="40%" stopColor="white" stopOpacity="0.04" />
-              <stop offset="100%" stopColor="white" stopOpacity="0.10" />
-            </linearGradient>
-            <linearGradient id="waterGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="var(--primary)" />
-              <stop offset="50%" stopColor="var(--accent)" />
-              <stop offset="100%" stopColor="var(--primary)" />
-            </linearGradient>
-            <linearGradient id="waterShine" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="white" stopOpacity="0.35" />
-              <stop offset="50%" stopColor="white" stopOpacity="0" />
-              <stop offset="100%" stopColor="white" stopOpacity="0.08" />
-            </linearGradient>
-            <filter id="tubeGlow">
-              <feGaussianBlur stdDeviation="4" result="b" />
-              <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="innerShadow">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
-              <feOffset dx="0" dy="2" result="shifted" />
-              <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadow" />
-              <feFlood floodColor="black" floodOpacity="0.2" result="color" />
-              <feComposite in="color" in2="shadow" operator="in" />
-            </filter>
-          </defs>
-
-          {/* 3D Shadow underneath */}
-          <path d={tube} fill="none" stroke="var(--surface-3)" strokeWidth="14"
-            strokeLinecap="round" strokeLinejoin="round"
-            opacity="0.12" transform="translate(3, 5)" />
-
-          {/* Glass tube outer wall */}
-          <path d={tube} fill="none" stroke="var(--surface-2)" strokeWidth="14"
-            strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
-
-          {/* Glass tube inner highlight (top reflection) */}
-          <path d={tube} fill="none" stroke="url(#tubeGlass)" strokeWidth="12"
-            strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Water fill — glow layer */}
-          <path d={tube} fill="none" stroke="url(#waterGrad)" strokeWidth="10"
-            strokeLinecap="round" strokeLinejoin="round"
-            strokeDasharray={tubeLen} strokeDashoffset={off}
-            filter="url(#tubeGlow)" opacity="0.4" className="tube-water" />
-
-          {/* Water fill — main */}
-          <path d={tube} fill="none" stroke="url(#waterGrad)" strokeWidth="8"
-            strokeLinecap="round" strokeLinejoin="round"
-            strokeDasharray={tubeLen} strokeDashoffset={off}
-            className="tube-water" />
-
-          {/* Water fill — specular highlight on top */}
-          <path d={tube} fill="none" stroke="url(#waterShine)" strokeWidth="4"
-            strokeLinecap="round" strokeLinejoin="round"
-            strokeDasharray={tubeLen} strokeDashoffset={off}
-            className="tube-water" style={{ transform: 'translateY(-1.5px)' }} />
-
-          {/* Glass tube top reflection streak */}
-          <path d={tube} fill="none" stroke="white" strokeWidth="1.5"
-            strokeLinecap="round" strokeLinejoin="round"
-            opacity="0.12" style={{ transform: 'translateY(-5px)' }} />
-        </svg>
+      {/* Progress Bar (Uiverse by rust_1966) */}
+      <div className="uv-progress-container">
+        <div className="uv-progress-bar" style={{ width: `${progress}%` }} />
+        <div className="uv-progress-text">{progress}%</div>
+        <div className="uv-particles">
+          <div className="uv-particle" />
+          <div className="uv-particle" />
+          <div className="uv-particle" />
+          <div className="uv-particle" />
+          <div className="uv-particle" />
+        </div>
       </div>
 
       {/* Phase text */}
