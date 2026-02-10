@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import WelcomeScreen from './components/WelcomeScreen';
 import Wizard from './components/Wizard';
+import Loader from './components/Loader';
 const Results = lazy(() => import('./components/Results'));
 import { useLanguage } from './i18n/LanguageContext';
 import './App.css';
@@ -89,7 +90,7 @@ export default function App() {
           {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} />}
           {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={saveProgress} initialAnswers={answers} />}
           {mode === 'results' && (
-            <Suspense fallback={<div className="loading-fallback">Loading results…</div>}>
+            <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
               <Results key="results" answers={answers} onRestart={handleRestart} />
             </Suspense>
           )}
