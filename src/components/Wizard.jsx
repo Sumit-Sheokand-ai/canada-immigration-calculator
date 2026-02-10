@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { nocTEER, ieltsBands, celpipLevels, clbLevels, tefBands, tcfBands } from '../data/crsData';
 import { searchNOC } from '../data/nocCodes';
 import { useLanguage } from '../i18n/LanguageContext';
+import StarBorder from './StarBorder';
 
 /* ─── Step definitions ─── */
 function buildAgeOptions() {
@@ -514,16 +515,18 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
             {t('wizard.back')}
           </motion.button>
         )}
-        <motion.button
-          className={`btn-next${isLastVisible ? ' finish' : ''}`}
-          disabled={!complete}
-          onClick={goNext}
-          whileHover={complete ? { scale: 1.02 } : {}}
-          whileTap={complete ? { scale: 0.97 } : {}}
-          aria-label={isLastVisible ? 'Calculate score' : 'Next step'}
-        >
-          {isLastVisible ? t('wizard.calculate') : t('wizard.next')}
-        </motion.button>
+        <StarBorder color="var(--primary)" speed="5s">
+          <motion.button
+            className={`btn-next${isLastVisible ? ' finish' : ''}`}
+            disabled={!complete}
+            onClick={goNext}
+            whileHover={complete ? { scale: 1.02 } : {}}
+            whileTap={complete ? { scale: 0.97 } : {}}
+            aria-label={isLastVisible ? 'Calculate score' : 'Next step'}
+          >
+            {isLastVisible ? t('wizard.calculate') : t('wizard.next')}
+          </motion.button>
+        </StarBorder>
       </div>
     </motion.div>
   );

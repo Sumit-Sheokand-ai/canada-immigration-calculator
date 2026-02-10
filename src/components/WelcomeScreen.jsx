@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { latestDraws } from '../data/crsData';
 import { useLanguage } from '../i18n/LanguageContext';
+import StarBorder from './StarBorder';
 
 const container = {
   hidden: { opacity: 0 },
@@ -66,18 +67,21 @@ export default function WelcomeScreen({ onStart, hasSaved }) {
         ))}
       </motion.div>
 
-      <motion.button
-        className="btn-start"
-        variants={item}
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={() => onStart(false)}
-      >
-        {t('welcome.btn')}
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </motion.button>
+      <motion.div variants={item}>
+        <StarBorder color="var(--primary)" speed="5s">
+          <motion.button
+            className="btn-start"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => onStart(false)}
+          >
+            {t('welcome.btn')}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </motion.button>
+        </StarBorder>
+      </motion.div>
 
       <motion.p className="welcome-updated" variants={item}>
         {t('welcome.updated')} {latestDraws.lastUpdated}
