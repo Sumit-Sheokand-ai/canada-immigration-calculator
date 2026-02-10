@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { nocTEER, ieltsBands, celpipLevels, clbLevels, tefBands, tcfBands } from '../data/crsData';
 import { searchNOC } from '../data/nocCodes';
@@ -210,52 +210,104 @@ const pageVariants = {
   exit: dir => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
 };
 
-/* ─── 3D Snake Progress Bar ─── */
-// Snake path: right → down → left → down → right
-// Segment lengths: 300 + 24 + 280 + 24 + 300 = 928
-const WIZ_PATH = 'M 0,10 L 300,10 L 300,34 L 20,34 L 20,58 L 320,58';
-const WIZ_LEN = 928;
+/* ─── 3D Snake Ribbon Progress Bar ─── */
+// Polygon-based 3D ribbon: proper depth faces at corners
+// Path: right → down → left → down → right
+const SEG_L = [300, 24, 280, 24, 300];   // segment lengths (total 928)
+const WIZ_TOTAL = 928;
+const D3 = [5, 7];                        // 3D depth offset [dx, dy]
+
+// Outer edge vertices (top/left contour following path forward)
+const OE = [[0,3],[307,3],[307,27],[13,27],[13,51],[320,51]];
+// Inner edge vertices (bottom/right contour following path forward)
+const IE = [[0,17],[293,17],[293,41],[27,41],[27,65],[320,65]];
+
+// SVG helpers
+const svgPts = a => a.map(p => p.join(',')).join(' ');
+const d3shift = a => a.map(([x, y]) => [x + D3[0], y + D3[1]]);
+
+// Full track polygon (outer CW then inner CCW)
+const TRACK_PTS = svgPts([...OE, ...[...IE].reverse()]);
+
+// Build fill polygon for a given percentage
+function buildFill(pct) {
+  if (pct <= 0) return null;
+  const len = WIZ_TOTAL * Math.min(pct, 100) / 100;
+  let rem = len, s = 0;
+  while (s < SEG_L.length - 1 && rem > SEG_L[s]) { rem -= SEG_L[s]; s++; }
+  const t = Math.min(rem / SEG_L[s], 1);
+  const mix = (a, b) => a + (b - a) * t;
+  const fo = [mix(OE[s][0], OE[s + 1][0]), mix(OE[s][1], OE[s + 1][1])];
+  const fi = [mix(IE[s][0], IE[s + 1][0]), mix(IE[s][1], IE[s + 1][1])];
+  const poly = [];
+  for (let i = 0; i <= s; i++) poly.push(OE[i]);
+  poly.push(fo, fi);
+  for (let i = s; i >= 0; i--) poly.push(IE[i]);
+  return { poly, fo, fi };
+}
 
 function ZigzagProgress({ pct }) {
-  const off = WIZ_LEN * (1 - pct / 100);
+  const valRef = useRef(0);
+  const rafRef = useRef(null);
+  const [, bump] = useState(0);
+
+  useEffect(() => {
+    const from = valRef.current;
+    const to = pct;
+    const t0 = performance.now();
+    const dur = 600;
+    const tick = now => {
+      const p = Math.min((now - t0) / dur, 1);
+      const ease = p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
+      valRef.current = from + (to - from) * ease;
+      bump(n => n + 1);
+      if (p < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [pct]);
+
+  const fill = buildFill(valRef.current);
+
+  // Leading-edge white block
+  let blk = null;
+  if (fill) {
+    const { fo, fi } = fill;
+    const dx = Math.abs(fo[0] - fi[0]);
+    if (dx < 2) {
+      // Vertical front (on a horizontal segment)
+      blk = { x: fo[0] - 4, y: fo[1], w: 8, h: fi[1] - fo[1] };
+    } else {
+      // Horizontal front (on a vertical segment) or corner
+      blk = { x: Math.min(fo[0], fi[0]), y: fo[1] - 4, w: dx, h: 8 };
+    }
+  }
+
   return (
     <div className="wiz-tube-wrap">
-      <svg viewBox="-8 0 340 72" className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <linearGradient id="wizFill" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="var(--primary)" />
-            <stop offset="50%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--primary)" />
-          </linearGradient>
-        </defs>
+      <svg viewBox="-4 -4 334 82" className="wiz-tube-svg" preserveAspectRatio="xMidYMid meet">
+        {/* Fill 3D depth shadow — behind track, peeks out bottom/right */}
+        {fill && (
+          <polygon points={svgPts(d3shift(fill.poly))}
+            fill="var(--primary)" opacity="0.4" />
+        )}
 
-        {/* Track — 3D side face (depth extrusion) */}
-        <path d={WIZ_PATH} fill="none" stroke="var(--surface-3)" strokeWidth="12"
-          strokeLinecap="round" strokeLinejoin="round"
-          opacity="0.3" transform="translate(3, 5)" />
+        {/* Track container (flat) */}
+        <polygon points={TRACK_PTS}
+          fill="var(--surface-2)" stroke="var(--surface-3)"
+          strokeWidth="1.5" strokeLinejoin="miter" />
 
-        {/* Track — top face */}
-        <path d={WIZ_PATH} fill="none" stroke="var(--surface-2)" strokeWidth="12"
-          strokeLinecap="round" strokeLinejoin="round" />
+        {/* Fill top face */}
+        {fill && (
+          <polygon points={svgPts(fill.poly)} fill="var(--primary)" />
+        )}
 
-        {/* Fill — 3D side face (depth extrusion) */}
-        <path d={WIZ_PATH} fill="none" stroke="var(--primary)" strokeWidth="12"
-          strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray={WIZ_LEN} strokeDashoffset={off}
-          opacity="0.4" transform="translate(3, 5)" className="wiz-water" />
-
-        {/* Fill — top face */}
-        <path d={WIZ_PATH} fill="none" stroke="url(#wizFill)" strokeWidth="12"
-          strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray={WIZ_LEN} strokeDashoffset={off}
-          className="wiz-water" />
-
-        {/* Fill — highlight streak */}
-        <path d={WIZ_PATH} fill="none" stroke="white" strokeWidth="3"
-          strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray={WIZ_LEN} strokeDashoffset={off}
-          opacity="0.18" className="wiz-water"
-          style={{ transform: 'translateY(-2.5px)' }} />
+        {/* White leading block */}
+        {fill && blk && (
+          <rect x={blk.x} y={blk.y} width={blk.w} height={blk.h}
+            fill="white" opacity="0.9" rx="1" />
+        )}
       </svg>
     </div>
   );
