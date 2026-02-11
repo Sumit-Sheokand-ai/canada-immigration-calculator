@@ -8,8 +8,9 @@ This document outlines the security measures implemented in the CRS Calculator t
 **Protects against**: XSS (Cross-Site Scripting) attacks, code injection
 
 **Implementation**: 
-- Meta tag in `index.html`
-- `_headers` file for GitHub Pages (if supported)
+- Service Worker (`public/sw.js`) - Injects headers at runtime
+- Meta tag in `index.html` as fallback
+- Note: GitHub Pages doesn't support custom HTTP headers via `_headers` file
 
 **Policy**:
 ```
@@ -131,6 +132,63 @@ if (!limiter.isAllowed(userId)) {
 | Man-in-the-Middle | HTTPS + HSTS | ✅ |
 | DDoS / Brute Force | Rate Limiting | ✅ |
 | Information Disclosure | CSP + Referrer Policy | ✅ |
+
+---
+
+## ⚠️ GitHub Pages Limitations
+
+### Why We Need Workarounds
+GitHub Pages is a static hosting service with limited support for custom HTTP headers. This creates some security challenges:
+
+**Limitations**:
+1. **No custom HTTP headers** - Cannot use `_headers`, `.htaccess`, or server config files
+2. **Meta tag restrictions** - `frame-ancestors` and `X-Frame-Options` don't work in `<meta>` tags
+3. **CSP via meta** - Less secure than HTTP headers (can be bypassed)
+4. **No HSTS preload** - Cannot set HSTS header directly
+
+### Our Solutions
+
+**Service Worker Approach**:
+- ✅ Injects security headers at runtime via Service Worker
+- ✅ Provides `X-Frame-Options`, `COOP`, `HSTS`, etc.
+- ✅ Works across all pages after initial load
+- ⚠️ First page load not protected (before SW registers)
+- ⚠️ Requires JavaScript enabled
+
+**CSP Trade-offs**:
+- ✅ React requires `'unsafe-inline'` for styles (inline CSS-in-JS)
+- ✅ React/Vite requires `'unsafe-inline'` for scripts during development
+- ✅ Plausible analytics requires external script source
+- ⚠️ Cannot use CSP nonces without build-time injection
+- ⚠️ Cannot use Trusted Types (incompatible with React)
+
+**Recommended Alternatives** (for production deployments):
+- **Netlify** - Supports `_headers` file natively
+- **Vercel** - Supports `vercel.json` for headers
+- **Cloudflare Pages** - Supports `_headers` file
+- **Custom server** - Full control over HTTP headers
+
+### Current Security Posture
+
+**What's Protected**:
+- ✅ XSS via CSP (with necessary exceptions for React)
+- ✅ Clickjacking via Service Worker X-Frame-Options
+- ✅ HTTPS via GitHub Pages automatic HTTPS
+- ✅ Input sanitization utilities available
+- ✅ Client-side rate limiting
+
+**Known Limitations**:
+- ⚠️ First page load (before SW) has reduced protection
+- ⚠️ CSP uses `unsafe-inline` (required for React)
+- ⚠️ No Trusted Types (incompatible with React)
+- ⚠️ HSTS header only via Service Worker
+
+**Mitigation**:
+1. React's built-in XSS protection (auto-escaping)
+2. Input sanitization utilities in `src/utils/sanitize.js`
+3. No user-generated content or database
+4. No sensitive data storage
+5. Client-side only application
 
 ---
 
