@@ -5,12 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/maple-leaf.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <!-- Security Headers -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://plausible.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://plausible.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;" />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <!-- Security Headers (frame-ancestors and X-Frame-Options only work via HTTP headers) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://plausible.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://plausible.io; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     
     <!-- Primary SEO Meta Tags -->
     <title>CRS Calculator 2026 | Free Canada Express Entry Points Calculator</title>
@@ -139,7 +137,7 @@
     </script>
     <!-- Analytics -->
     <script defer data-domain="bostify.me" src="https://plausible.io/js/script.js"></script>
-    <script type="module" crossorigin src="/assets/index-Dg7FDl7T.js"></script>
+    <script type="module" crossorigin src="/assets/index-rjG_USPQ.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-Cs5wI353.css">
   </head>
   <body>
