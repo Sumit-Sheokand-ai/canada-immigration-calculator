@@ -51,6 +51,27 @@ function addMonths(dateIso, months) {
   date.setMonth(date.getMonth() + months);
   return date.toISOString();
 }
+function formatExpectedGain(value) {
+  const numeric = Number(value) || 0;
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
+}
+
+function getPaceLabel(status) {
+  const map = {
+    'on-track': 'On track',
+    'slightly-behind': 'Slightly behind',
+    behind: 'Behind schedule',
+    'not-started': 'Not started',
+  };
+  return map[String(status || '')] || 'In progress';
+}
+
+function getCompletionPaceNote(projection) {
+  if (!projection) return '';
+  if (projection.delayDays > 0) return `${projection.delayDays} day(s) behind baseline`;
+  if (projection.delayDays < 0) return `${Math.abs(projection.delayDays)} day(s) ahead of baseline`;
+  return 'On baseline timeline';
+}
 
 function getRecommendedTarget({ answers, result, averageCutoff, categoryInfo }) {
   const current = Number(result?.total) || 0;
@@ -312,7 +333,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
         <span className="path-pill">Phase 2</span>
       </div>
       <p className="cat-intro">
-        Choose one expert strategy card, then follow daily tasks and progress signals to reach your target faster.
+        Pick the strategy that fits you best, then follow a guided daily plan to close your CRS gap faster.
       </p>
 
       <div className="path-target-row">
@@ -331,8 +352,8 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
         </label>
         <div className="path-target-meta">
           <small>Current: {planner.currentScore}</small>
-          <small>Gap: {Math.max(targetScore - planner.currentScore, 0)}</small>
-          <small>Recommended target: {recommendedTarget}</small>
+          <small>Score gap: {Math.max(targetScore - planner.currentScore, 0)}</small>
+          <small>Smart target: {recommendedTarget}</small>
         </div>
       </div>
 
@@ -355,7 +376,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
               <span>{plan.estimatedMonths} months</span>
               <span>{plan.likelihoodPercent}% likely</span>
             </div>
-            <small>{plan.goalReached ? 'Can hit target alone' : `Still need ${plan.checks.stillNeededAfterPath} pts after this path`}</small>
+            <small>{plan.goalReached ? 'Can likely reach your target with this path' : `${plan.checks.stillNeededAfterPath} pts still needed after this path`}</small>
           </motion.button>
         ))}
       </div>
@@ -371,10 +392,10 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
           {selectedTimeline && (
             <div className="path-meta-line">
               <span>
-                Completion window: <strong>{selectedTimeline.earliestMonths}-{selectedTimeline.latestMonths} months</strong>
+                Likely completion window: <strong>{selectedTimeline.earliestMonths}-{selectedTimeline.latestMonths} months</strong>
               </span>
               <span>
-                ETA dates: <strong>{formatDate(selectedTimeline.earliestDate)} - {formatDate(selectedTimeline.latestDate)}</strong>
+                Target finish dates: <strong>{formatDate(selectedTimeline.earliestDate)} - {formatDate(selectedTimeline.latestDate)}</strong>
               </span>
             </div>
           )}
@@ -391,14 +412,14 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
 
       {!isAuthenticated && (
         <div className="path-paywall">
-          <p>Login first, then activate paid tracking (5 CAD/month) to unlock daily guidance and cloud sync.</p>
+          <p>Log in first, then activate paid tracking (5 CAD/month) to unlock daily guidance and cloud sync.</p>
         </div>
       )}
 
       {isAuthenticated && !hasPaidAccess && (
         <div className="path-paywall">
           <p><strong>Tracking plan:</strong> 5 CAD / month</p>
-          <p>This includes expert strategy tracking, daily tasks, and cross-device progress sync.</p>
+          <p>Includes expert strategy tracking, daily tasks, reminders, and cross-device progress sync.</p>
           <div className="path-pay-actions">
             <button
               className="action-btn auth-btn-primary"
@@ -466,14 +487,14 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
 
           <div className="path-daily-stats">
             <span>Streak: <strong>{dailyStats.streakDays} day(s)</strong></span>
-            <span>Done: <strong>{dailyStats.completedTasks}/{dailyStats.totalTasks}</strong></span>
+            <span>Completed: <strong>{dailyStats.completedTasks}/{dailyStats.totalTasks}</strong></span>
             <span>Today: <strong>{dailyStats.completedToday}/{dailyStats.dueToday}</strong></span>
-            <span className={`pace pace-${dailyStats.paceStatus}`}>Pace: <strong>{dailyStats.paceStatus}</strong></span>
+            <span className={`pace pace-${dailyStats.paceStatus}`}>Pace: <strong>{getPaceLabel(dailyStats.paceStatus)}</strong></span>
           </div>
 
           {completionProjection && (
             <div className="path-coach-note">
-              <strong>Completion forecast:</strong> baseline {formatDate(completionProjection.baselineDate)} · current pace {formatDate(completionProjection.projectedDate)}
+              <strong>Completion forecast:</strong> baseline {formatDate(completionProjection.baselineDate)} · current pace {formatDate(completionProjection.projectedDate)} ({getCompletionPaceNote(completionProjection)})
             </div>
           )}
 
@@ -483,7 +504,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
 
           <div className="path-daily-section">
             <h5>Today&apos;s guide</h5>
-            {!todayTasks.length && <p className="path-empty-text">No task due today. Continue with your next upcoming task.</p>}
+            {!todayTasks.length && <p className="path-empty-text">No task is due today. Continue with the next upcoming task.</p>}
             {!!todayTasks.length && (
               <ul className="path-daily-list">
                 {todayTasks.map((task) => (
@@ -494,7 +515,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
                     <div>
                       <strong>{task.title}</strong>
                       <p>{task.details}</p>
-                      <small>{task.expectedMinutes} min planned · +{task.expectedGain} expected CRS pace</small>
+                      <small>{task.expectedMinutes} min planned · +{formatExpectedGain(task.expectedGain)} projected CRS pace</small>
                     </div>
                   </li>
                 ))}
@@ -503,7 +524,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
           </div>
 
           <div className="path-daily-section">
-            <h5>Next 7 days</h5>
+            <h5>Upcoming 7-day guide</h5>
             {!upcomingTasks.length && <p className="path-empty-text">No upcoming tasks yet.</p>}
             {!!upcomingTasks.length && (
               <ul className="path-upcoming-list">
