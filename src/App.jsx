@@ -68,6 +68,7 @@ export default function App() {
   const [answers, setAnswers] = useState(() => initialAnswers);
   const [unsubscribeState, setUnsubscribeState] = useState(() => (unsubscribeToken ? 'loading' : 'idle'));
   const [drawData, setDrawData] = useState(() => getFallbackLatestDraws());
+  const [drawSource, setDrawSource] = useState('local-fallback');
   const [categoryInfo, setCategoryInfo] = useState(() => getFallbackCategoryDrawInfo());
 
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function App() {
         if (!active) return;
         if (res?.status === 'ok' && res.data) {
           setDrawData(res.data);
+          setDrawSource(res.source || 'local-fallback');
         }
       })
       .catch(() => {
@@ -187,7 +189,7 @@ export default function App() {
       />
       <main className="main" role="main">
         <AnimatePresence mode="wait">
-          {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} drawData={drawData} />}
+          {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} drawData={drawData} drawSource={drawSource} />}
           {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={saveProgress} initialAnswers={answers} />}
           {mode === 'unsubscribe' && (
             <div className="card unsubscribe-card">
@@ -208,6 +210,7 @@ export default function App() {
                 answers={answers}
                 onRestart={handleRestart}
                 drawData={drawData}
+                drawSource={drawSource}
                 categoryInfo={categoryInfo}
               />
             </Suspense>

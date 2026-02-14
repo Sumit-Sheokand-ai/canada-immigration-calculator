@@ -15,6 +15,15 @@ import Loader from './Loader';
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
 
+function getDrawSourceLabel(source) {
+  if (source === 'supabase') return 'Live sync';
+  return 'Local fallback';
+}
+
+function getDrawSourceClass(source) {
+  return source === 'supabase' ? 'draw-source-live' : 'draw-source-fallback';
+}
+
 function AnimatedNumber({ value, duration = 1.2 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
@@ -314,7 +323,7 @@ async function copyTextWithFallback(text) {
   }
 }
 
-export default function Results({ answers, onRestart, drawData, categoryInfo }) {
+export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo }) {
   const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
   const activeDraws = drawData || getFallbackLatestDraws();
@@ -493,6 +502,12 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
   };
 
   const handlePDF = () => window.print();
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    const top = element.getBoundingClientRect().top + window.scrollY - 90;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  };
 
   if (loading) return <LoadingScreen />;
 
@@ -516,16 +531,31 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
         </button>
       </motion.div>
 
+      <motion.div className="card quick-nav-card" variants={fadeUp}>
+        <h3>Quick navigation</h3>
+        <div className="quick-nav-grid">
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>Save profile</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-coach')}>Expert strategy</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}>Category draws</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>Recent draws</button>
+        </div>
+      </motion.div>
+
       <motion.div className={`card status-card ${status.cls}-card`} variants={fadeUp}>
         <div className="status-header"><span className={`status-marker ${status.cls}`}>{status.marker}</span> <strong>{status.title}</strong></div>
         <p className="status-desc">{status.desc}</p>
+        <div className={`draw-source-pill ${getDrawSourceClass(drawSource)}`}>
+          Draw data source: {getDrawSourceLabel(drawSource)} · Updated {activeDraws.lastUpdated || '—'}
+        </div>
         <div className="cutoff-compare">
           <CutoffBar label="Your Score" value={score} max={Math.max(score, cutoff, 600)} color="var(--primary)" />
           <CutoffBar label="Cut-off" value={cutoff} max={Math.max(score, cutoff, 600)} color="var(--surface-3)" />
         </div>
       </motion.div>
 
-      <motion.div className="card save-profile-card" variants={fadeUp}>
+      <motion.div className="card save-profile-card" variants={fadeUp} id="section-save">
         <h3>Save & share your profile</h3>
         <p className="cat-intro">Save this result, generate a unique URL, and optionally subscribe to draw alerts.</p>
         {isAuthenticated ? (
@@ -579,7 +609,7 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
       </motion.div>
 
       {isSelfCalc && (
-        <motion.div className="card" variants={fadeUp}>
+        <motion.div className="card" variants={fadeUp} id="section-category">
           <h3>{t('results.breakdown')}</h3>
           <motion.div className="breakdown-grid" variants={stagger} initial="hidden" animate="show">
             {breakdownItems.map(it => <BreakdownItem key={it.label} {...it} />)}
@@ -606,7 +636,7 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
       )}
 
       {suggestions.length > 0 && (
-        <motion.div className="card" variants={fadeUp}>
+        <motion.div className="card" variants={fadeUp} id="section-improve">
           <h3>{t('results.improve')}</h3>
           {topSuggestions.map((sug, i) => (
             <motion.div className="action-card" key={i} variants={fadeUp}>
@@ -653,16 +683,18 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
       )}
 
       {isSelfCalc && (
-        <PathCoach
-          answers={answers}
-          result={result}
-          averageCutoff={activeDraws.averageCutoff}
-          categoryInfo={activeCategoryInfo}
-        />
+        <div id="section-coach">
+          <PathCoach
+            answers={answers}
+            result={result}
+            averageCutoff={activeDraws.averageCutoff}
+            categoryInfo={activeCategoryInfo}
+          />
+        </div>
       )}
 
       {isSelfCalc && (
-        <motion.div className="card" variants={fadeUp}>
+        <motion.div className="card" variants={fadeUp} id="section-category">
           <h3>{t('results.category')}</h3>
           <p className="cat-intro">{t('results.catIntro')}</p>
           <div className="cat-grid">
@@ -724,7 +756,7 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
         </motion.div>
       )}
 
-      <motion.div className="card" variants={fadeUp}>
+      <motion.div className="card" variants={fadeUp} id="section-timeline">
         <h3>{t('results.timeline')}</h3>
         <div className={`timeline-badge tl-${status.cls}`}>
           <strong>{timeline.label}</strong> — est. {timeline.months} months
@@ -732,10 +764,13 @@ export default function Results({ answers, onRestart, drawData, categoryInfo }) 
         <p className="timeline-desc">{timeline.description}</p>
       </motion.div>
 
-      <motion.div className="card" variants={fadeUp}>
+      <motion.div className="card" variants={fadeUp} id="section-draws">
         <h3 className="draws-toggle" onClick={() => setDrawsOpen(!drawsOpen)}>
           {t('results.draws')} <span className="toggle-arrow">{drawsOpen ? '▲' : '▼'}</span>
         </h3>
+        <div className={`draw-source-pill ${getDrawSourceClass(drawSource)}`}>
+          Source: {getDrawSourceLabel(drawSource)} · Updated {activeDraws.lastUpdated || '—'}
+        </div>
         {drawsOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="draws-content">
             <h4 className="draws-subhead">General / CEC Draws</h4>

@@ -11,7 +11,11 @@ const item = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } }
 };
 
-export default function WelcomeScreen({ onStart, hasSaved, drawData }) {
+function sourceLabel(source) {
+  return source === 'supabase' ? 'Live sync' : 'Local fallback';
+}
+
+export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource = 'local-fallback' }) {
   const { t } = useLanguage();
 
   const features = [
@@ -83,7 +87,7 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData }) {
         <p className="welcome-microcopy">{t('welcome.microcopy')}</p>
       </motion.div>
       <motion.p className="welcome-trust" variants={item}>
-        {t('welcome.trust')} {drawData?.lastUpdated || '—'}
+        {t('welcome.trust')} {drawData?.lastUpdated || '—'} · {sourceLabel(drawSource)}
       </motion.p>
     </motion.div>
   );

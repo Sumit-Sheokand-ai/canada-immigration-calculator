@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const sendEmailOtp = useCallback(async (email) => {
+  const sendEmailMagicLink = useCallback(async (email) => {
     if (!isSupabaseConfigured || !supabase) {
       throw new Error('Supabase auth is not configured.');
     }
@@ -61,6 +61,10 @@ export function AuthProvider({ children }) {
     if (error) throw error;
     return { status: 'sent' };
   }, []);
+
+  const sendEmailOtp = useCallback(async (email) => {
+    return sendEmailMagicLink(email);
+  }, [sendEmailMagicLink]);
 
   const verifyEmailOtp = useCallback(async (email, token) => {
     if (!isSupabaseConfigured || !supabase) {
@@ -96,6 +100,17 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   }, []);
 
+  const refreshSession = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      return null;
+    }
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    setSession(data.session || null);
+    setUser(data.session?.user || null);
+    return data.session || null;
+  }, []);
+
   const value = useMemo(() => ({
     isConfigured: isSupabaseConfigured,
     loading,
@@ -103,10 +118,12 @@ export function AuthProvider({ children }) {
     user,
     isAuthenticated: !!user,
     sendEmailOtp,
+    sendEmailMagicLink,
     verifyEmailOtp,
     signInWithGoogle,
     signOut,
-  }), [loading, sendEmailOtp, session, signInWithGoogle, signOut, user, verifyEmailOtp]);
+    refreshSession,
+  }), [loading, refreshSession, sendEmailMagicLink, sendEmailOtp, session, signInWithGoogle, signOut, user, verifyEmailOtp]);
 
   return (
     <AuthContext.Provider value={value}>
