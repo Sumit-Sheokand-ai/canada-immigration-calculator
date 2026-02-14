@@ -1,0 +1,19 @@
+{
+  "name": "CRS Calculator 2026",
+  "short_name": "CRS Calc",
+  "description": "Calculate your Canada Express Entry CRS score with updated IRCC draw data.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8F5FF",
+  "theme_color": "#7C3AED",
+  "icons": [
+    {
+      "src": "/maple-leaf.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}
