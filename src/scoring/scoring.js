@@ -155,10 +155,6 @@ function calcAdditionalPoints(a) {
   let total = 0;
   const AP = D.additionalPointsTable;
   if (a.hasPNP === 'yes') total += AP.pnp_nomination;
-  if (a.hasJobOffer === 'yes') {
-    if (a.jobOfferTeer === 'teer_0' && a.jobOfferMajorGroup00 === 'yes') total += AP.job_offer_00;
-    else if (['teer_0','teer_1','teer_2','teer_3'].includes(a.jobOfferTeer)) total += AP.job_offer_other;
-  }
   if (a.canadianEducation === 'yes') {
     total += a.canadianEduType === 'long' ? AP.canadian_edu_long : AP.canadian_edu_short;
   }

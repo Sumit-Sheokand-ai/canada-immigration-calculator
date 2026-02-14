@@ -6,7 +6,9 @@ import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { buildProfileShareUrl, encodeShareAnswers, saveProfileLocal } from '../utils/profileStore';
-import { isCloudProfilesEnabled, upsertProfileCloud } from '../utils/cloudProfiles';
+import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from '../utils/cloudProfiles';
+import { useAuth } from '../context/AuthContext';
+import PathCoach from './PathCoach';
 import Loader from './Loader';
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -313,6 +315,7 @@ async function copyTextWithFallback(text) {
 
 export default function Results({ answers, onRestart }) {
   const { t } = useLanguage();
+  const { user, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
@@ -326,6 +329,8 @@ export default function Results({ answers, onRestart }) {
   const [saveStatus, setSaveStatus] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [shareUrl, setShareUrl] = useState(() => `${window.location.origin}${window.location.pathname}#${encodeShareAnswers(answers)}`);
+  const [syncedProfiles, setSyncedProfiles] = useState([]);
+  const [syncedProfilesStatus, setSyncedProfilesStatus] = useState('idle');
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2500);
@@ -349,6 +354,32 @@ export default function Results({ answers, onRestart }) {
   const cutoff = latestDraws.averageCutoff;
   const diff = score - cutoff;
   const cloudEnabled = isCloudProfilesEnabled();
+
+  useEffect(() => {
+    if (!isAuthenticated || !cloudEnabled || !user?.id) {
+      setSyncedProfiles([]);
+      setSyncedProfilesStatus('idle');
+      return;
+    }
+    let active = true;
+    setSyncedProfilesStatus('loading');
+    listProfilesForUser(user.id)
+      .then((res) => {
+        if (!active) return;
+        if (res.status === 'ok') {
+          setSyncedProfiles(res.data || []);
+          setSyncedProfilesStatus('ready');
+        } else {
+          setSyncedProfiles([]);
+          setSyncedProfilesStatus('empty');
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setSyncedProfilesStatus('error');
+      });
+    return () => { active = false; };
+  }, [cloudEnabled, isAuthenticated, user?.id]);
 
   const status = diff >= 20
     ? { cls: 'above', marker: '+', title: 'Great News!', desc: `Your score is ${diff} points above the recent cut-off (${cutoff}). You have a strong chance of receiving an Invitation to Apply.`, color: '#22c55e' }
@@ -406,9 +437,9 @@ export default function Results({ answers, onRestart }) {
   };
 
   const handleSaveProfile = async () => {
-    const email = saveEmail.trim();
+    const email = saveEmail.trim() || user?.email || '';
     if (saveAlerts && !email) {
-      setSaveStatus('Add an email to enable draw alerts.');
+      setSaveStatus('Add an email to enable draw alerts (or sign in).');
       return;
     }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) {
@@ -429,9 +460,19 @@ export default function Results({ answers, onRestart }) {
 
     try {
       if (email || saveAlerts) {
-        const cloud = await upsertProfileCloud(local);
+        const cloud = await upsertProfileCloud(local, { userId: user?.id || null });
         if (cloud.status === 'ok') {
-          setSaveStatus(saveAlerts ? 'Profile saved and draw alerts subscribed.' : 'Profile saved with shareable link.');
+          if (isAuthenticated && user?.id) {
+            const profileRows = await listProfilesForUser(user.id);
+            if (profileRows.status === 'ok') {
+              setSyncedProfiles(profileRows.data || []);
+              setSyncedProfilesStatus('ready');
+            }
+          }
+          setSaveStatus(saveAlerts
+            ? 'Profile saved, synced, and draw alerts subscribed.'
+            : 'Profile saved and synced with your account.'
+          );
         } else {
           setSaveStatus('Profile saved locally. Configure Supabase env vars to enable cloud sync/alerts.');
         }
@@ -481,6 +522,11 @@ export default function Results({ answers, onRestart }) {
       <motion.div className="card save-profile-card" variants={fadeUp}>
         <h3>Save & share your profile</h3>
         <p className="cat-intro">Save this result, generate a unique URL, and optionally subscribe to draw alerts.</p>
+        {isAuthenticated ? (
+          <p className="save-note">Signed in as {user.email}. Saves are synced across your devices.</p>
+        ) : (
+          <p className="save-note">Tip: sign in to sync profiles and score tracking across devices.</p>
+        )}
         <div className="save-grid">
           <label className="wi-field">
             <span>Profile name (optional)</span>
@@ -504,6 +550,26 @@ export default function Results({ answers, onRestart }) {
         </div>
         <p className="save-url">{shareUrl}</p>
         {saveStatus && <p className="save-status">{saveStatus}</p>}
+        {isAuthenticated && (
+          <div className="save-synced-list">
+            <h4>Synced profiles</h4>
+            {syncedProfilesStatus === 'loading' && <p className="save-note">Loading your synced profiles...</p>}
+            {syncedProfilesStatus === 'error' && <p className="save-note">Could not load synced profiles right now.</p>}
+            {syncedProfilesStatus !== 'loading' && syncedProfiles.length === 0 && (
+              <p className="save-note">No synced profiles yet. Save your current result to start tracking.</p>
+            )}
+            {syncedProfiles.length > 0 && (
+              <ul className="save-synced-items">
+                {syncedProfiles.slice(0, 5).map((profile) => (
+                  <li key={profile.id}>
+                    <span>{profile.name || profile.id}</span>
+                    <strong>{profile.score}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {isSelfCalc && (
@@ -578,6 +644,10 @@ export default function Results({ answers, onRestart }) {
             </>
           )}
         </motion.div>
+      )}
+
+      {isSelfCalc && (
+        <PathCoach answers={answers} result={result} />
       )}
 
       {isSelfCalc && (

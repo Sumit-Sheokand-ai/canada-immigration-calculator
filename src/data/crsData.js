@@ -88,7 +88,8 @@ export const fweCWETransfer  = [[0,0,0],[0,13,25],[0,25,50]];
 export const certLangTransfer = [0,25,50];
 
 export const additionalPointsTable = {
-  pnp_nomination:600, job_offer_00:200, job_offer_other:50,
+  // IRCC removed arranged employment CRS additional points on 2025-03-25.
+  pnp_nomination:600, job_offer_00:0, job_offer_other:0,
   canadian_edu_short:15, canadian_edu_long:30,
   sibling_in_canada:15,
   // IRCC: French NCLC 7+ with English CLB 4 or less = 25 pts

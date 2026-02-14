@@ -104,15 +104,50 @@ export default function App() {
 
   // Back-to-top button
   const [showTop, setShowTop] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(() => {
+    const standaloneMedia = window.matchMedia?.('(display-mode: standalone)')?.matches;
+    const standaloneNavigator = window.navigator?.standalone === true;
+    return !!(standaloneMedia || standaloneNavigator);
+  });
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 400);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+    };
+    const onInstalled = () => {
+      setDeferredInstallPrompt(null);
+      setIsStandalone(true);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = useCallback(async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if (choice?.outcome === 'accepted') {
+      setDeferredInstallPrompt(null);
+    }
+  }, [deferredInstallPrompt]);
+
   return (
     <div className="app">
-      <Header />
+      <Header
+        canInstallApp={!isStandalone && !!deferredInstallPrompt}
+        onInstallApp={handleInstallApp}
+      />
       <main className="main" role="main">
         <AnimatePresence mode="wait">
           {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} />}

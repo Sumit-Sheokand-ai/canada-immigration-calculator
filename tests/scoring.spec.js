@@ -121,6 +121,17 @@ describe('CRS core scoring table rules', () => {
     expect(withPNP.details.additionalTotal - withoutPNP.details.additionalTotal).toBe(600);
   });
 
+  it('does not add CRS points for valid job offers after policy update', () => {
+    const noOffer = calculate({ ...baseAnswers(), hasJobOffer: 'no' });
+    const withOffer = calculate({
+      ...baseAnswers(),
+      hasJobOffer: 'yes',
+      jobOfferTeer: 'teer_0',
+      jobOfferMajorGroup00: 'yes',
+    });
+    expect(withOffer.details.additionalTotal).toBe(noOffer.details.additionalTotal);
+  });
+
   it('applies French additional points based on English strength', () => {
     const weakEnglish = calculate({
       ...baseAnswers(),

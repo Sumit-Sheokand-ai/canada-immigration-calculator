@@ -239,29 +239,32 @@ function updateDataFile(latestDraws) {
 }
 
 function buildLatestDrawsJS(data) {
+  const esc = (value) => String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
   const lines = [];
   lines.push("export const latestDraws = {");
-  lines.push(`  lastUpdated: "${data.lastUpdated}",`);
+  lines.push(`  lastUpdated: "${esc(data.lastUpdated)}",`);
 
   lines.push("  generalProgram: [");
   for (const d of data.generalProgram) {
-    lines.push(`    { date: "${d.date}", score: ${d.score}, invitations: ${d.invitations}, program: "${d.program}" },`);
+    lines.push(`    { date: "${esc(d.date)}", score: ${d.score}, invitations: ${d.invitations}, program: "${esc(d.program)}" },`);
   }
   lines.push("  ],");
 
   lines.push("  categoryBased: [");
   for (const d of data.categoryBased) {
-    lines.push(`    { date: "${d.date}", score: ${d.score}, invitations: ${d.invitations}, program: "${d.program}" },`);
+    lines.push(`    { date: "${esc(d.date)}", score: ${d.score}, invitations: ${d.invitations}, program: "${esc(d.program)}" },`);
   }
   lines.push("  ],");
 
   lines.push("  pnpDraws: [");
   for (const d of data.pnpDraws) {
-    lines.push(`    { date: "${d.date}", score: ${d.score}, invitations: ${d.invitations}, program: "${d.program}" },`);
+    lines.push(`    { date: "${esc(d.date)}", score: ${d.score}, invitations: ${d.invitations}, program: "${esc(d.program)}" },`);
   }
   lines.push("  ],");
 
-  lines.push(`  pnpRanges: { low: ${data.pnpRanges.low}, high: ${data.pnpRanges.high}, note: "${data.pnpRanges.note}" },`);
+  lines.push(`  pnpRanges: { low: ${data.pnpRanges.low}, high: ${data.pnpRanges.high}, note: "${esc(data.pnpRanges.note)}" },`);
   lines.push(`  averageCutoff: ${data.averageCutoff},`);
   lines.push("};");
 

@@ -110,19 +110,6 @@ export function generateSuggestions(answers, result) {
     ));
   }
 
-  // Job offer
-  if (answers.hasJobOffer !== 'yes') {
-    const newResult = recalcWith(answers, { hasJobOffer: 'yes', jobOfferTeer: 'teer_0' });
-    const gain = newResult.total - result.total;
-    if (gain > 0) {
-      suggestions.push(makeSuggestion(
-        'Obtain LMIA-Backed Job Offer',
-        `A valid job offer with LMIA in a TEER 0-3 occupation adds 50-200 points.`,
-        gain, 'Hard', '2-6 months', 'job',
-        `Current profile + valid LMIA-backed offer = +${gain} CRS`
-      ));
-    }
-  }
 
   // Canadian education
   if (answers.canadianEducation !== 'yes') {

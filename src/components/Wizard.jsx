@@ -163,18 +163,10 @@ const STEPS = [
       { title: "Spouse CLB – Speaking", answerKey: 'spouseLang_speaking', type: 'grid', options: clbOpts },
       { title: "Spouse's Canadian Work Experience", answerKey: 'spouseCanadianWork', type: 'grid-wide', options: workOpts },
     ]},
-  { id: 'hasJobOffer', label: 'Job Offer', title: 'Do You Have a Valid Job Offer from a Canadian Employer?', subtitle: 'The job offer must be supported by a positive LMIA (Labour Market Impact Assessment) or be LMIA-exempt. A valid job offer in a TEER 0-3 occupation adds 50 points (or 200 for senior management).', helpTip: 'An LMIA (Labour Market Impact Assessment) is a document your employer gets from Service Canada proving no Canadian worker is available for the job. It typically costs $1,000 (paid by employer) and takes 2-4 months.', type: 'single', answerKey: 'hasJobOffer',
+  { id: 'hasJobOffer', label: 'Job Offer', title: 'Do You Have a Valid Job Offer from a Canadian Employer?', subtitle: 'A valid Canadian job offer can still help with program eligibility, but IRCC removed CRS additional points for arranged employment on March 25, 2025.', helpTip: 'An LMIA (Labour Market Impact Assessment) is a document your employer gets from Service Canada proving no Canadian worker is available for the job. It may still matter for eligibility in some pathways, but it no longer gives CRS additional points.', type: 'single', answerKey: 'hasJobOffer',
     condition: a => a.knowsScore !== 'yes', options: [
-    { value: 'yes', label: 'Yes — I have an LMIA-backed job offer' },
-    { value: 'no', label: 'No — I don\'t have a Canadian job offer' },
-  ]},
-  { id: 'jobOfferTeer', label: 'Job TEER', title: 'Job Offer – NOC TEER Level', type: 'single', answerKey: 'jobOfferTeer',
-    condition: a => a.knowsScore !== 'yes' && a.hasJobOffer === 'yes',
-    options: nocTEER.map(n => ({ value: n.value, label: n.label })) },
-  { id: 'jobOfferMajorGroup00', label: 'Senior Mgmt', title: 'Is the Job Offer for Senior Management (Major Group 00)?', subtitle: 'E.g., Legislators, Senior government managers, Senior business executives.', type: 'single', answerKey: 'jobOfferMajorGroup00',
-    condition: a => a.knowsScore !== 'yes' && a.hasJobOffer === 'yes' && a.jobOfferTeer === 'teer_0', options: [
-    { value: 'yes', label: 'Yes – Senior Management (Major Group 00)' },
-    { value: 'no', label: 'No – Other Management' },
+    { value: 'yes', label: 'Yes — I have a valid Canadian job offer' },
+    { value: 'no', label: "No — I don't have a Canadian job offer" },
   ]},
   { id: 'hasCertificate', label: 'Trade Cert.', title: 'Do You Have a Canadian Certificate of Qualification?', subtitle: 'A trade certificate issued by a Canadian province or territory.', type: 'single', answerKey: 'hasCertificate',
     condition: a => a.knowsScore !== 'yes' && a.pathway === 'fst', options: [

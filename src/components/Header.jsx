@@ -1,12 +1,17 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import AuthModal from './AuthModal';
 
 const langLabels = { en: 'EN', fr: 'FR' };
 
-export default function Header() {
+export default function Header({ canInstallApp = false, onInstallApp = () => {} }) {
   const { dark, toggle } = useTheme();
   const { lang, setLang, t } = useLanguage();
+  const { user } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   return (
     <motion.header
@@ -21,6 +26,24 @@ export default function Header() {
           <span>{t('header.title')}</span>
         </div>
         <div className="header-actions">
+          {canInstallApp && (
+            <button
+              className="install-btn"
+              onClick={onInstallApp}
+              aria-label="Install app"
+              title="Add app shortcut"
+            >
+              Install
+            </button>
+          )}
+          <button
+            className="auth-toggle"
+            onClick={() => setShowAuthModal(true)}
+            aria-label={user ? 'Manage account' : 'Login or signup'}
+            title={user ? user.email : 'Login / Signup'}
+          >
+            {user ? 'Account' : 'Login'}
+          </button>
           <select
             className="lang-select"
             value={lang}
@@ -41,6 +64,7 @@ export default function Header() {
           </button>
         </div>
       </div>
+      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </motion.header>
   );
 }
