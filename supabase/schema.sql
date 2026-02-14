@@ -49,6 +49,17 @@ create table if not exists public.category_draw_configs (
   updated_at timestamptz not null default now(),
   primary key (id, source)
 );
+
+create table if not exists public.question_sets (
+  id text not null default 'wizard',
+  source text not null default 'baseline',
+  version text not null default 'v1',
+  is_active boolean not null default true,
+  payload jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (id, source, version)
+);
 alter table public.saved_profiles add column if not exists user_id uuid references auth.users(id) on delete set null;
 
 create index if not exists saved_profiles_alert_idx on public.saved_profiles (alert_opt_in, score);
@@ -150,6 +161,7 @@ create unique index if not exists draw_snapshots_source_date_uq on public.draw_s
 create index if not exists draw_snapshots_updated_idx on public.draw_snapshots (last_updated desc);
 create index if not exists draw_update_runs_started_idx on public.draw_update_runs (started_at desc);
 create index if not exists category_draw_configs_active_idx on public.category_draw_configs (is_active, updated_at desc);
+create index if not exists question_sets_active_idx on public.question_sets (id, is_active, updated_at desc);
 
 alter table public.user_tracking_access enable row level security;
 alter table public.payments enable row level security;
@@ -157,6 +169,7 @@ alter table public.user_path_tracking enable row level security;
 alter table public.draw_snapshots enable row level security;
 alter table public.draw_update_runs enable row level security;
 alter table public.category_draw_configs enable row level security;
+alter table public.question_sets enable row level security;
 
 drop policy if exists "auth_select_own_tracking_access" on public.user_tracking_access;
 create policy "auth_select_own_tracking_access"
@@ -233,6 +246,13 @@ using (true);
 drop policy if exists "public_read_category_draw_configs" on public.category_draw_configs;
 create policy "public_read_category_draw_configs"
 on public.category_draw_configs
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "public_read_question_sets" on public.question_sets;
+create policy "public_read_question_sets"
+on public.question_sets
 for select
 to anon, authenticated
 using (true);

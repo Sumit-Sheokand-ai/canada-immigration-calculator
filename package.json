@@ -12,6 +12,7 @@
     "draw-alerts": "node scripts/send-draw-alerts.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "sync:questions": "node scripts/sync-question-bank.mjs",
     "deploy:fn:tracking-checkout": "supabase functions deploy create-tracking-checkout",
     "deploy:fn:stripe-webhook": "supabase functions deploy stripe-webhook --no-verify-jwt"
   },
