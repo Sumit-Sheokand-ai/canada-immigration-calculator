@@ -73,6 +73,38 @@ function getCompletionPaceNote(projection) {
   return 'On baseline timeline';
 }
 
+async function extractEdgeFunctionErrorMessage(error) {
+  if (!error) return '';
+  const messages = [];
+  if (error.message) messages.push(String(error.message));
+
+  const context = error.context;
+  if (!context || typeof context.clone !== 'function') {
+    return messages.join(' · ').trim();
+  }
+
+  try {
+    const response = context.clone();
+    const contentType = response.headers?.get?.('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await response.json();
+      const bodyMessages = [
+        body?.message,
+        body?.error,
+        body?.details,
+      ].filter(Boolean).map((value) => String(value));
+      if (bodyMessages.length) messages.push(...bodyMessages);
+    } else {
+      const rawText = await response.text();
+      if (rawText) messages.push(rawText);
+    }
+  } catch {
+    // no-op: fall back to top-level error message only
+  }
+
+  return [...new Set(messages)].join(' · ').trim();
+}
+
 function getRecommendedTarget({ answers, result, averageCutoff, categoryInfo }) {
   const current = Number(result?.total) || 0;
   const baseGeneralTarget = Math.max(Number(averageCutoff) || 520, current + 25);
@@ -307,7 +339,10 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
           source: 'path-coach',
         },
       });
-      if (error) throw error;
+      if (error) {
+        const detailedMessage = await extractEdgeFunctionErrorMessage(error);
+        throw new Error(detailedMessage || 'Could not create checkout session.');
+      }
       const dynamicCheckoutUrl = data?.url;
       if (!dynamicCheckoutUrl) {
         throw new Error('Checkout function returned no URL.');
@@ -315,11 +350,15 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
       window.location.href = dynamicCheckoutUrl;
       setTrackingStatus('Opening secure checkout...');
     } catch (err) {
+      const normalizedMessage = String(err?.message || '');
+      const isEdgeNon2xx = /non-2xx status code/i.test(normalizedMessage);
       if (checkoutUrl) {
         window.location.href = checkoutUrl;
         setTrackingStatus('Checkout function unavailable. Opened fallback checkout link.');
+      } else if (isEdgeNon2xx) {
+        setTrackingStatus('Checkout backend is returning an error. Deploy/fix the Supabase "create-tracking-checkout" function and Stripe secrets, or set VITE_STRIPE_TRACKING_CHECKOUT_URL fallback.');
       } else {
-        setTrackingStatus(err.message || 'Could not start subscription checkout.');
+        setTrackingStatus(normalizedMessage || 'Could not start subscription checkout.');
       }
     } finally {
       setSubscribeBusy(false);
