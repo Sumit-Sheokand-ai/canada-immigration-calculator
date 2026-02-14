@@ -1,4 +1,4 @@
-import { recalcWith, getMinCLB, getMinFrenchCLB, hasAccompanyingSpouse } from './scoring.js';
+import { recalcWith, getMinCLB, getMinEnglishCLB, getMinFrenchCLB, hasAccompanyingSpouse } from './scoring.js';
 
 function makeSuggestion(title, description, potentialGain, difficulty, timeframe, icon, action = '') {
   return { title, description, potentialGain, difficulty, timeframe, icon, action };
@@ -7,23 +7,39 @@ function makeSuggestion(title, description, potentialGain, difficulty, timeframe
 export function generateSuggestions(answers, result) {
   const suggestions = [];
   const minCLB = getMinCLB(answers);
+  const minEnglishCLB = getMinEnglishCLB(answers);
+  const firstOfficial = answers.firstOfficialLanguage === 'french' ? 'french' : 'english';
+  const hasFrenchActive = firstOfficial === 'french' || answers.hasFrench === 'yes';
 
-  // Language improvement
+  // First official language improvement
   if (minCLB < 10) {
     const target = Math.min(minCLB + 1, 10);
-    const testType = answers.langTestType === 'celpip' ? 'CELPIP' : 'IELTS';
-    const overrides = {};
     const skills = ['listening', 'reading', 'writing', 'speaking'];
-    for (const s of skills) {
-      const key = answers.langTestType === 'celpip' ? `celpip_${s}` : `ielts_${s}`;
-      const cur = answers.langTestType === 'celpip'
-        ? parseInt(answers[key]) || 0
-        : parseFloat(answers[key]) || 0;
-      if (answers.langTestType === 'celpip') {
-        overrides[key] = Math.max(cur, target);
-      } else {
-        // rough IELTS bump
-        overrides[key] = Math.max(cur, cur + 0.5);
+    let testType = 'First official language';
+    const overrides = {};
+
+    if (firstOfficial === 'french') {
+      testType = 'French (NCLC)';
+      overrides.hasFrench = 'yes';
+      overrides.frenchTestType = 'clb';
+      for (const s of skills) {
+        const key = `french_${s}`;
+        const cur = parseInt(answers[key], 10) || 0;
+        overrides[key] = String(Math.max(cur, target));
+      }
+    } else {
+      testType = answers.langTestType === 'celpip' ? 'CELPIP' : 'IELTS';
+      for (const s of skills) {
+        const key = answers.langTestType === 'celpip' ? `celpip_${s}` : `ielts_${s}`;
+        const cur = answers.langTestType === 'celpip'
+          ? parseInt(answers[key], 10) || 0
+          : parseFloat(answers[key]) || 0;
+        if (answers.langTestType === 'celpip') {
+          overrides[key] = Math.max(cur, target);
+        } else {
+          // rough IELTS bump
+          overrides[key] = Math.max(cur, cur + 0.5);
+        }
       }
     }
     const newResult = recalcWith(answers, overrides);
@@ -75,14 +91,14 @@ export function generateSuggestions(answers, result) {
   }
 
   // French language
-  if (answers.hasFrench !== 'yes') {
+  if (!hasFrenchActive) {
     const frOverrides = { hasFrench: 'yes', french_listening: '7', french_reading: '7', french_writing: '7', french_speaking: '7' };
     const newResult = recalcWith(answers, frOverrides);
     const gain = newResult.total - result.total;
     if (gain > 0) {
       suggestions.push(makeSuggestion(
-        'Learn French (TEF/TCF)',
-        `Strong French skills (NCLC 7+) earn ${minCLB >= 5 ? '50' : '25'} additional CRS points. Plus, French-language category draws have cutoffs around 400 — much lower than general draws (~520).`,
+        'Add French Test Results (TEF/TCF)',
+        `Strong French skills (NCLC 7+) earn ${minEnglishCLB >= 5 ? '50' : '25'} additional CRS points. Plus, French-language category draws have cutoffs around 400 — much lower than general draws (~520).`,
         gain, 'Hard', '6-12 months', 'french',
         `Reach NCLC 7 in all 4 abilities = +${gain} CRS`
       ));

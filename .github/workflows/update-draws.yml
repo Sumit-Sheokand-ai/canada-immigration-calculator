@@ -28,6 +28,9 @@ jobs:
         run: npm ci
 
       - name: Run data updater
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/update-data.cjs
       - name: Validate scoring + parser tests
         run: npm test

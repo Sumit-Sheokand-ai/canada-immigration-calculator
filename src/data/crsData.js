@@ -109,7 +109,7 @@ export const categoryBasedInfo = [
     recentCutoff: 400,
     cutoffRange: '379–416',
     check: (answers) => {
-      if (answers.hasFrench !== 'yes') return false;
+      if (!(answers.firstOfficialLanguage === 'french' || answers.hasFrench === 'yes')) return false;
       const skills = ['listening','reading','writing','speaking'];
       return skills.every(s => (parseInt(answers[`french_${s}`]) || 0) >= 7);
     }

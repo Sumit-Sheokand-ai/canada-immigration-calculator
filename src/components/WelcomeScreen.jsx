@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { latestDraws } from '../data/crsData';
 import { useLanguage } from '../i18n/LanguageContext';
 import StarBorder from './StarBorder';
 
@@ -12,7 +11,7 @@ const item = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } }
 };
 
-export default function WelcomeScreen({ onStart, hasSaved }) {
+export default function WelcomeScreen({ onStart, hasSaved, drawData }) {
   const { t } = useLanguage();
 
   const features = [
@@ -84,7 +83,7 @@ export default function WelcomeScreen({ onStart, hasSaved }) {
         <p className="welcome-microcopy">{t('welcome.microcopy')}</p>
       </motion.div>
       <motion.p className="welcome-trust" variants={item}>
-        {t('welcome.trust')} {latestDraws.lastUpdated}
+        {t('welcome.trust')} {drawData?.lastUpdated || '—'}
       </motion.p>
     </motion.div>
   );

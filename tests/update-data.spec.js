@@ -25,6 +25,8 @@ describe('scripts/update-data.cjs', () => {
         ...process.env,
         IRCC_JSON_OVERRIDE_FILE: fixturePath,
         CRS_DATA_PATH: tempDataPath,
+        SUPABASE_URL: '',
+        SUPABASE_SERVICE_ROLE_KEY: '',
       },
     });
 
@@ -56,6 +58,8 @@ describe('scripts/update-data.cjs', () => {
           ...process.env,
           IRCC_JSON_OVERRIDE_FILE: badFixturePath,
           CRS_DATA_PATH: tempDataPath,
+          SUPABASE_URL: '',
+          SUPABASE_SERVICE_ROLE_KEY: '',
         },
       });
     } catch (err) {

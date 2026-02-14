@@ -14,6 +14,27 @@ create table if not exists public.saved_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.draw_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  source text not null default 'ircc_json',
+  last_updated date not null,
+  average_cutoff integer not null,
+  payload jsonb not null default '{}'::jsonb,
+  checksum text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.draw_update_runs (
+  id uuid primary key default gen_random_uuid(),
+  source text not null default 'ircc_json',
+  status text not null default 'started',
+  message text,
+  rows_parsed integer not null default 0,
+  snapshot_id uuid references public.draw_snapshots(id) on delete set null,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz
+);
 alter table public.saved_profiles add column if not exists user_id uuid references auth.users(id) on delete set null;
 
 create index if not exists saved_profiles_alert_idx on public.saved_profiles (alert_opt_in, score);
@@ -110,10 +131,15 @@ create index if not exists user_tracking_access_status_idx on public.user_tracki
 create index if not exists payments_user_idx on public.payments (user_id, created_at desc);
 create index if not exists payments_subscription_idx on public.payments (stripe_subscription_id);
 create index if not exists user_path_tracking_user_idx on public.user_path_tracking (user_id, updated_at desc);
+create unique index if not exists draw_snapshots_source_date_uq on public.draw_snapshots (source, last_updated);
+create index if not exists draw_snapshots_updated_idx on public.draw_snapshots (last_updated desc);
+create index if not exists draw_update_runs_started_idx on public.draw_update_runs (started_at desc);
 
 alter table public.user_tracking_access enable row level security;
 alter table public.payments enable row level security;
 alter table public.user_path_tracking enable row level security;
+alter table public.draw_snapshots enable row level security;
+alter table public.draw_update_runs enable row level security;
 
 drop policy if exists "auth_select_own_tracking_access" on public.user_tracking_access;
 create policy "auth_select_own_tracking_access"
@@ -179,3 +205,10 @@ for update
 to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+drop policy if exists "public_read_draw_snapshots" on public.draw_snapshots;
+create policy "public_read_draw_snapshots"
+on public.draw_snapshots
+for select
+to anon, authenticated
+using (true);

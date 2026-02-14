@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
-import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
+import { pathways, categoryBasedInfo } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { buildProfileShareUrl, encodeShareAnswers, saveProfileLocal } from '../utils/profileStore';
 import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from '../utils/cloudProfiles';
+import { getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
 import PathCoach from './PathCoach';
 import Loader from './Loader';
@@ -313,9 +314,10 @@ async function copyTextWithFallback(text) {
   }
 }
 
-export default function Results({ answers, onRestart }) {
+export default function Results({ answers, onRestart, drawData }) {
   const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
+  const activeDraws = drawData || getFallbackLatestDraws();
   const [loading, setLoading] = useState(true);
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
@@ -351,7 +353,7 @@ export default function Results({ answers, onRestart }) {
 
   const isSelfCalc = answers.knowsScore !== 'yes';
   const score = result.total;
-  const cutoff = latestDraws.averageCutoff;
+  const cutoff = activeDraws.averageCutoff;
   const diff = score - cutoff;
   const cloudEnabled = isCloudProfilesEnabled();
 
@@ -647,7 +649,7 @@ export default function Results({ answers, onRestart }) {
       )}
 
       {isSelfCalc && (
-        <PathCoach answers={answers} result={result} />
+        <PathCoach answers={answers} result={result} averageCutoff={activeDraws.averageCutoff} />
       )}
 
       {isSelfCalc && (
@@ -728,13 +730,13 @@ export default function Results({ answers, onRestart }) {
         {drawsOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="draws-content">
             <h4 className="draws-subhead">General / CEC Draws</h4>
-            {latestDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
+            {activeDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
             <h4 className="draws-subhead">Category-Based Draws</h4>
-            {latestDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
-            {!!latestDraws.pnpDraws?.length && (
+            {activeDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
+            {!!activeDraws.pnpDraws?.length && (
               <>
                 <h4 className="draws-subhead">Provincial Nominee (PNP)</h4>
-                {latestDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
+                {activeDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
               </>
             )}
           </motion.div>

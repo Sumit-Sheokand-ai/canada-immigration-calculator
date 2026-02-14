@@ -5,6 +5,7 @@ import { calculate } from '../src/scoring/scoring.js';
 function baseAnswers() {
   return {
     pathway: 'fsw',
+    firstOfficialLanguage: 'english',
     age: '30',
     education: 'secondary',
     langTestType: 'celpip',
@@ -160,5 +161,41 @@ describe('CRS core scoring table rules', () => {
     });
 
     expect(strongEnglish.details.additionalTotal - weakEnglish.details.additionalTotal).toBe(25);
+  });
+
+  it('supports French as first official language for first-language CRS points', () => {
+    const frFirst = calculate({
+      ...baseAnswers(),
+      firstOfficialLanguage: 'french',
+      langTestType: 'none',
+      hasFrench: 'no',
+      frenchTestType: 'clb',
+      french_listening: '9',
+      french_reading: '9',
+      french_writing: '9',
+      french_speaking: '9',
+    });
+    expect(frFirst.details.firstLanguage).toBe(D.firstLangPoints[9][0] * 4);
+    expect(frFirst.details.secondLanguage).toBe(0);
+  });
+
+  it('awards second-language + French additional points when French is first official and English exists', () => {
+    const frFirstWithEnglish = calculate({
+      ...baseAnswers(),
+      firstOfficialLanguage: 'french',
+      hasFrench: 'no',
+      frenchTestType: 'clb',
+      french_listening: '9',
+      french_reading: '9',
+      french_writing: '9',
+      french_speaking: '9',
+      langTestType: 'celpip',
+      celpip_listening: '9',
+      celpip_reading: '9',
+      celpip_writing: '9',
+      celpip_speaking: '9',
+    });
+    expect(frFirstWithEnglish.details.secondLanguage).toBe(Math.min(D.secondLangPoints[9][0] * 4, 24));
+    expect(frFirstWithEnglish.details.additionalTotal).toBe(50);
   });
 });

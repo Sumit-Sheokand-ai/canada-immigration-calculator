@@ -12,16 +12,129 @@
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 // ── Config ──
 const IRCC_JSON_URL = process.env.IRCC_JSON_URL ||
   "https://www.canada.ca/content/dam/ircc/documents/json/ee_rounds_123_en.json";
 const IRCC_JSON_OVERRIDE_FILE = process.env.IRCC_JSON_OVERRIDE_FILE;
 const DATA_JS_PATH = process.env.CRS_DATA_PATH || path.join(__dirname, "..", "src", "data", "crsData.js");
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const MAX_CEC_DRAWS = 6;
 const MAX_CATEGORY_DRAWS = 7;
 const MAX_PNP_DRAWS = 5;
+
+function canSyncToSupabase() {
+  return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+}
+
+function sha256(input) {
+  return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+function getSupabaseHeaders() {
+  return {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function syncLatestDrawsToSupabase(latestDraws, rowsParsed) {
+  if (!canSyncToSupabase()) {
+    console.log("Supabase sync skipped (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set).");
+    return { status: "skipped" };
+  }
+
+  let runId = null;
+  let snapshotId = null;
+  const source = "ircc_json";
+  const startedAt = new Date().toISOString();
+  const checksum = sha256(JSON.stringify(latestDraws));
+  const baseUrl = SUPABASE_URL.replace(/\/+$/, "");
+
+  const startRunRes = await fetch(`${baseUrl}/rest/v1/draw_update_runs`, {
+    method: "POST",
+    headers: {
+      ...getSupabaseHeaders(),
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      source,
+      status: "started",
+      rows_parsed: rowsParsed,
+      started_at: startedAt,
+      message: "Draw update run started",
+    }),
+  });
+  if (startRunRes.ok) {
+    const runRows = await startRunRes.json();
+    runId = runRows?.[0]?.id || null;
+  }
+
+  try {
+    const snapshotPayload = {
+      source,
+      last_updated: latestDraws.lastUpdated,
+      average_cutoff: latestDraws.averageCutoff,
+      payload: latestDraws,
+      checksum,
+    };
+    const snapshotRes = await fetch(`${baseUrl}/rest/v1/draw_snapshots?on_conflict=source,last_updated`, {
+      method: "POST",
+      headers: {
+        ...getSupabaseHeaders(),
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify(snapshotPayload),
+    });
+    if (!snapshotRes.ok) {
+      const detail = await snapshotRes.text();
+      throw new Error(`Supabase draw snapshot upsert failed (${snapshotRes.status}): ${detail}`);
+    }
+    const snapshotRows = await snapshotRes.json();
+    snapshotId = snapshotRows?.[0]?.id || null;
+
+    if (runId) {
+      await fetch(`${baseUrl}/rest/v1/draw_update_runs?id=eq.${encodeURIComponent(runId)}`, {
+        method: "PATCH",
+        headers: {
+          ...getSupabaseHeaders(),
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          status: "success",
+          message: "Draw snapshot synced to Supabase",
+          snapshot_id: snapshotId,
+          finished_at: new Date().toISOString(),
+          rows_parsed: rowsParsed,
+        }),
+      });
+    }
+
+    console.log("Synced latest draws to Supabase draw_snapshots.");
+    return { status: "ok", snapshotId };
+  } catch (err) {
+    if (runId) {
+      await fetch(`${baseUrl}/rest/v1/draw_update_runs?id=eq.${encodeURIComponent(runId)}`, {
+        method: "PATCH",
+        headers: {
+          ...getSupabaseHeaders(),
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          status: "error",
+          message: String(err.message || err),
+          finished_at: new Date().toISOString(),
+          rows_parsed: rowsParsed,
+        }),
+      });
+    }
+    throw err;
+  }
+}
 
 // ── Fetch JSON ──
 function fetchJSON(url) {
@@ -279,6 +392,7 @@ async function main() {
 
     const latestDraws = categorizeDraws(allDraws);
     updateDataFile(latestDraws);
+    await syncLatestDrawsToSupabase(latestDraws, allDraws.length);
 
     console.log("\nDone! Draw data updated successfully.");
   } catch (err) {

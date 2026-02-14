@@ -12,6 +12,7 @@ import {
   getSavedProfileById,
 } from './utils/profileStore';
 import { unsubscribeAlertsByToken } from './utils/cloudProfiles';
+import { getFallbackLatestDraws, getLatestDraws } from './utils/drawDataSource';
 import './App.css';
 
 const STORAGE_KEY = 'crs-progress';
@@ -61,6 +62,7 @@ export default function App() {
   ));
   const [answers, setAnswers] = useState(() => initialAnswers);
   const [unsubscribeState, setUnsubscribeState] = useState(() => (unsubscribeToken ? 'loading' : 'idle'));
+  const [drawData, setDrawData] = useState(() => getFallbackLatestDraws());
 
   useEffect(() => {
     if (!unsubscribeToken) return;
@@ -76,6 +78,21 @@ export default function App() {
       });
     return () => { mounted = false; };
   }, [unsubscribeToken]);
+
+  useEffect(() => {
+    let active = true;
+    getLatestDraws()
+      .then((res) => {
+        if (!active) return;
+        if (res?.status === 'ok' && res.data) {
+          setDrawData(res.data);
+        }
+      })
+      .catch(() => {
+        // keep local fallback
+      });
+    return () => { active = false; };
+  }, []);
 
   const handleStart = useCallback((resume) => {
     if (resume) {
@@ -150,7 +167,7 @@ export default function App() {
       />
       <main className="main" role="main">
         <AnimatePresence mode="wait">
-          {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} />}
+          {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} drawData={drawData} />}
           {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={saveProgress} initialAnswers={answers} />}
           {mode === 'unsubscribe' && (
             <div className="card unsubscribe-card">
@@ -166,7 +183,7 @@ export default function App() {
           )}
           {mode === 'results' && (
             <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
-              <Results key="results" answers={answers} onRestart={handleRestart} />
+              <Results key="results" answers={answers} onRestart={handleRestart} drawData={drawData} />
             </Suspense>
           )}
         </AnimatePresence>

@@ -20,6 +20,7 @@ const workOpts = [
   { value: '2', label: '2 years' }, { value: '3', label: '3 years' },
   { value: '4', label: '4 years' }, { value: '5', label: '5+ years' }
 ];
+const isAdvanced = (answers) => answers.answerMode === 'advanced';
 
 const STEPS = [
   { id: 'pathway', label: 'Pathway', title: 'Which Immigration Program Are You Applying Through?', subtitle: 'Not sure? Most skilled workers use Federal Skilled Worker (FSW). If you already work in Canada, choose Canadian Experience Class (CEC).', type: 'single', answerKey: 'pathway', options: [
@@ -39,6 +40,11 @@ const STEPS = [
     { value: '325', label: '300 – 349' }, { value: '375', label: '350 – 399' },
     { value: '425', label: '400 – 449' }, { value: '475', label: '450 – 499' },
     { value: '525', label: '500 – 549' }, { value: '575', label: '550+' },
+  ]},
+  { id: 'answerMode', label: 'Detail Mode', title: 'How detailed should this CRS assessment be?', subtitle: 'Basic mode is faster. Advanced mode includes all available CRS-impact and context branches.', type: 'single', answerKey: 'answerMode',
+    condition: a => a.knowsScore !== 'yes', options: [
+    { value: 'basic', label: 'Basic (faster)', example: 'Core CRS point questions only' },
+    { value: 'advanced', label: 'Advanced (maximum detail)', example: 'Includes extra context branches and full profile coverage' },
   ]},
   { id: 'age', label: 'Age', title: 'Your Age at Time of Application', subtitle: 'Select your current age or age when you plan to apply.', type: 'grid', answerKey: 'age',
     condition: a => a.knowsScore !== 'yes', options: buildAgeOptions() },
@@ -67,10 +73,20 @@ const STEPS = [
     { title: 'Years of Work Outside Canada', answerKey: 'foreignWorkExp', type: 'grid-wide', options: workOpts },
     { title: 'Years of Work Inside Canada', answerKey: 'canadianWorkExp', type: 'grid-wide', options: workOpts },
   ]},
-  { id: 'nocTeer', label: 'Occupation', title: 'What Is the Skill Level of Your Job?', subtitle: 'Canada classifies jobs using NOC TEER levels (0-5). If you\'re not sure, search your job title on the Canada NOC website. Only TEER 0-3 qualify for Express Entry.', helpTip: 'NOC (National Occupational Classification) is Canada\'s system for classifying jobs. TEER levels range from 0 (management) to 5 (labour). Only TEER 0-3 qualify for Express Entry. Search your job title below to find your level.', type: 'single', answerKey: 'nocTeer', hasNOCSearch: true,
-    condition: a => a.knowsScore !== 'yes', options: nocTEER.map(n => ({ value: n.value, label: n.label, example: n.examples })) },
-  { id: 'occupationCategory', label: 'Job Category', title: 'Which Category Best Describes Your Occupation?', subtitle: 'Canada runs special "category-based" draws with LOWER cutoff scores for certain occupations. This helps us check if you qualify for any of these draws.', type: 'single', answerKey: 'occupationCategory',
+  { id: 'firstOfficialLanguage', label: 'Official Lang', title: 'Which is your FIRST official language for CRS?', subtitle: 'CRS first-language points can come from either English or French.', type: 'single', answerKey: 'firstOfficialLanguage',
     condition: a => a.knowsScore !== 'yes', options: [
+    { value: 'english', label: 'English is my first official language' },
+    { value: 'french', label: 'French is my first official language' },
+  ]},
+  { id: 'hasEnglishSecond', label: 'Second Lang', title: 'Do you also have English test results (as second official language)?', subtitle: 'This can add second-official-language points when French is your first official language.', type: 'single', answerKey: 'hasEnglishSecond',
+    condition: a => a.knowsScore !== 'yes' && a.firstOfficialLanguage === 'french', options: [
+    { value: 'yes', label: 'Yes — I have IELTS/CELPIP results' },
+    { value: 'no', label: 'No — only French results for now' },
+  ]},
+  { id: 'nocTeer', label: 'Occupation', title: 'What Is the Skill Level of Your Job?', subtitle: 'Canada classifies jobs using NOC TEER levels (0-5). If you\'re not sure, search your job title on the Canada NOC website. Only TEER 0-3 qualify for Express Entry.', helpTip: 'NOC (National Occupational Classification) is Canada\'s system for classifying jobs. TEER levels range from 0 (management) to 5 (labour). Only TEER 0-3 qualify for Express Entry. Search your job title below to find your level.', type: 'single', answerKey: 'nocTeer', hasNOCSearch: true,
+    condition: a => a.knowsScore !== 'yes' && isAdvanced(a), options: nocTEER.map(n => ({ value: n.value, label: n.label, example: n.examples })) },
+  { id: 'occupationCategory', label: 'Job Category', title: 'Which Category Best Describes Your Occupation?', subtitle: 'Canada runs special "category-based" draws with LOWER cutoff scores for certain occupations. This helps us check if you qualify for any of these draws.', type: 'single', answerKey: 'occupationCategory',
+    condition: a => a.knowsScore !== 'yes' && isAdvanced(a), options: [
     { value: 'healthcare', label: 'Healthcare & Social Services', example: 'Nurses, doctors, pharmacists, dentists, physiotherapists, social workers, medical lab technicians' },
     { value: 'stem', label: 'STEM (Science, Technology, Engineering, Math)', example: 'Software developers, engineers, data scientists, architects, biologists, mathematicians' },
     { value: 'trade', label: 'Skilled Trades', example: 'Electricians, plumbers, welders, carpenters, heavy equipment operators, millwrights' },
@@ -78,8 +94,8 @@ const STEPS = [
     { value: 'agriculture', label: 'Agriculture & Agri-food', example: 'Farm workers, food processing, butchers/meat cutters, greenhouse workers, agriculture managers' },
     { value: 'other', label: 'Other / None of the Above', example: 'My job doesn\'t fit any of the categories above' },
   ]},
-  { id: 'langTestType', label: 'Language Test', title: 'Which English Language Test Did You Take (or Plan to Take)?', subtitle: 'An English language test is required for Express Entry. You need IELTS General Training or CELPIP General — NOT IELTS Academic. Results are valid for 2 years.', helpTip: 'CLB (Canadian Language Benchmarks) is the standard used by IRCC. Your IELTS/CELPIP scores are converted to CLB levels. CLB 7+ in all four skills is ideal for most programs. Higher CLB = significantly more CRS points.', type: 'single', answerKey: 'langTestType',
-    condition: a => a.knowsScore !== 'yes', options: [
+  { id: 'langTestType', label: 'English Test', title: 'Which English Language Test Did You Take (or Plan to Take)?', subtitle: 'Use IELTS General Training or CELPIP General. Results are valid for 2 years.', helpTip: 'CLB (Canadian Language Benchmarks) is used by IRCC. Higher CLB in your language profile can add substantial CRS points.', type: 'single', answerKey: 'langTestType',
+    condition: a => a.knowsScore !== 'yes' && (a.firstOfficialLanguage !== 'french' || a.hasEnglishSecond === 'yes'), options: [
     { value: 'ielts', label: 'IELTS General Training', example: 'Most popular worldwide — scored 0 to 9 in each ability' },
     { value: 'celpip', label: 'CELPIP General', example: 'Canadian test — scored M, 1 to 12 in each ability' },
     { value: 'none', label: "I haven't taken a test yet", example: 'Your score will be calculated as CLB 0 for language' },
@@ -98,33 +114,33 @@ const STEPS = [
     { title: 'Writing', answerKey: 'celpip_writing', type: 'grid', options: bandOpts(celpipLevels) },
     { title: 'Speaking', answerKey: 'celpip_speaking', type: 'grid', options: bandOpts(celpipLevels) },
   ]},
-  { id: 'hasFrench', label: 'French', title: 'Do You Have a French Language Test Result?', subtitle: 'French is NOT required, but having strong French scores (NCLC 7+) gives you 25-50 extra CRS points AND makes you eligible for French-language category draws with much lower cutoffs (~400 instead of ~520). Tests accepted: TEF Canada, TCF Canada.', type: 'single', answerKey: 'hasFrench',
-    condition: a => a.knowsScore !== 'yes', options: [
+  { id: 'hasFrench', label: 'French', title: 'Do You Have French Test Results for Second Official Language?', subtitle: 'If English is your first official language, French can add second-language and additional points.', type: 'single', answerKey: 'hasFrench',
+    condition: a => a.knowsScore !== 'yes' && a.firstOfficialLanguage !== 'french', options: [
     { value: 'yes', label: 'Yes — I have TEF or TCF results', example: 'I have taken a French language test' },
     { value: 'no', label: 'No — I don\'t have French test results', example: 'I haven\'t taken a French test (no penalty)' },
   ]},
-  { id: 'frenchTestType', label: 'French Test', title: 'Which French Language Test Did You Take?', subtitle: 'Select your French test. We\'ll convert your scores to NCLC levels automatically.', type: 'single', answerKey: 'frenchTestType',
-    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes', options: [
+  { id: 'frenchTestType', label: 'French Test', title: 'Which French Language Test Did You Take?', subtitle: 'Select your French test. We convert scores to NCLC automatically.', type: 'single', answerKey: 'frenchTestType',
+    condition: a => a.knowsScore !== 'yes' && (a.firstOfficialLanguage === 'french' || a.hasFrench === 'yes'), options: [
     { value: 'tef', label: 'TEF Canada', example: 'Test d\'évaluation de français — scored by number of points per section' },
     { value: 'tcf', label: 'TCF Canada', example: 'Test de connaissance du français — scored by levels and points' },
     { value: 'clb', label: 'I know my NCLC/CLB levels directly', example: 'I already know my NCLC level for each ability' },
   ]},
   { id: 'tefScores', label: 'TEF Scores', title: 'TEF Canada Scores', subtitle: 'Select your TEF score range for each ability. We convert these to NCLC levels.', type: 'grouped',
-    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes' && a.frenchTestType === 'tef', groups: [
+    condition: a => a.knowsScore !== 'yes' && (a.firstOfficialLanguage === 'french' || a.hasFrench === 'yes') && a.frenchTestType === 'tef', groups: [
     { title: 'Compréhension orale (Listening)', answerKey: 'tef_listening', type: 'grid-wide', options: bandOpts(tefBands.listening, '') },
     { title: 'Compréhension écrite (Reading)', answerKey: 'tef_reading', type: 'grid-wide', options: bandOpts(tefBands.reading, '') },
     { title: 'Expression écrite (Writing)', answerKey: 'tef_writing', type: 'grid-wide', options: bandOpts(tefBands.writing, '') },
     { title: 'Expression orale (Speaking)', answerKey: 'tef_speaking', type: 'grid-wide', options: bandOpts(tefBands.speaking, '') },
   ]},
   { id: 'tcfScores', label: 'TCF Scores', title: 'TCF Canada Scores', subtitle: 'Select your TCF score range for each ability. We convert these to NCLC levels.', type: 'grouped',
-    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes' && a.frenchTestType === 'tcf', groups: [
+    condition: a => a.knowsScore !== 'yes' && (a.firstOfficialLanguage === 'french' || a.hasFrench === 'yes') && a.frenchTestType === 'tcf', groups: [
     { title: 'Compréhension orale (Listening)', answerKey: 'tcf_listening', type: 'grid-wide', options: bandOpts(tcfBands.listening, '') },
     { title: 'Compréhension écrite (Reading)', answerKey: 'tcf_reading', type: 'grid-wide', options: bandOpts(tcfBands.reading, '') },
     { title: 'Expression écrite (Writing)', answerKey: 'tcf_writing', type: 'grid-wide', options: bandOpts(tcfBands.writing, '') },
     { title: 'Expression orale (Speaking)', answerKey: 'tcf_speaking', type: 'grid-wide', options: bandOpts(tcfBands.speaking, '') },
   ]},
   { id: 'frenchScores', label: 'French CLB', title: 'French Language – NCLC/CLB Levels', subtitle: 'Enter your NCLC (Niveaux de compétence linguistique canadiens) level for each ability. CLB 7+ in all four = eligible for French category draws.', type: 'grouped',
-    condition: a => a.knowsScore !== 'yes' && a.hasFrench === 'yes' && a.frenchTestType === 'clb', groups: [
+    condition: a => a.knowsScore !== 'yes' && (a.firstOfficialLanguage === 'french' || a.hasFrench === 'yes') && a.frenchTestType === 'clb', groups: [
     { title: 'Listening', answerKey: 'french_listening', type: 'grid', options: clbOpts },
     { title: 'Reading', answerKey: 'french_reading', type: 'grid', options: clbOpts },
     { title: 'Writing', answerKey: 'french_writing', type: 'grid', options: clbOpts },
@@ -164,7 +180,7 @@ const STEPS = [
       { title: "Spouse's Canadian Work Experience", answerKey: 'spouseCanadianWork', type: 'grid-wide', options: workOpts },
     ]},
   { id: 'hasJobOffer', label: 'Job Offer', title: 'Do You Have a Valid Job Offer from a Canadian Employer?', subtitle: 'A valid Canadian job offer can still help with program eligibility, but IRCC removed CRS additional points for arranged employment on March 25, 2025.', helpTip: 'An LMIA (Labour Market Impact Assessment) is a document your employer gets from Service Canada proving no Canadian worker is available for the job. It may still matter for eligibility in some pathways, but it no longer gives CRS additional points.', type: 'single', answerKey: 'hasJobOffer',
-    condition: a => a.knowsScore !== 'yes', options: [
+    condition: a => a.knowsScore !== 'yes' && isAdvanced(a), options: [
     { value: 'yes', label: 'Yes — I have a valid Canadian job offer' },
     { value: 'no', label: "No — I don't have a Canadian job offer" },
   ]},

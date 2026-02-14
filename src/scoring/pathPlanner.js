@@ -18,9 +18,8 @@ const LIKELIHOOD_PERCENT = { high: 78, medium: 58, low: 35 };
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
-
-function getDefaultTargetScore(currentScore) {
-  return Math.max(latestDraws.averageCutoff + 10, currentScore + 25);
+function getDefaultTargetScore(currentScore, averageCutoff = latestDraws.averageCutoff) {
+  return Math.max(averageCutoff + 10, currentScore + 25);
 }
 
 function getIELTSBandForCLB(skill, clb) {
@@ -33,7 +32,19 @@ function getIELTSBandForCLB(skill, clb) {
   return map[skill]?.[clb] || 0;
 }
 
-function getEnglishBoostOverrides(answers, targetClb) {
+function getFirstOfficialBoostOverrides(answers, targetClb) {
+  if (answers.firstOfficialLanguage === 'french') {
+    const skills = ['listening', 'reading', 'writing', 'speaking'];
+    const overrides = {
+      hasFrench: 'yes',
+      frenchTestType: 'clb',
+    };
+    for (const skill of skills) {
+      const key = `french_${skill}`;
+      overrides[key] = String(Math.max(parseInt(answers[key], 10) || 0, targetClb));
+    }
+    return overrides;
+  }
   const skills = ['listening', 'reading', 'writing', 'speaking'];
   if (answers.langTestType === 'celpip') {
     const overrides = {};
@@ -152,23 +163,28 @@ function createPath({
   };
 }
 
-function makeEnglishPath(answers, currentScore, targetScore) {
+function makeFirstLanguagePath(answers, currentScore, targetScore) {
   const minClb = getMinCLB(answers);
   if (minClb >= 10) return null;
   const targetClb = minClb < 7 ? 8 : 9;
+  const firstOfficial = answers.firstOfficialLanguage === 'french' ? 'french' : 'english';
+  const title = firstOfficial === 'french' ? 'French Accelerator Path' : 'English Accelerator Path';
+  const summary = firstOfficial === 'french'
+    ? 'Raise your weakest French ability first, then target NCLC 9+ for stronger transferability outcomes.'
+    : 'Raise your weakest English ability first, then target CLB 9+ for transferability gains.';
   return createPath({
-    id: 'english-accelerator',
-    title: 'English Accelerator Path',
-    summary: 'Raise your weakest English ability first, then target CLB 9+ for transferability gains.',
+    id: `${firstOfficial}-accelerator`,
+    title,
+    summary,
     category: 'Language',
     difficulty: 'Medium',
     months: 4,
     estimatedCostCad: 460,
-    whyItFits: `Your current minimum English level is CLB ${minClb}, so language gains are one of the fastest realistic boosters.`,
+    whyItFits: `Your current minimum first-official-language level is CLB/NCLC ${minClb}, so language gains are one of the fastest realistic boosters.`,
     likelihood: 'high',
     overrides: {
       baseAnswers: answers,
-      patch: getEnglishBoostOverrides(answers, targetClb),
+      patch: getFirstOfficialBoostOverrides(answers, targetClb),
     },
     currentScore,
     targetScore,
@@ -182,6 +198,7 @@ function makeEnglishPath(answers, currentScore, targetScore) {
 }
 
 function makeFrenchPath(answers, currentScore, targetScore) {
+  if (answers.firstOfficialLanguage === 'french') return null;
   return createPath({
     id: 'french-advantage',
     title: 'French Advantage Path',
@@ -375,10 +392,11 @@ function makeComboPath(basePaths, targetScore) {
 
 export function buildPathPlans(answers, result, options = {}) {
   const currentScore = result?.total || 0;
-  const targetScore = Number(options.targetScore) || getDefaultTargetScore(currentScore);
+  const averageCutoff = Number(options.averageCutoff) || latestDraws.averageCutoff;
+  const targetScore = Number(options.targetScore) || getDefaultTargetScore(currentScore, averageCutoff);
 
   const candidates = [
-    makeEnglishPath(answers, currentScore, targetScore),
+    makeFirstLanguagePath(answers, currentScore, targetScore),
     makeFrenchPath(answers, currentScore, targetScore),
     makeCanadianWorkPath(answers, currentScore, targetScore),
     makeEducationPath(answers, currentScore, targetScore),

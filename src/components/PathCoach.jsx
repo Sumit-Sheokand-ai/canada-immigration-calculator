@@ -37,7 +37,7 @@ function difficultyClass(level) {
   return 'path-diff-medium';
 }
 
-export default function PathCoach({ answers, result }) {
+export default function PathCoach({ answers, result, averageCutoff }) {
   const { user, isAuthenticated } = useAuth();
 
   const checkoutUrl = import.meta.env.VITE_STRIPE_TRACKING_CHECKOUT_URL;
@@ -58,7 +58,7 @@ export default function PathCoach({ answers, result }) {
 
   const storageKey = useMemo(() => getTrackingStorageKey(user?.id || null, null), [user?.id]);
 
-  const planner = useMemo(() => buildPathPlans(answers, result, { targetScore }), [answers, result, targetScore]);
+  const planner = useMemo(() => buildPathPlans(answers, result, { targetScore, averageCutoff }), [answers, result, targetScore, averageCutoff]);
   const selectedPath = useMemo(
     () => planner.plans.find((p) => p.id === selectedPathId) || planner.plans[0] || null,
     [planner.plans, selectedPathId]
