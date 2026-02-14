@@ -81,10 +81,10 @@ export default function WelcomeScreen({ onStart, hasSaved }) {
             </svg>
           </motion.button>
         </StarBorder>
+        <p className="welcome-microcopy">{t('welcome.microcopy')}</p>
       </motion.div>
-
-      <motion.p className="welcome-updated" variants={item}>
-        {t('welcome.updated')} {latestDraws.lastUpdated}
+      <motion.p className="welcome-trust" variants={item}>
+        {t('welcome.trust')} {latestDraws.lastUpdated}
       </motion.p>
     </motion.div>
   );

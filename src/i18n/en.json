@@ -4,6 +4,8 @@
   "welcome.sub": "Calculate your Comprehensive Ranking System (CRS) score for Canada Express Entry. Check FSW, CEC, PNP eligibility instantly. Updated with latest IRCC draw cutoffs.",
   "welcome.btn": "Calculate My CRS Score Free",
   "welcome.updated": "IRCC data updated:",
+  "welcome.trust": "Uses official IRCC draw data — last updated:",
+  "welcome.microcopy": "This will take 3 minutes — one question at a time.",
   "welcome.resume": "You have an unfinished calculation.",
   "welcome.resumeBtn": "Resume",
   "welcome.startFresh": "Start Fresh",

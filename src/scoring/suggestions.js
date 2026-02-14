@@ -1,7 +1,7 @@
-import { calculate, recalcWith, getMinCLB, getMinFrenchCLB, hasAccompanyingSpouse } from './scoring.js';
+import { recalcWith, getMinCLB, getMinFrenchCLB, hasAccompanyingSpouse } from './scoring.js';
 
-function makeSuggestion(title, description, potentialGain, difficulty, timeframe, icon) {
-  return { title, description, potentialGain, difficulty, timeframe, icon };
+function makeSuggestion(title, description, potentialGain, difficulty, timeframe, icon, action = '') {
+  return { title, description, potentialGain, difficulty, timeframe, icon, action };
 }
 
 export function generateSuggestions(answers, result) {
@@ -32,7 +32,8 @@ export function generateSuggestions(answers, result) {
       suggestions.push(makeSuggestion(
         `Improve ${testType} Scores`,
         `Raising your weakest ${testType} skill to CLB ${target} could add significant points. Focus on your lowest band.`,
-        gain, 'Medium', '2-4 months', 'language'
+        gain, 'Medium', '3-5 months', 'language',
+        `Current min CLB ${minCLB} → target CLB ${target} = +${gain} CRS`
       ));
     }
   }
@@ -52,7 +53,8 @@ export function generateSuggestions(answers, result) {
       suggestions.push(makeSuggestion(
         'Higher Education',
         `Completing a ${labels[nextEdu] || 'higher credential'} could boost your score.`,
-        gain, 'Hard', '1-4 years', 'education'
+        gain, 'Hard', '1-4 years', 'education',
+        `${answers.education || 'current level'} → ${nextEdu} = +${gain} CRS`
       ));
     }
   }
@@ -66,7 +68,8 @@ export function generateSuggestions(answers, result) {
       suggestions.push(makeSuggestion(
         'Gain Canadian Work Experience',
         `An additional year of Canadian work experience adds points across multiple categories including skill transferability.`,
-        gain, 'Hard', '1 year', 'work'
+        gain, 'Hard', '8-12 months', 'work',
+        `${cwe} year(s) → ${cwe + 1} year(s) = +${gain} CRS`
       ));
     }
   }
@@ -80,7 +83,8 @@ export function generateSuggestions(answers, result) {
       suggestions.push(makeSuggestion(
         'Learn French (TEF/TCF)',
         `Strong French skills (NCLC 7+) earn ${minCLB >= 5 ? '50' : '25'} additional CRS points. Plus, French-language category draws have cutoffs around 400 — much lower than general draws (~520).`,
-        gain, 'Hard', '6-12 months', 'french'
+        gain, 'Hard', '6-12 months', 'french',
+        `Reach NCLC 7 in all 4 abilities = +${gain} CRS`
       ));
     }
   } else {
@@ -90,7 +94,8 @@ export function generateSuggestions(answers, result) {
       suggestions.push(makeSuggestion(
         'Target French-Language Category Draw',
         `With your French NCLC 7+ scores, you qualify for French-language category draws where recent cutoffs are around 400 — your score of ${result.total} may already be competitive!`,
-        0, 'Easy', 'Immediate', 'french'
+        0, 'Easy', 'Immediate', 'french',
+        `Current score ${result.total} already fits many French-category cutoffs`
       ));
     }
   }
@@ -100,7 +105,8 @@ export function generateSuggestions(answers, result) {
     suggestions.push(makeSuggestion(
       'Provincial Nominee Program',
       `A PNP nomination adds 600 points, virtually guaranteeing an ITA. Explore programs in provinces like Ontario, BC, Alberta and Saskatchewan.`,
-      600, 'Hard', '3-12 months', 'province'
+      600, 'Hard', '2-8 months', 'province',
+      `PNP nomination = +600 CRS`
     ));
   }
 
@@ -112,7 +118,8 @@ export function generateSuggestions(answers, result) {
       suggestions.push(makeSuggestion(
         'Obtain LMIA-Backed Job Offer',
         `A valid job offer with LMIA in a TEER 0-3 occupation adds 50-200 points.`,
-        gain, 'Hard', '3-6 months', 'job'
+        gain, 'Hard', '2-6 months', 'job',
+        `Current profile + valid LMIA-backed offer = +${gain} CRS`
       ));
     }
   }
@@ -122,7 +129,8 @@ export function generateSuggestions(answers, result) {
     suggestions.push(makeSuggestion(
       'Study in Canada',
       `A Canadian credential (1-2 year program) adds 15 points, or 30 points for a 3+ year program.`,
-      30, 'Hard', '1-3 years', 'study'
+      30, 'Hard', '12-36 months', 'study',
+      `Canadian credential can add +15 to +30 CRS`
     ));
   }
 
@@ -131,7 +139,8 @@ export function generateSuggestions(answers, result) {
     suggestions.push(makeSuggestion(
       'Sibling in Canada (If Applicable)',
       `If you have a sibling who is a Canadian citizen or PR, this adds 15 points. Check if any siblings qualify.`,
-      15, 'Easy', 'N/A', 'family'
+      15, 'Easy', '1-2 weeks', 'family',
+      `Eligible sibling relationship = +15 CRS`
     ));
   }
 
@@ -153,7 +162,8 @@ export function generateSuggestions(answers, result) {
         suggestions.push(makeSuggestion(
           "Improve Spouse's Language Scores",
           `Your spouse's language improvement to CLB ${target} could add points.`,
-          gain, 'Medium', '2-4 months', 'language'
+          gain, 'Medium', '3-5 months', 'language',
+          `Spouse min CLB ${minSpouse} → ${target} = +${gain} CRS`
         ));
       }
     }

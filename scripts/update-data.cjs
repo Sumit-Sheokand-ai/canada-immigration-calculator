@@ -14,10 +14,10 @@ const fs = require("fs");
 const path = require("path");
 
 // ── Config ──
-const IRCC_JSON_URL =
+const IRCC_JSON_URL = process.env.IRCC_JSON_URL ||
   "https://www.canada.ca/content/dam/ircc/documents/json/ee_rounds_123_en.json";
-
-const DATA_JS_PATH = path.join(__dirname, "..", "src", "data", "crsData.js");
+const IRCC_JSON_OVERRIDE_FILE = process.env.IRCC_JSON_OVERRIDE_FILE;
+const DATA_JS_PATH = process.env.CRS_DATA_PATH || path.join(__dirname, "..", "src", "data", "crsData.js");
 
 const MAX_CEC_DRAWS = 6;
 const MAX_CATEGORY_DRAWS = 7;
@@ -25,6 +25,17 @@ const MAX_PNP_DRAWS = 5;
 
 // ── Fetch JSON ──
 function fetchJSON(url) {
+  if (IRCC_JSON_OVERRIDE_FILE) {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log(`Using local IRCC JSON override: ${IRCC_JSON_OVERRIDE_FILE}`);
+        const body = fs.readFileSync(IRCC_JSON_OVERRIDE_FILE, "utf8");
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(new Error(`Failed reading IRCC_JSON_OVERRIDE_FILE: ${err.message}`));
+      }
+    });
+  }
   return new Promise((resolve, reject) => {
     console.log("Fetching IRCC Express Entry rounds JSON...");
     const req = https.get(url, {
@@ -55,13 +66,38 @@ function fetchJSON(url) {
 
 // ── Parse Draws from JSON ──
 function parseDraws(json) {
-  const rounds = json.rounds || [];
+  if (!json || typeof json !== "object") {
+    throw new Error("IRCC JSON schema changed: expected a JSON object at root");
+  }
+  if (!Array.isArray(json.rounds)) {
+    throw new Error("IRCC JSON schema changed: expected root field 'rounds' as an array");
+  }
+
+  const rounds = json.rounds;
   const draws = [];
+  let skippedInvalid = 0;
+  const missingFieldCounts = {
+    drawCRS: 0,
+    drawSize: 0,
+    drawDate: 0,
+    drawName: 0,
+  };
 
   for (const r of rounds) {
+    if (!r || typeof r !== "object") {
+      skippedInvalid++;
+      continue;
+    }
+    if (r.drawCRS == null || r.drawCRS === "") missingFieldCounts.drawCRS++;
+    if (r.drawSize == null || r.drawSize === "") missingFieldCounts.drawSize++;
+    if (r.drawDate == null || r.drawDate === "") missingFieldCounts.drawDate++;
+    if (r.drawName == null || r.drawName === "") missingFieldCounts.drawName++;
     const score = parseInt((r.drawCRS || "").replace(/,/g, ""), 10);
     const invitations = parseInt((r.drawSize || "").replace(/,/g, ""), 10);
-    if (isNaN(score) || isNaN(invitations)) continue;
+    if (isNaN(score) || isNaN(invitations) || !r.drawDate) {
+      skippedInvalid++;
+      continue;
+    }
 
     draws.push({
       round: parseInt(r.drawNumber, 10) || 0,
@@ -70,6 +106,22 @@ function parseDraws(json) {
       invitations: invitations,
       score: score,
     });
+  }
+  draws.sort((a, b) => {
+    if (a.round && b.round) return b.round - a.round;
+    return String(b.date).localeCompare(String(a.date));
+  });
+
+  if (draws.length === 0) {
+    throw new Error(
+      `No valid draws parsed from IRCC JSON. Possible schema change. Missing field counts: ${JSON.stringify(missingFieldCounts)}; skippedInvalid=${skippedInvalid}`
+    );
+  }
+
+  if (draws.length < Math.min(5, Math.ceil(rounds.length * 0.25))) {
+    throw new Error(
+      `Too few valid draws parsed (${draws.length}/${rounds.length}). Possible schema change. Missing field counts: ${JSON.stringify(missingFieldCounts)}; skippedInvalid=${skippedInvalid}`
+    );
   }
 
   console.log(`Parsed ${draws.length} total draws from IRCC JSON.`);
@@ -221,11 +273,6 @@ async function main() {
   try {
     const json = await fetchJSON(IRCC_JSON_URL);
     const allDraws = parseDraws(json);
-
-    if (allDraws.length === 0) {
-      console.error("No draws parsed. The IRCC JSON structure may have changed.");
-      process.exit(1);
-    }
 
     const latestDraws = categorizeDraws(allDraws);
     updateDataFile(latestDraws);

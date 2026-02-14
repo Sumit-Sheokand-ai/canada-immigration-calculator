@@ -4,6 +4,8 @@
   "welcome.sub": "Calculez votre score du Système de classement global (SCG) et découvrez votre meilleur chemin vers la résidence permanente canadienne.",
   "welcome.btn": "Calculer Mon Score",
   "welcome.updated": "Dernière mise à jour :",
+  "welcome.trust": "Données officielles d’IRCC — dernière mise à jour :",
+  "welcome.microcopy": "Cela prend 3 minutes — une question à la fois.",
   "welcome.resume": "Vous avez un calcul en cours.",
   "welcome.resumeBtn": "Reprendre",
   "welcome.startFresh": "Recommencer",

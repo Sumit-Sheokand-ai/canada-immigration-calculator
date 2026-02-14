@@ -9,7 +9,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    try { localStorage.setItem('crs-theme', dark ? 'dark' : 'light'); } catch {}
+    try { localStorage.setItem('crs-theme', dark ? 'dark' : 'light'); } catch { /* ignore storage errors */ }
   }, [dark]);
 
   const toggle = () => setDark(d => !d);

@@ -1,0 +1,39 @@
+{
+  "rounds": [
+    {
+      "drawNumber": "350",
+      "drawDate": "2026-02-10",
+      "drawName": "Canadian Experience Class",
+      "drawSize": "5,000",
+      "drawCRS": "510"
+    },
+    {
+      "drawNumber": "349",
+      "drawDate": "2026-02-06",
+      "drawName": "French language proficiency",
+      "drawSize": "8,500",
+      "drawCRS": "400"
+    },
+    {
+      "drawNumber": "348",
+      "drawDate": "2026-02-03",
+      "drawName": "Provincial Nominee Program",
+      "drawSize": "423",
+      "drawCRS": "749"
+    },
+    {
+      "drawNumber": "347",
+      "drawDate": "2026-01-21",
+      "drawName": "Canadian Experience Class",
+      "drawSize": "6,000",
+      "drawCRS": "509"
+    },
+    {
+      "drawNumber": "346",
+      "drawDate": "2026-01-07",
+      "drawName": "Canadian Experience Class",
+      "drawSize": "8,000",
+      "drawCRS": "511"
+    }
+  ]
+}

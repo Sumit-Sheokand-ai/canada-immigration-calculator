@@ -12,7 +12,7 @@ export function LanguageProvider({ children }) {
 
   const setLang = useCallback((l) => {
     setLangState(l);
-    try { localStorage.setItem('crs-lang', l); } catch {}
+    try { localStorage.setItem('crs-lang', l); } catch { /* ignore storage errors */ }
   }, []);
 
   const t = useCallback((key) => {

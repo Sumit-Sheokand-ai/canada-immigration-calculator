@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { latestDraws, pathways, categoryBasedInfo } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
-import { encodeAnswers } from '../App';
+import { buildProfileShareUrl, encodeShareAnswers, saveProfileLocal } from '../utils/profileStore';
+import { isCloudProfilesEnabled, upsertProfileCloud } from '../utils/cloudProfiles';
 import Loader from './Loader';
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
 
-/* ── Animated counter ── */
 function AnimatedNumber({ value, duration = 1.2 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
@@ -29,17 +29,23 @@ function AnimatedNumber({ value, duration = 1.2 }) {
   return <>{display}</>;
 }
 
-/* ── Score Gauge SVG ── */
 function ScoreGauge({ score, statusColor }) {
-  const r = 54, circ = 2 * Math.PI * r;
+  const r = 54;
+  const circ = 2 * Math.PI * r;
   const pct = Math.min(score / 1200, 1);
   return (
     <div className="score-gauge" aria-label={`CRS Score: ${score} out of 1200`}>
       <svg viewBox="0 0 120 120" width="180" height="180">
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-2)" strokeWidth="8" />
         <motion.circle
-          cx="60" cy="60" r={r} fill="none" stroke={statusColor} strokeWidth="8"
-          strokeLinecap="round" transform="rotate(-90 60 60)"
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          stroke={statusColor}
+          strokeWidth="8"
+          strokeLinecap="round"
+          transform="rotate(-90 60 60)"
           strokeDasharray={circ}
           initial={{ strokeDashoffset: circ }}
           animate={{ strokeDashoffset: circ - pct * circ }}
@@ -54,7 +60,6 @@ function ScoreGauge({ score, statusColor }) {
   );
 }
 
-/* ── Breakdown Bar ── */
 function BreakdownItem({ icon, label, value, max, note }) {
   const pct = Math.round((value / max) * 100);
   return (
@@ -66,19 +71,13 @@ function BreakdownItem({ icon, label, value, max, note }) {
           <span className="bd-pts">{value} <small>/ {max}</small></span>
         </div>
         <div className="bd-bar-bg">
-          <motion.div
-            className="bd-bar-fill"
-            initial={{ width: 0 }}
-            animate={{ width: `${pct}%` }}
-            transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
-          />
+          <motion.div className="bd-bar-fill" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }} />
         </div>
       </div>
     </motion.div>
   );
 }
 
-/* ── Draw Row ── */
 function DrawRow({ draw, userScore }) {
   const above = userScore >= draw.score;
   return (
@@ -90,8 +89,7 @@ function DrawRow({ draw, userScore }) {
   );
 }
 
-/* ── What-If Comparison ── */
-const wiEducationOpts = [
+const scenarioEducationOpts = [
   { value: 'secondary', label: 'High School' },
   { value: 'one_year_post', label: '1-Year Diploma' },
   { value: 'two_year_post', label: '2-Year Diploma' },
@@ -101,101 +99,147 @@ const wiEducationOpts = [
   { value: 'doctoral', label: 'PhD' },
 ];
 
-function WhatIfPanel({ answers, originalScore, t }) {
-  const [wiAge, setWiAge] = useState(answers.age || '');
-  const [wiEdu, setWiEdu] = useState(answers.education || '');
-  const [wiCWE, setWiCWE] = useState(answers.canadianWorkExp || '0');
-  const [wiCLB, setWiCLB] = useState('');
+function createScenario(id, label, answers) {
+  return {
+    id,
+    label,
+    age: answers.age || '',
+    education: answers.education || '',
+    canadianWorkExp: answers.canadianWorkExp || '0',
+    minClb: '',
+  };
+}
 
-  const projected = useMemo(() => {
-    const overrides = {};
-    if (wiAge && wiAge !== answers.age) overrides.age = wiAge;
-    if (wiEdu && wiEdu !== answers.education) overrides.education = wiEdu;
-    if (wiCWE && wiCWE !== answers.canadianWorkExp) overrides.canadianWorkExp = wiCWE;
-    if (wiCLB) {
-      const skills = ['listening', 'reading', 'writing', 'speaking'];
-      const prefix = answers.langTestType === 'celpip' ? 'celpip' : 'ielts';
+function ieltsBandForClb(clb) {
+  const map = { 5: 5.0, 6: 5.5, 7: 6.0, 8: 6.5, 9: 7.0, 10: 7.5 };
+  return map[clb] || 0;
+}
+
+function projectScenario(answers, scenario) {
+  const overrides = {};
+  if (scenario.age && scenario.age !== answers.age) overrides.age = scenario.age;
+  if (scenario.education && scenario.education !== answers.education) overrides.education = scenario.education;
+  if (scenario.canadianWorkExp && scenario.canadianWorkExp !== answers.canadianWorkExp) overrides.canadianWorkExp = scenario.canadianWorkExp;
+  if (scenario.minClb) {
+    const targetClb = parseInt(scenario.minClb, 10);
+    const skills = ['listening', 'reading', 'writing', 'speaking'];
+    if (answers.langTestType === 'celpip') {
       for (const s of skills) {
-        const key = `${prefix}_${s}`;
-        if (answers.langTestType === 'celpip') {
-          overrides[key] = String(Math.max(parseInt(answers[key]) || 0, parseInt(wiCLB)));
-        } else {
-          overrides[key] = String(Math.max(parseFloat(answers[key]) || 0, parseFloat(wiCLB)));
-        }
+        const key = `celpip_${s}`;
+        overrides[key] = String(Math.max(parseInt(answers[key], 10) || 0, targetClb));
+      }
+    } else {
+      const targetBand = ieltsBandForClb(targetClb);
+      for (const s of skills) {
+        const key = `ielts_${s}`;
+        overrides[key] = String(Math.max(parseFloat(answers[key]) || 0, targetBand));
       }
     }
-    if (Object.keys(overrides).length === 0) return null;
-    return recalcWith(answers, overrides);
-  }, [answers, wiAge, wiEdu, wiCWE, wiCLB]);
+  }
+  if (Object.keys(overrides).length === 0) return null;
+  return recalcWith(answers, overrides);
+}
 
-  const delta = projected ? projected.total - originalScore : 0;
+function ScenarioComparePanel({ answers, originalScore, t }) {
+  const [scenarios, setScenarios] = useState(() => [
+    createScenario('a', 'Scenario A', answers),
+    createScenario('b', 'Scenario B', answers),
+  ]);
+
+  const addScenario = () => {
+    if (scenarios.length >= 3) return;
+    setScenarios(prev => [...prev, createScenario('c', 'Scenario C', answers)]);
+  };
+  const removeScenario = (id) => {
+    if (scenarios.length <= 2) return;
+    setScenarios(prev => prev.filter(s => s.id !== id));
+  };
+  const updateScenario = (id, patch) => {
+    setScenarios(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)));
+  };
 
   return (
-    <div className="whatif-panel">
-      <div className="wi-grid">
-        <label className="wi-field">
-          <span>Age</span>
-          <select value={wiAge} onChange={e => setWiAge(e.target.value)}>
-            <option value="">Current</option>
-            {Array.from({ length: 30 }, (_, i) => i + 18).map(a => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
-        </label>
-        <label className="wi-field">
-          <span>Education</span>
-          <select value={wiEdu} onChange={e => setWiEdu(e.target.value)}>
-            <option value="">Current</option>
-            {wiEducationOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-        <label className="wi-field">
-          <span>Canadian Work (yrs)</span>
-          <select value={wiCWE} onChange={e => setWiCWE(e.target.value)}>
-            {[0,1,2,3,4,5].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </label>
-        <label className="wi-field">
-          <span>Min Language CLB</span>
-          <select value={wiCLB} onChange={e => setWiCLB(e.target.value)}>
-            <option value="">Current</option>
-            {[5,6,7,8,9,10].map(c => <option key={c} value={c}>CLB {c}+</option>)}
-          </select>
-        </label>
+    <div className="scenario-panel">
+      <div className="scenario-grid">
+        {scenarios.map((scenario) => {
+          const projected = projectScenario(answers, scenario);
+          const delta = projected ? projected.total - originalScore : 0;
+          return (
+            <div className="scenario-card" key={scenario.id}>
+              <div className="scenario-head">
+                <strong>{scenario.label}</strong>
+                {scenario.id === 'c' && (
+                  <button type="button" className="scenario-remove" onClick={() => removeScenario(scenario.id)}>Remove</button>
+                )}
+              </div>
+              <div className="wi-grid">
+                <label className="wi-field">
+                  <span>Age</span>
+                  <select value={scenario.age} onChange={e => updateScenario(scenario.id, { age: e.target.value })}>
+                    <option value="">Current</option>
+                    {Array.from({ length: 30 }, (_, i) => i + 18).map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </label>
+                <label className="wi-field">
+                  <span>Education</span>
+                  <select value={scenario.education} onChange={e => updateScenario(scenario.id, { education: e.target.value })}>
+                    <option value="">Current</option>
+                    {scenarioEducationOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+                <label className="wi-field">
+                  <span>Canadian Work (yrs)</span>
+                  <select value={scenario.canadianWorkExp} onChange={e => updateScenario(scenario.id, { canadianWorkExp: e.target.value })}>
+                    {[0, 1, 2, 3, 4, 5].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </label>
+                <label className="wi-field">
+                  <span>Min Language CLB</span>
+                  <select value={scenario.minClb} onChange={e => updateScenario(scenario.id, { minClb: e.target.value })}>
+                    <option value="">Current</option>
+                    {[5, 6, 7, 8, 9, 10].map(c => <option key={c} value={c}>CLB {c}+</option>)}
+                  </select>
+                </label>
+              </div>
+              {projected && (
+                <motion.div className="wi-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                  <div className="wi-scores">
+                    <div className="wi-score-block">
+                      <small>{t('results.original')}</small>
+                      <strong>{originalScore}</strong>
+                    </div>
+                    <span className="wi-arrow">→</span>
+                    <div className="wi-score-block projected">
+                      <small>{t('results.projected')}</small>
+                      <strong>{projected.total}</strong>
+                    </div>
+                    <span className={`wi-delta ${delta > 0 ? 'pos' : delta < 0 ? 'neg' : ''}`}>
+                      {delta > 0 ? '+' : ''}{delta} pts
+                    </span>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {projected && (
-        <motion.div className="wi-result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="wi-scores">
-            <div className="wi-score-block">
-              <small>{t('results.original')}</small>
-              <strong>{originalScore}</strong>
-            </div>
-            <span className="wi-arrow">→</span>
-            <div className="wi-score-block projected">
-              <small>{t('results.projected')}</small>
-              <strong>{projected.total}</strong>
-            </div>
-            <span className={`wi-delta ${delta > 0 ? 'pos' : delta < 0 ? 'neg' : ''}`}>
-              {delta > 0 ? '+' : ''}{delta} pts
-            </span>
-          </div>
-        </motion.div>
+      {scenarios.length < 3 && (
+        <button type="button" className="btn-toggle scenario-add-btn" onClick={addScenario}>
+          Add Scenario C ▼
+        </button>
       )}
     </div>
   );
 }
 
-/* ── Loading Screen ── */
 function LoadingScreen() {
   return (
-    <motion.div className="loading-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}>
+    <motion.div className="loading-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}>
       <Loader />
     </motion.div>
   );
 }
 
-/* ── Confetti Canvas ── */
 function useConfetti(trigger) {
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -237,21 +281,51 @@ function useConfetti(trigger) {
       if (alive) raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
-    const cleanup = setTimeout(() => { cancelAnimationFrame(raf); ctx.clearRect(0, 0, canvas.width, canvas.height); }, 4000);
+    const cleanup = setTimeout(() => {
+      cancelAnimationFrame(raf);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }, 4000);
     return () => { cancelAnimationFrame(raf); clearTimeout(cleanup); };
   }, [trigger]);
   return canvasRef;
 }
 
-/* ── Main Results ── */
+async function copyTextWithFallback(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export default function Results({ answers, onRestart }) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
-  const [whatifOpen, setWhatifOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [provOpen, setProvOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const [saveName, setSaveName] = useState('');
+  const [saveEmail, setSaveEmail] = useState('');
+  const [saveAlerts, setSaveAlerts] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [shareUrl, setShareUrl] = useState(() => `${window.location.origin}${window.location.pathname}#${encodeShareAnswers(answers)}`);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2500);
@@ -260,11 +334,11 @@ export default function Results({ answers, onRestart }) {
 
   const result = useMemo(() => {
     if (answers.knowsScore === 'yes') {
-      const approxScore = parseInt(answers.scoreRange) || 400;
+      const approxScore = parseInt(answers.scoreRange, 10) || 400;
       return {
         total: approxScore,
         breakdown: { coreHumanCapital: approxScore, spouseFactors: 0, skillTransferability: 0, additionalPoints: 0 },
-        details: { age: 0, education: 0, firstLanguage: 0, secondLanguage: 0, canadianWork: 0, foreignWork: 0, spouseTotal: 0, skillTotal: 0, additionalTotal: 0 }
+        details: { age: 0, education: 0, firstLanguage: 0, secondLanguage: 0, canadianWork: 0, foreignWork: 0, spouseTotal: 0, skillTotal: 0, additionalTotal: 0 },
       };
     }
     return calculate(answers);
@@ -274,12 +348,13 @@ export default function Results({ answers, onRestart }) {
   const score = result.total;
   const cutoff = latestDraws.averageCutoff;
   const diff = score - cutoff;
+  const cloudEnabled = isCloudProfilesEnabled();
 
   const status = diff >= 20
     ? { cls: 'above', marker: '+', title: 'Great News!', desc: `Your score is ${diff} points above the recent cut-off (${cutoff}). You have a strong chance of receiving an Invitation to Apply.`, color: '#22c55e' }
     : diff >= -10
-    ? { cls: 'close', marker: '~', title: 'Almost There!', desc: `You're just ${Math.abs(diff)} points ${diff >= 0 ? 'above' : 'below'} the recent cut-off (${cutoff}). A few small improvements could make the difference.`, color: '#f59e0b' }
-    : { cls: 'below', marker: '—', title: 'Room to Improve', desc: `You're ${Math.abs(diff)} points below the recent cut-off (${cutoff}). Don't worry — see the suggestions below to boost your score.`, color: '#ef4444' };
+      ? { cls: 'close', marker: '~', title: 'Almost There!', desc: `You're just ${Math.abs(diff)} points ${diff >= 0 ? 'above' : 'below'} the recent cut-off (${cutoff}). A few small improvements could make the difference.`, color: '#f59e0b' }
+      : { cls: 'below', marker: '—', title: 'Room to Improve', desc: `You're ${Math.abs(diff)} points below the recent cut-off (${cutoff}). Don't worry — see the suggestions below to boost your score.`, color: '#ef4444' };
 
   const suggestions = useMemo(() => generateSuggestions(answers, result), [answers, result]);
   const timeline = useMemo(() => estimateTimeline(result), [result]);
@@ -302,14 +377,10 @@ export default function Results({ answers, onRestart }) {
 
   const topSuggestions = suggestions.slice(0, 3);
   const moreSuggestions = suggestions.slice(3);
-  const pw = answers.pathway;
-  const pwInfo = pathways[pw];
-  const provinces = useMemo(() => isSelfCalc ? recommendProvinces(answers) : [], [answers, isSelfCalc]);
+  const pwInfo = pathways[answers.pathway];
+  const provinces = useMemo(() => (isSelfCalc ? recommendProvinces(answers) : []), [answers, isSelfCalc]);
   const showConfetti = !loading && diff >= 20;
   const confettiRef = useConfetti(showConfetti);
-
-  // Share link
-  const shareUrl = `${window.location.origin}${window.location.pathname}#${encodeAnswers(answers)}`;
 
   const handleShare = async () => {
     try {
@@ -317,22 +388,61 @@ export default function Results({ answers, onRestart }) {
         await navigator.share({ title: 'My CRS Score', text: `My CRS score is ${score}/1200!`, url: shareUrl });
         return;
       }
-    } catch {}
-    try {
-      await navigator.clipboard.writeText(shareUrl);
     } catch {
-      // Fallback for HTTP / older browsers
-      const ta = document.createElement('textarea');
-      ta.value = shareUrl;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
+      // continue to copy fallback
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyTextWithFallback(shareUrl);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleTweet = () => {
+    const target = Math.max(470, cutoff);
+    const text = `My CRS = ${score} — see how to reach ${target}+`;
+    const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
+    window.open(intentUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleSaveProfile = async () => {
+    const email = saveEmail.trim();
+    if (saveAlerts && !email) {
+      setSaveStatus('Add an email to enable draw alerts.');
+      return;
+    }
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      setSaveStatus('Please enter a valid email address.');
+      return;
+    }
+
+    const local = saveProfileLocal({
+      name: saveName.trim(),
+      answers,
+      score,
+      email,
+      alertOptIn: !!saveAlerts && !!email,
+    });
+    const nextShareUrl = buildProfileShareUrl(local.id, answers);
+    setShareUrl(nextShareUrl);
+    setSavingProfile(true);
+
+    try {
+      if (email || saveAlerts) {
+        const cloud = await upsertProfileCloud(local);
+        if (cloud.status === 'ok') {
+          setSaveStatus(saveAlerts ? 'Profile saved and draw alerts subscribed.' : 'Profile saved with shareable link.');
+        } else {
+          setSaveStatus('Profile saved locally. Configure Supabase env vars to enable cloud sync/alerts.');
+        }
+      } else {
+        setSaveStatus('Profile saved locally with a unique shareable link.');
+      }
+    } catch (err) {
+      setSaveStatus(`Profile saved locally, but cloud sync failed: ${err.message}`);
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const handlePDF = () => window.print();
@@ -341,25 +451,24 @@ export default function Results({ answers, onRestart }) {
 
   return (
     <motion.div className="results" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0, transition: { duration: 0.2 } }}>
-      {/* Confetti */}
       {showConfetti && <canvas ref={confettiRef} className="confetti-canvas" />}
 
-      {/* Score Hero */}
       <motion.div className="score-hero" variants={fadeUp}>
         <ScoreGauge score={score} statusColor={status.color} />
       </motion.div>
 
-      {/* Action Buttons */}
       <motion.div className="result-actions" variants={fadeUp}>
         <button className="action-btn" onClick={handleShare} aria-label="Share results">
           {copied ? '✓ Copied!' : t('results.share')}
+        </button>
+        <button className="action-btn" onClick={handleTweet} aria-label="Tweet score">
+          Share on X
         </button>
         <button className="action-btn" onClick={handlePDF} aria-label="Download PDF">
           {t('results.pdf')}
         </button>
       </motion.div>
 
-      {/* Status Card */}
       <motion.div className={`card status-card ${status.cls}-card`} variants={fadeUp}>
         <div className="status-header"><span className={`status-marker ${status.cls}`}>{status.marker}</span> <strong>{status.title}</strong></div>
         <p className="status-desc">{status.desc}</p>
@@ -369,7 +478,34 @@ export default function Results({ answers, onRestart }) {
         </div>
       </motion.div>
 
-      {/* Breakdown */}
+      <motion.div className="card save-profile-card" variants={fadeUp}>
+        <h3>Save & share your profile</h3>
+        <p className="cat-intro">Save this result, generate a unique URL, and optionally subscribe to draw alerts.</p>
+        <div className="save-grid">
+          <label className="wi-field">
+            <span>Profile name (optional)</span>
+            <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="e.g., Feb 2026 Profile" />
+          </label>
+          <label className="wi-field">
+            <span>Email (optional)</span>
+            <input value={saveEmail} onChange={e => setSaveEmail(e.target.value)} placeholder="you@example.com" />
+          </label>
+        </div>
+        <label className="save-alert-row">
+          <input type="checkbox" checked={saveAlerts} onChange={e => setSaveAlerts(e.target.checked)} />
+          <span>Notify me by email when my score is at/above the latest cutoff</span>
+        </label>
+        {!cloudEnabled && <p className="save-note">Cloud alerts need Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).</p>}
+        <div className="save-actions">
+          <button className="action-btn" onClick={handleSaveProfile} disabled={savingProfile}>
+            {savingProfile ? 'Saving…' : 'Save Profile'}
+          </button>
+          <button className="action-btn" onClick={() => copyTextWithFallback(shareUrl)}>Copy Share URL</button>
+        </div>
+        <p className="save-url">{shareUrl}</p>
+        {saveStatus && <p className="save-status">{saveStatus}</p>}
+      </motion.div>
+
       {isSelfCalc && (
         <motion.div className="card" variants={fadeUp}>
           <h3>{t('results.breakdown')}</h3>
@@ -383,22 +519,20 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
-      {/* What-If */}
       {isSelfCalc && (
         <motion.div className="card whatif-card" variants={fadeUp}>
-          <h3 className="draws-toggle" onClick={() => setWhatifOpen(!whatifOpen)}>
-            {t('results.whatif')} <span className="toggle-arrow">{whatifOpen ? '▲' : '▼'}</span>
+          <h3 className="draws-toggle" onClick={() => setCompareOpen(!compareOpen)}>
+            Scenario Compare (A vs B) <span className="toggle-arrow">{compareOpen ? '▲' : '▼'}</span>
           </h3>
-          {whatifOpen && (
+          {compareOpen && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <p className="cat-intro">{t('results.whatifDesc')}</p>
-              <WhatIfPanel answers={answers} originalScore={score} t={t} />
+              <ScenarioComparePanel answers={answers} originalScore={score} t={t} />
             </motion.div>
           )}
         </motion.div>
       )}
 
-      {/* Suggestions */}
       {suggestions.length > 0 && (
         <motion.div className="card" variants={fadeUp}>
           <h3>{t('results.improve')}</h3>
@@ -411,6 +545,7 @@ export default function Results({ answers, onRestart }) {
                   {sug.potentialGain > 0 && <span className="action-badge">+{sug.potentialGain} pts</span>}
                 </div>
                 <div className="action-desc">{sug.description}</div>
+                {sug.action && <div className="action-specific">{sug.action}</div>}
                 <div className="action-meta">
                   <span className="action-time">{sug.timeframe}</span>
                   <span className={`action-diff diff-${sug.difficulty.toLowerCase()}`}>{sug.difficulty}</span>
@@ -429,6 +564,7 @@ export default function Results({ answers, onRestart }) {
                       {sug.potentialGain > 0 && <span className="action-badge">+{sug.potentialGain} pts</span>}
                     </div>
                     <div className="action-desc">{sug.description}</div>
+                    {sug.action && <div className="action-specific">{sug.action}</div>}
                     <div className="action-meta">
                       <span className="action-time">{sug.timeframe}</span>
                       <span className={`action-diff diff-${sug.difficulty.toLowerCase()}`}>{sug.difficulty}</span>
@@ -444,7 +580,6 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
-      {/* Category Draws */}
       {isSelfCalc && (
         <motion.div className="card" variants={fadeUp}>
           <h3>{t('results.category')}</h3>
@@ -459,7 +594,7 @@ export default function Results({ answers, onRestart }) {
                     <span className="cat-icon">{cat.icon}</span>
                     <div>
                       <strong className="cat-name">{cat.name}</strong>
-                    {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? 'Above Cutoff' : 'Eligible'}</span>}
+                      {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? 'Above Cutoff' : 'Eligible'}</span>}
                       {!eligible && <span className="cat-badge badge-na">Not Eligible</span>}
                     </div>
                   </div>
@@ -468,20 +603,6 @@ export default function Results({ answers, onRestart }) {
                     <span>Recent cutoff: <strong>{cat.recentCutoff}</strong></span>
                     <span className="cat-range">Range: {cat.cutoffRange}</span>
                   </div>
-                  {eligible && (
-                    <div className="cat-compare">
-                      <div className="cat-bar-wrap">
-                        <motion.div className={`cat-bar ${aboveCutoff ? 'bar-above' : 'bar-below'}`} initial={{ width: 0 }}
-                          animate={{ width: `${Math.min((score / Math.max(score, cat.recentCutoff + 50)) * 100, 100)}%` }}
-                          transition={{ duration: 0.8, ease: 'easeOut' }} />
-                        <div className="cat-marker" style={{ left: `${(cat.recentCutoff / Math.max(score, cat.recentCutoff + 50)) * 100}%` }} />
-                      </div>
-                      <div className="cat-labels">
-                        <span>Your score: {score}</span>
-                        <span>Cutoff: {cat.recentCutoff}</span>
-                      </div>
-                    </div>
-                  )}
                   {!eligible && <p className="cat-req">{cat.eligibility}</p>}
                 </motion.div>
               );
@@ -490,7 +611,6 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
-      {/* Province Recommender */}
       {isSelfCalc && provinces.length > 0 && (
         <motion.div className="card" variants={fadeUp}>
           <h3 className="draws-toggle" onClick={() => setProvOpen(!provOpen)}>
@@ -512,16 +632,9 @@ export default function Results({ answers, onRestart }) {
                       </div>
                     </div>
                     <div className="prov-bar-wrap">
-                      <motion.div className="prov-bar" initial={{ width: 0 }}
-                        animate={{ width: `${prov.matchScore}%` }}
-                        transition={{ duration: 0.8, ease: 'easeOut' }}
-                        style={{ background: prov.matchScore >= 70 ? '#22c55e' : prov.matchScore >= 40 ? '#f59e0b' : 'var(--surface-3)' }}
-                      />
+                      <motion.div className="prov-bar" initial={{ width: 0 }} animate={{ width: `${prov.matchScore}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} style={{ background: prov.matchScore >= 70 ? '#22c55e' : prov.matchScore >= 40 ? '#f59e0b' : 'var(--surface-3)' }} />
                     </div>
                     <p className="prov-notes">{prov.notes}</p>
-                    <div className="prov-streams">
-                      {prov.streams.map(s => <span key={s} className="prov-stream">{s}</span>)}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -530,7 +643,6 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
-      {/* Timeline */}
       <motion.div className="card" variants={fadeUp}>
         <h3>{t('results.timeline')}</h3>
         <div className={`timeline-badge tl-${status.cls}`}>
@@ -539,7 +651,6 @@ export default function Results({ answers, onRestart }) {
         <p className="timeline-desc">{timeline.description}</p>
       </motion.div>
 
-      {/* Recent Draws */}
       <motion.div className="card" variants={fadeUp}>
         <h3 className="draws-toggle" onClick={() => setDrawsOpen(!drawsOpen)}>
           {t('results.draws')} <span className="toggle-arrow">{drawsOpen ? '▲' : '▼'}</span>
@@ -550,7 +661,7 @@ export default function Results({ answers, onRestart }) {
             {latestDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
             <h4 className="draws-subhead">Category-Based Draws</h4>
             {latestDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
-            {latestDraws.pnpDraws?.length > 0 && (
+            {!!latestDraws.pnpDraws?.length && (
               <>
                 <h4 className="draws-subhead">Provincial Nominee (PNP)</h4>
                 {latestDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
@@ -560,7 +671,6 @@ export default function Results({ answers, onRestart }) {
         )}
       </motion.div>
 
-      {/* Pathway Info */}
       {pwInfo && (
         <motion.div className="card" variants={fadeUp}>
           <h3>{pwInfo.name} Requirements</h3>
@@ -568,12 +678,10 @@ export default function Results({ answers, onRestart }) {
         </motion.div>
       )}
 
-      {/* Disclaimer */}
       <motion.div className="card disclaimer" variants={fadeUp}>
         <p><strong>Disclaimer:</strong> {t('results.disclaimer')} <a href="https://www.canada.ca/en/immigration-refugees-citizenship.html" target="_blank" rel="noopener noreferrer">canada.ca</a></p>
       </motion.div>
 
-      {/* Restart */}
       <motion.button className="btn-restart" onClick={onRestart} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} variants={fadeUp}>
         {t('results.restart')}
       </motion.button>
@@ -587,8 +695,7 @@ function CutoffBar({ label, value, max, color }) {
     <div className="cutoff-row">
       <span className="cutoff-label">{label}</span>
       <div className="cutoff-bar-wrap">
-        <motion.div className="cutoff-bar" style={{ background: color }} initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }}>
+        <motion.div className="cutoff-bar" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }}>
           {value}
         </motion.div>
       </div>

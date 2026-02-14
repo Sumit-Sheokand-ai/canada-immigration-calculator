@@ -71,7 +71,6 @@ export function searchNOC(query) {
   const terms = query.toLowerCase().split(/\s+/);
   const scored = nocCodes
     .map(entry => {
-      const haystack = `${entry.title} ${entry.keywords} ${entry.noc}`.toLowerCase();
       let score = 0;
       for (const term of terms) {
         if (entry.title.toLowerCase().includes(term)) score += 3;

@@ -6,6 +6,12 @@ import Wizard from './components/Wizard';
 import Loader from './components/Loader';
 const Results = lazy(() => import('./components/Results'));
 import { useLanguage } from './i18n/LanguageContext';
+import {
+  decodeShareAnswers,
+  getProfileIdFromQuery,
+  getSavedProfileById,
+} from './utils/profileStore';
+import { unsubscribeAlertsByToken } from './utils/cloudProfiles';
 import './App.css';
 
 const STORAGE_KEY = 'crs-progress';
@@ -18,36 +24,58 @@ function loadProgress() {
 }
 
 function saveProgress(answers) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(answers)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(answers)); } catch { /* ignore storage errors */ }
 }
 
 function clearProgress() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore storage errors */ }
 }
-
-// Decode answers from URL hash (for shared links)
-function decodeHash() {
+function getUnsubscribeToken() {
   try {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return null;
-    return JSON.parse(decodeURIComponent(atob(hash)));
-  } catch { return null; }
+    const params = new URLSearchParams(window.location.search);
+    return params.get('unsubscribe');
+  } catch {
+    return null;
+  }
 }
 
-export function encodeAnswers(answers) {
-  return btoa(encodeURIComponent(JSON.stringify(answers)));
+function getInitialAnswers() {
+  const fromHash = decodeShareAnswers();
+  if (fromHash) return fromHash;
+  const profileId = getProfileIdFromQuery();
+  if (profileId) {
+    const saved = getSavedProfileById(profileId);
+    if (saved?.answers) return saved.answers;
+  }
+  return {};
 }
+
 
 export default function App() {
   const { t } = useLanguage();
+  const unsubscribeToken = getUnsubscribeToken();
+  const initialAnswers = getInitialAnswers();
 
-  // Check URL hash for shared results
-  const [mode, setMode] = useState(() => {
-    const shared = decodeHash();
-    if (shared) return 'results';
-    return 'welcome';
-  });
-  const [answers, setAnswers] = useState(() => decodeHash() || {});
+  const [mode, setMode] = useState(() => (
+    unsubscribeToken ? 'unsubscribe' : (Object.keys(initialAnswers).length > 0 ? 'results' : 'welcome')
+  ));
+  const [answers, setAnswers] = useState(() => initialAnswers);
+  const [unsubscribeState, setUnsubscribeState] = useState(() => (unsubscribeToken ? 'loading' : 'idle'));
+
+  useEffect(() => {
+    if (!unsubscribeToken) return;
+    let mounted = true;
+    unsubscribeAlertsByToken(unsubscribeToken)
+      .then((res) => {
+        if (!mounted) return;
+        setUnsubscribeState(res.status === 'ok' ? 'success' : 'notfound');
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setUnsubscribeState('error');
+      });
+    return () => { mounted = false; };
+  }, [unsubscribeToken]);
 
   const handleStart = useCallback((resume) => {
     if (resume) {
@@ -89,6 +117,18 @@ export default function App() {
         <AnimatePresence mode="wait">
           {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} />}
           {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={saveProgress} initialAnswers={answers} />}
+          {mode === 'unsubscribe' && (
+            <div className="card unsubscribe-card">
+              <h3>Draw alert preferences</h3>
+              {unsubscribeState === 'loading' && <p>Processing your unsubscribe request…</p>}
+              {unsubscribeState === 'success' && <p>You’ve been unsubscribed from draw alerts successfully.</p>}
+              {unsubscribeState === 'notfound' && <p>This unsubscribe link is invalid or already inactive.</p>}
+              {unsubscribeState === 'error' && <p>We couldn’t process this request right now. Please try again later.</p>}
+              <button className="btn-restart" onClick={() => setMode('welcome')}>
+                Back to calculator
+              </button>
+            </div>
+          )}
           {mode === 'results' && (
             <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
               <Results key="results" answers={answers} onRestart={handleRestart} />
