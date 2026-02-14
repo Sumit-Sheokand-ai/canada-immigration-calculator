@@ -173,6 +173,11 @@ export default function App() {
       </main>
       <footer className="footer">
         <p>© {new Date().getFullYear()} {t('footer.copy')}</p>
+        <p className="footer-legal-links">
+          <a href="/terms.html">Terms of Service</a>
+          <span aria-hidden="true"> · </span>
+          <a href="/privacy.html">Privacy Policy</a>
+        </p>
       </footer>
       {showTop && (
         <button

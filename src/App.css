@@ -79,6 +79,18 @@
   text-align: center; padding: 24px 20px;
   font-size: 13px; color: var(--text-3); border-top: 1px solid var(--surface-2);
 }
+.footer-legal-links {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.footer-legal-links a {
+  color: var(--text-3);
+  text-decoration: none;
+}
+.footer-legal-links a:hover {
+  color: var(--text-2);
+  text-decoration: underline;
+}
 
 /* ═══════════════════════════════════════════
    WELCOME SCREEN
