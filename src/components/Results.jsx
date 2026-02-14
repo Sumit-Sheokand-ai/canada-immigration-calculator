@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
-import { pathways, categoryBasedInfo } from '../data/crsData';
+import { pathways } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { buildProfileShareUrl, encodeShareAnswers, saveProfileLocal } from '../utils/profileStore';
 import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from '../utils/cloudProfiles';
-import { getFallbackLatestDraws } from '../utils/drawDataSource';
+import { getFallbackCategoryDrawInfo, getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
 import PathCoach from './PathCoach';
 import Loader from './Loader';
@@ -314,10 +314,14 @@ async function copyTextWithFallback(text) {
   }
 }
 
-export default function Results({ answers, onRestart, drawData }) {
+export default function Results({ answers, onRestart, drawData, categoryInfo }) {
   const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
   const activeDraws = drawData || getFallbackLatestDraws();
+  const activeCategoryInfo = useMemo(
+    () => (Array.isArray(categoryInfo) && categoryInfo.length > 0 ? categoryInfo : getFallbackCategoryDrawInfo()),
+    [categoryInfo]
+  );
   const [loading, setLoading] = useState(true);
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
@@ -649,7 +653,12 @@ export default function Results({ answers, onRestart, drawData }) {
       )}
 
       {isSelfCalc && (
-        <PathCoach answers={answers} result={result} averageCutoff={activeDraws.averageCutoff} />
+        <PathCoach
+          answers={answers}
+          result={result}
+          averageCutoff={activeDraws.averageCutoff}
+          categoryInfo={activeCategoryInfo}
+        />
       )}
 
       {isSelfCalc && (
@@ -657,7 +666,7 @@ export default function Results({ answers, onRestart, drawData }) {
           <h3>{t('results.category')}</h3>
           <p className="cat-intro">{t('results.catIntro')}</p>
           <div className="cat-grid">
-            {categoryBasedInfo.map(cat => {
+            {activeCategoryInfo.map(cat => {
               const eligible = cat.check(answers);
               const aboveCutoff = eligible && score >= cat.recentCutoff;
               return (

@@ -6,11 +6,16 @@ import {
   buildTrackingFromPlan,
   clearPathTracking,
   deferNextCheckIn,
+  estimateTrackingCompletion,
   getCoachMessage,
+  getDailyProgressStats,
+  getDailyTasksForDate,
   getTrackingProgress,
   getTrackingStorageKey,
+  getUpcomingDailyTasks,
   loadPathTracking,
   savePathTracking,
+  toggleDailyTask,
   toggleMilestone,
   updateTrackingScore,
 } from '../utils/pathTrackingStore';
@@ -37,14 +42,47 @@ function difficultyClass(level) {
   return 'path-diff-medium';
 }
 
-export default function PathCoach({ answers, result, averageCutoff }) {
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function addMonths(dateIso, months) {
+  const date = new Date(dateIso || Date.now());
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString();
+}
+
+function getRecommendedTarget({ answers, result, averageCutoff, categoryInfo }) {
+  const current = Number(result?.total) || 0;
+  const baseGeneralTarget = Math.max(Number(averageCutoff) || 520, current + 25);
+  const eligibleCategoryCutoffs = (categoryInfo || [])
+    .filter((cat) => typeof cat?.check === 'function' && cat.check(answers))
+    .map((cat) => Number(cat.recentCutoff))
+    .filter((cutoff) => Number.isFinite(cutoff) && cutoff > 0);
+
+  if (eligibleCategoryCutoffs.length === 0) {
+    return clamp(baseGeneralTarget + 10, 300, 1200);
+  }
+
+  const bestCategoryCutoff = Math.min(...eligibleCategoryCutoffs);
+  const categoryTarget = Math.max(bestCategoryCutoff + 5, current + 5);
+  return clamp(Math.min(baseGeneralTarget + 10, categoryTarget), 300, 1200);
+}
+
+export default function PathCoach({ answers, result, averageCutoff, categoryInfo = [] }) {
   const { user, isAuthenticated } = useAuth();
 
   const checkoutUrl = import.meta.env.VITE_STRIPE_TRACKING_CHECKOUT_URL;
   const billingPortalUrl = import.meta.env.VITE_STRIPE_BILLING_PORTAL_URL;
   const forceActive = import.meta.env.VITE_TRACKING_FORCE_ACTIVE === 'true';
 
+  const recommendedTarget = useMemo(
+    () => getRecommendedTarget({ answers, result, averageCutoff, categoryInfo }),
+    [answers, result, averageCutoff, categoryInfo]
+  );
+
   const [targetScore, setTargetScore] = useState(() => Math.max((result?.total || 0) + 25, 500));
+  const [targetTouched, setTargetTouched] = useState(false);
   const [selectedPathId, setSelectedPathId] = useState('');
   const [tracking, setTracking] = useState(null);
   const [noteInput, setNoteInput] = useState('');
@@ -57,23 +95,72 @@ export default function PathCoach({ answers, result, averageCutoff }) {
   });
 
   const storageKey = useMemo(() => getTrackingStorageKey(user?.id || null, null), [user?.id]);
-
-  const planner = useMemo(() => buildPathPlans(answers, result, { targetScore, averageCutoff }), [answers, result, targetScore, averageCutoff]);
+  const planner = useMemo(
+    () => buildPathPlans(answers, result, { targetScore, averageCutoff }),
+    [answers, result, targetScore, averageCutoff]
+  );
   const selectedPath = useMemo(
-    () => planner.plans.find((p) => p.id === selectedPathId) || planner.plans[0] || null,
+    () => planner.plans.find((path) => path.id === selectedPathId) || planner.plans[0] || null,
     [planner.plans, selectedPathId]
   );
+
+  const hasPaidAccess = forceActive || (isAuthenticated && accessState.active);
+  const progressPct = getTrackingProgress(tracking);
+  const coachMessage = getCoachMessage(tracking);
+  const dailyStats = useMemo(() => getDailyProgressStats(tracking), [tracking]);
+  const todayTasks = useMemo(() => getDailyTasksForDate(tracking), [tracking]);
+  const upcomingTasks = useMemo(() => getUpcomingDailyTasks(tracking, 7), [tracking]);
+  const completionProjection = useMemo(() => estimateTrackingCompletion(tracking), [tracking]);
+
+  const selectedTimeline = useMemo(() => {
+    if (!selectedPath) return null;
+    const startDate = tracking?.startedAt || new Date().toISOString();
+    const spread = selectedPath.difficulty === 'Easy' ? 1 : selectedPath.difficulty === 'Hard' ? 3 : 2;
+    const earliestMonths = Math.max(selectedPath.estimatedMonths - spread, 1);
+    const latestMonths = selectedPath.estimatedMonths + spread + (selectedPath.goalReached ? 0 : 1);
+    return {
+      earliestMonths,
+      latestMonths,
+      earliestDate: addMonths(startDate, earliestMonths),
+      latestDate: addMonths(startDate, latestMonths),
+    };
+  }, [selectedPath, tracking?.startedAt]);
+
+  useEffect(() => {
+    setTargetTouched(false);
+  }, [result?.total]);
+
+  useEffect(() => {
+    if (!targetTouched) {
+      setTargetScore(recommendedTarget);
+    }
+  }, [recommendedTarget, targetTouched]);
+
+  useEffect(() => {
+    if (!planner.plans.length) {
+      setSelectedPathId('');
+      return;
+    }
+    const valid = planner.plans.some((path) => path.id === selectedPathId);
+    if (!valid) {
+      setSelectedPathId(planner.plans[0].id);
+    }
+  }, [planner.plans, selectedPathId]);
 
   useEffect(() => {
     let mounted = true;
     queueMicrotask(() => {
       if (!mounted) return;
       const local = loadPathTracking(storageKey);
-      if (local) setTracking(updateTrackingScore(local, result.total));
-      else setTracking(null);
+      if (local) {
+        const hydrated = { ...local, currentScore: Number(result?.total) || 0 };
+        setTracking(hydrated);
+      } else {
+        setTracking(null);
+      }
     });
     return () => { mounted = false; };
-  }, [result.total, storageKey]);
+  }, [result?.total, storageKey]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) {
@@ -110,33 +197,29 @@ export default function PathCoach({ answers, result, averageCutoff }) {
         const cloudUpdated = new Date(res.data.updatedAt || 0).getTime();
         const localUpdated = new Date(local?.updatedAt || 0).getTime();
         if (!local || cloudUpdated > localUpdated) {
-          savePathTracking(storageKey, res.data);
-          setTracking(updateTrackingScore(res.data, result.total));
+          const hydrated = { ...res.data, currentScore: Number(result?.total) || 0 };
+          savePathTracking(storageKey, hydrated);
+          setTracking(hydrated);
         }
       })
       .catch(() => {
         // silent fallback to local data
       });
     return () => { active = false; };
-  }, [isAuthenticated, result.total, storageKey, user?.id]);
-
-  const hasPaidAccess = forceActive || (isAuthenticated && accessState.active);
-  const progressPct = getTrackingProgress(tracking);
-  const coachMessage = getCoachMessage(tracking);
+  }, [isAuthenticated, result?.total, storageKey, user?.id]);
 
   const persistTracking = async (nextTracking) => {
     const withScore = updateTrackingScore(nextTracking, result.total);
-    withScore.progressPct = getTrackingProgress(withScore);
-    savePathTracking(storageKey, withScore);
-    setTracking(withScore);
+    const persisted = savePathTracking(storageKey, withScore);
+    setTracking(persisted);
     if (isAuthenticated && hasPaidAccess && user?.id) {
       try {
-        await savePathTrackingCloud(user.id, withScore);
+        await savePathTrackingCloud(user.id, persisted);
       } catch {
         // keep local state even if cloud sync fails
       }
     }
-    return withScore;
+    return persisted;
   };
 
   const handleStartTracking = async () => {
@@ -147,7 +230,7 @@ export default function PathCoach({ answers, result, averageCutoff }) {
     }
     const next = buildTrackingFromPlan(selectedPath, result.total, targetScore);
     await persistTracking(next);
-    setTrackingStatus('Path tracking started. Follow the first milestone this week.');
+    setTrackingStatus('Expert path started. Complete today\'s tasks to build momentum.');
   };
 
   const handleToggleMilestone = async (milestoneId) => {
@@ -155,6 +238,13 @@ export default function PathCoach({ answers, result, averageCutoff }) {
     const next = toggleMilestone(tracking, milestoneId);
     await persistTracking(next);
     setTrackingStatus('Milestone progress updated.');
+  };
+
+  const handleToggleDailyTask = async (taskId) => {
+    if (!tracking || !hasPaidAccess) return;
+    const next = toggleDailyTask(tracking, taskId);
+    await persistTracking(next);
+    setTrackingStatus('Daily task updated.');
   };
 
   const handleNextCheckIn = async () => {
@@ -177,7 +267,7 @@ export default function PathCoach({ answers, result, averageCutoff }) {
   const handleResetTracking = () => {
     clearPathTracking(storageKey);
     setTracking(null);
-    setTrackingStatus('Tracking reset. Choose a path to start again.');
+    setTrackingStatus('Tracking reset. Choose another expert path.');
   };
 
   const handleSubscribe = async () => {
@@ -218,11 +308,11 @@ export default function PathCoach({ answers, result, averageCutoff }) {
   return (
     <motion.div className="card path-coach-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
       <div className="path-coach-head">
-        <h3>Goal Path Coach (Most Important)</h3>
-        <span className="path-pill">Detailed</span>
+        <h3>Expert Strategy Coach</h3>
+        <span className="path-pill">Phase 2</span>
       </div>
       <p className="cat-intro">
-        Pick the most suitable path for your situation, then track weekly milestones with guided assistance.
+        Choose one expert strategy card, then follow daily tasks and progress signals to reach your target faster.
       </p>
 
       <div className="path-target-row">
@@ -233,12 +323,16 @@ export default function PathCoach({ answers, result, averageCutoff }) {
             min="300"
             max="1200"
             value={targetScore}
-            onChange={(e) => setTargetScore(Number(e.target.value) || planner.targetScore)}
+            onChange={(e) => {
+              setTargetTouched(true);
+              setTargetScore(Number(e.target.value) || planner.targetScore);
+            }}
           />
         </label>
         <div className="path-target-meta">
           <small>Current: {planner.currentScore}</small>
           <small>Gap: {Math.max(targetScore - planner.currentScore, 0)}</small>
+          <small>Recommended target: {recommendedTarget}</small>
         </div>
       </div>
 
@@ -274,11 +368,21 @@ export default function PathCoach({ answers, result, averageCutoff }) {
             <span>Projected score: <strong>{selectedPath.projectedScore}</strong></span>
             <span>Estimated cost: <strong>{selectedPath.estimatedCostCad} CAD</strong></span>
           </div>
+          {selectedTimeline && (
+            <div className="path-meta-line">
+              <span>
+                Completion window: <strong>{selectedTimeline.earliestMonths}-{selectedTimeline.latestMonths} months</strong>
+              </span>
+              <span>
+                ETA dates: <strong>{formatDate(selectedTimeline.earliestDate)} - {formatDate(selectedTimeline.latestDate)}</strong>
+              </span>
+            </div>
+          )}
           <ul className="path-milestones-preview">
-            {selectedPath.milestones.map((m) => (
-              <li key={m.id}>
-                <span>{m.title}</span>
-                <small>~{m.etaWeeks} weeks</small>
+            {selectedPath.milestones.map((milestone) => (
+              <li key={milestone.id}>
+                <span>{milestone.title}</span>
+                <small>~{milestone.etaWeeks} weeks</small>
               </li>
             ))}
           </ul>
@@ -287,14 +391,14 @@ export default function PathCoach({ answers, result, averageCutoff }) {
 
       {!isAuthenticated && (
         <div className="path-paywall">
-          <p>Login first, then activate paid tracking (5 CAD/month) to unlock weekly coaching and cloud sync.</p>
+          <p>Login first, then activate paid tracking (5 CAD/month) to unlock daily guidance and cloud sync.</p>
         </div>
       )}
 
       {isAuthenticated && !hasPaidAccess && (
         <div className="path-paywall">
           <p><strong>Tracking plan:</strong> 5 CAD / month</p>
-          <p>This includes guided path tracking, milestone reminders, and cross-device progress sync.</p>
+          <p>This includes expert strategy tracking, daily tasks, and cross-device progress sync.</p>
           <div className="path-pay-actions">
             <button
               className="action-btn auth-btn-primary"
@@ -307,7 +411,7 @@ export default function PathCoach({ answers, result, averageCutoff }) {
               className="action-btn"
               onClick={async () => {
                 if (!user?.id) return;
-                setAccessState((s) => ({ ...s, loading: true }));
+                setAccessState((state) => ({ ...state, loading: true }));
                 try {
                   const res = await getTrackingAccess(user.id);
                   setAccessState({ loading: false, active: !!res.active, reason: res.reason || '' });
@@ -335,7 +439,7 @@ export default function PathCoach({ answers, result, averageCutoff }) {
       <div className="path-actions">
         <StarBorder color="var(--primary)" speed="5s">
           <button className="btn-next finish" type="button" onClick={handleStartTracking}>
-            {tracking ? 'Switch to this path' : 'Start this path'}
+            {tracking ? 'Switch to this strategy' : 'Start this strategy'}
           </button>
         </StarBorder>
         {tracking && (
@@ -360,20 +464,69 @@ export default function PathCoach({ answers, result, averageCutoff }) {
             />
           </div>
 
+          <div className="path-daily-stats">
+            <span>Streak: <strong>{dailyStats.streakDays} day(s)</strong></span>
+            <span>Done: <strong>{dailyStats.completedTasks}/{dailyStats.totalTasks}</strong></span>
+            <span>Today: <strong>{dailyStats.completedToday}/{dailyStats.dueToday}</strong></span>
+            <span className={`pace pace-${dailyStats.paceStatus}`}>Pace: <strong>{dailyStats.paceStatus}</strong></span>
+          </div>
+
+          {completionProjection && (
+            <div className="path-coach-note">
+              <strong>Completion forecast:</strong> baseline {formatDate(completionProjection.baselineDate)} · current pace {formatDate(completionProjection.projectedDate)}
+            </div>
+          )}
+
           <div className="path-coach-note">
             <strong>Coach guidance:</strong> {coachMessage}
           </div>
 
+          <div className="path-daily-section">
+            <h5>Today&apos;s guide</h5>
+            {!todayTasks.length && <p className="path-empty-text">No task due today. Continue with your next upcoming task.</p>}
+            {!!todayTasks.length && (
+              <ul className="path-daily-list">
+                {todayTasks.map((task) => (
+                  <li key={task.id} className={task.done ? 'done' : ''}>
+                    <button type="button" onClick={() => handleToggleDailyTask(task.id)} disabled={!hasPaidAccess}>
+                      {task.done ? '✓' : '○'}
+                    </button>
+                    <div>
+                      <strong>{task.title}</strong>
+                      <p>{task.details}</p>
+                      <small>{task.expectedMinutes} min planned · +{task.expectedGain} expected CRS pace</small>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="path-daily-section">
+            <h5>Next 7 days</h5>
+            {!upcomingTasks.length && <p className="path-empty-text">No upcoming tasks yet.</p>}
+            {!!upcomingTasks.length && (
+              <ul className="path-upcoming-list">
+                {upcomingTasks.slice(0, 10).map((task) => (
+                  <li key={task.id}>
+                    <span>{formatDate(task.date)}</span>
+                    <span>{task.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <ul className="path-milestone-list">
-            {(tracking.milestones || []).map((m) => (
-              <li key={m.id} className={m.done ? 'done' : ''}>
-                <button type="button" onClick={() => handleToggleMilestone(m.id)} disabled={!hasPaidAccess}>
-                  {m.done ? '✓' : '○'}
+            {(tracking.milestones || []).map((milestone) => (
+              <li key={milestone.id} className={milestone.done ? 'done' : ''}>
+                <button type="button" onClick={() => handleToggleMilestone(milestone.id)} disabled={!hasPaidAccess}>
+                  {milestone.done ? '✓' : '○'}
                 </button>
                 <div>
-                  <strong>{m.title}</strong>
-                  <p>{m.details}</p>
-                  <small>Expected impact: +{m.expectedGain} pts · ~{m.etaWeeks} weeks</small>
+                  <strong>{milestone.title}</strong>
+                  <p>{milestone.details}</p>
+                  <small>Expected impact: +{milestone.expectedGain} pts · ~{milestone.etaWeeks} weeks</small>
                 </div>
               </li>
             ))}

@@ -73,6 +73,7 @@ export async function savePathTrackingCloud(userId, tracking) {
     progress_pct: Number.isFinite(tracking.progressPct) ? tracking.progressPct : 0,
     next_check_in_at: tracking.nextCheckInAt || null,
     milestones_json: tracking.milestones || [],
+    daily_tasks_json: tracking.dailyTasks || [],
     plan_json: tracking.selectedPath || {},
     notes_json: tracking.notes || [],
     updated_at: nowIso(),
@@ -128,6 +129,7 @@ export async function loadLatestPathTrackingCloud(userId) {
       targetScore: row.target_score || 0,
       selectedPath: row.plan_json || null,
       milestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
+      dailyTasks: Array.isArray(row.daily_tasks_json) ? row.daily_tasks_json : [],
       notes: Array.isArray(row.notes_json) ? row.notes_json : [],
     },
   };

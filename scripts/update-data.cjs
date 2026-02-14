@@ -26,6 +26,72 @@ const MAX_CEC_DRAWS = 6;
 const MAX_CATEGORY_DRAWS = 7;
 const MAX_PNP_DRAWS = 5;
 
+const CATEGORY_BASELINES = [
+  {
+    id: "french",
+    name: "French-Language Proficiency",
+    icon: "FR",
+    description: "For candidates with strong French language skills. Cutoffs are significantly lower than general draws.",
+    eligibility: "You need NCLC/CLB 7 or higher in ALL four French abilities (listening, reading, writing, speaking).",
+    recentCutoff: 400,
+    cutoffRange: "379–416",
+  },
+  {
+    id: "healthcare",
+    name: "Healthcare Occupations",
+    icon: "HC",
+    description: "For candidates working in healthcare and social services (nurses, doctors, pharmacists, medical technicians, etc.).",
+    eligibility: "Your primary occupation must be in a healthcare or social services NOC code (e.g., NOC 31, 32, 33).",
+    recentCutoff: 476,
+    cutoffRange: "422–476",
+  },
+  {
+    id: "stem",
+    name: "STEM Occupations",
+    icon: "ST",
+    description: "For candidates in Science, Technology, Engineering, and Mathematics fields (software developers, engineers, data scientists, etc.).",
+    eligibility: "Your primary occupation must be in a STEM-related NOC code (e.g., NOC 21, 22).",
+    recentCutoff: 481,
+    cutoffRange: "470–500",
+  },
+  {
+    id: "trade",
+    name: "Trade Occupations",
+    icon: "TR",
+    description: "For candidates in skilled trades (electricians, plumbers, welders, carpenters, etc.).",
+    eligibility: "Your primary occupation must be in a trade-related NOC code (e.g., NOC 72, 73).",
+    recentCutoff: 433,
+    cutoffRange: "388–433",
+  },
+  {
+    id: "transport",
+    name: "Transport Occupations",
+    icon: "TP",
+    description: "For candidates in transport occupations (truck drivers, pilots, railway workers, etc.).",
+    eligibility: "Your primary occupation must be in a transport-related NOC code (e.g., NOC 73, 75).",
+    recentCutoff: 435,
+    cutoffRange: "410–435",
+  },
+  {
+    id: "agriculture",
+    name: "Agriculture & Agri-food",
+    icon: "AG",
+    description: "For candidates in agriculture and agri-food occupations (farm workers, food processing, meat cutters, etc.).",
+    eligibility: "Your primary occupation must be in an agriculture or agri-food NOC code (e.g., NOC 82, 84, 85).",
+    recentCutoff: 440,
+    cutoffRange: "354–440",
+  },
+];
+
+const CATEGORY_MATCHERS = {
+  french: (program) => program.includes("french"),
+  healthcare: (program) => program.includes("healthcare") || program.includes("social services"),
+  stem: (program) => program.includes("stem"),
+  trade: (program) => program.includes("trade"),
+  transport: (program) => program.includes("transport"),
+  agriculture: (program) => program.includes("agri") || program.includes("agriculture"),
+};
+
 function canSyncToSupabase() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -42,7 +108,42 @@ function getSupabaseHeaders() {
   };
 }
 
-async function syncLatestDrawsToSupabase(latestDraws, rowsParsed) {
+function looksLikeMissingTable(detail = "") {
+  const lower = String(detail).toLowerCase();
+  return lower.includes("relation") && lower.includes("does not exist")
+    || lower.includes("table") && lower.includes("not found");
+}
+
+function formatRange(min, max) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return "N/A";
+  return `${Math.min(min, max)}–${Math.max(min, max)}`;
+}
+
+function buildCategoryConfigs(draws) {
+  const sourceDraws = Array.isArray(draws) ? draws : [];
+  return CATEGORY_BASELINES.map((base) => {
+    const matcher = CATEGORY_MATCHERS[base.id] || (() => false);
+    const relevant = sourceDraws
+      .filter((draw) => matcher(String(draw.program || "").toLowerCase()))
+      .slice(0, 12);
+    if (!relevant.length) {
+      return {
+        ...base,
+      };
+    }
+    const scores = relevant.map((draw) => Number(draw.score)).filter(Number.isFinite);
+    const recentCutoff = scores[0] || base.recentCutoff;
+    const min = scores.length ? Math.min(...scores) : base.recentCutoff;
+    const max = scores.length ? Math.max(...scores) : base.recentCutoff;
+    return {
+      ...base,
+      recentCutoff,
+      cutoffRange: formatRange(min, max),
+    };
+  });
+}
+
+async function syncLatestDrawsToSupabase(latestDraws, rowsParsed, categoryConfigs = []) {
   if (!canSyncToSupabase()) {
     console.log("Supabase sync skipped (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set).");
     return { status: "skipped" };
@@ -97,6 +198,42 @@ async function syncLatestDrawsToSupabase(latestDraws, rowsParsed) {
     const snapshotRows = await snapshotRes.json();
     snapshotId = snapshotRows?.[0]?.id || null;
 
+    let categorySyncStatus = "skipped";
+    if (Array.isArray(categoryConfigs) && categoryConfigs.length > 0) {
+      const categoryPayload = categoryConfigs.map((category) => ({
+        id: category.id,
+        source,
+        is_active: true,
+        name: category.name,
+        icon: category.icon,
+        description: category.description,
+        eligibility: category.eligibility,
+        recent_cutoff: Number(category.recentCutoff) || 0,
+        cutoff_range: category.cutoffRange || "N/A",
+        updated_at: new Date().toISOString(),
+      }));
+
+      const categoryRes = await fetch(`${baseUrl}/rest/v1/category_draw_configs?on_conflict=id,source`, {
+        method: "POST",
+        headers: {
+          ...getSupabaseHeaders(),
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify(categoryPayload),
+      });
+      if (!categoryRes.ok) {
+        const detail = await categoryRes.text();
+        if (looksLikeMissingTable(detail)) {
+          categorySyncStatus = "table-missing";
+          console.warn("Category config sync skipped: category_draw_configs table not found.");
+        } else {
+          throw new Error(`Supabase category config upsert failed (${categoryRes.status}): ${detail}`);
+        }
+      } else {
+        categorySyncStatus = "ok";
+      }
+    }
+
     if (runId) {
       await fetch(`${baseUrl}/rest/v1/draw_update_runs?id=eq.${encodeURIComponent(runId)}`, {
         method: "PATCH",
@@ -106,7 +243,7 @@ async function syncLatestDrawsToSupabase(latestDraws, rowsParsed) {
         },
         body: JSON.stringify({
           status: "success",
-          message: "Draw snapshot synced to Supabase",
+          message: `Draw snapshot synced to Supabase (category configs: ${categorySyncStatus})`,
           snapshot_id: snapshotId,
           finished_at: new Date().toISOString(),
           rows_parsed: rowsParsed,
@@ -391,8 +528,9 @@ async function main() {
     const allDraws = parseDraws(json);
 
     const latestDraws = categorizeDraws(allDraws);
+    const categoryConfigs = buildCategoryConfigs(allDraws);
     updateDataFile(latestDraws);
-    await syncLatestDrawsToSupabase(latestDraws, allDraws.length);
+    await syncLatestDrawsToSupabase(latestDraws, allDraws.length, categoryConfigs);
 
     console.log("\nDone! Draw data updated successfully.");
   } catch (err) {

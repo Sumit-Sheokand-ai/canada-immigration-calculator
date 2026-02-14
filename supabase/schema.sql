@@ -14,7 +14,6 @@ create table if not exists public.saved_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
 create table if not exists public.draw_snapshots (
   id uuid primary key default gen_random_uuid(),
   source text not null default 'ircc_json',
@@ -34,6 +33,21 @@ create table if not exists public.draw_update_runs (
   snapshot_id uuid references public.draw_snapshots(id) on delete set null,
   started_at timestamptz not null default now(),
   finished_at timestamptz
+);
+
+create table if not exists public.category_draw_configs (
+  id text not null,
+  source text not null default 'baseline',
+  is_active boolean not null default true,
+  name text not null,
+  icon text not null,
+  description text not null,
+  eligibility text not null,
+  recent_cutoff integer not null,
+  cutoff_range text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (id, source)
 );
 alter table public.saved_profiles add column if not exists user_id uuid references auth.users(id) on delete set null;
 
@@ -126,6 +140,7 @@ create table if not exists public.user_path_tracking (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.user_path_tracking add column if not exists daily_tasks_json jsonb not null default '[]'::jsonb;
 
 create index if not exists user_tracking_access_status_idx on public.user_tracking_access (status, current_period_end);
 create index if not exists payments_user_idx on public.payments (user_id, created_at desc);
@@ -134,12 +149,14 @@ create index if not exists user_path_tracking_user_idx on public.user_path_track
 create unique index if not exists draw_snapshots_source_date_uq on public.draw_snapshots (source, last_updated);
 create index if not exists draw_snapshots_updated_idx on public.draw_snapshots (last_updated desc);
 create index if not exists draw_update_runs_started_idx on public.draw_update_runs (started_at desc);
+create index if not exists category_draw_configs_active_idx on public.category_draw_configs (is_active, updated_at desc);
 
 alter table public.user_tracking_access enable row level security;
 alter table public.payments enable row level security;
 alter table public.user_path_tracking enable row level security;
 alter table public.draw_snapshots enable row level security;
 alter table public.draw_update_runs enable row level security;
+alter table public.category_draw_configs enable row level security;
 
 drop policy if exists "auth_select_own_tracking_access" on public.user_tracking_access;
 create policy "auth_select_own_tracking_access"
@@ -209,6 +226,13 @@ with check (auth.uid() = user_id);
 drop policy if exists "public_read_draw_snapshots" on public.draw_snapshots;
 create policy "public_read_draw_snapshots"
 on public.draw_snapshots
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "public_read_category_draw_configs" on public.category_draw_configs;
+create policy "public_read_category_draw_configs"
+on public.category_draw_configs
 for select
 to anon, authenticated
 using (true);

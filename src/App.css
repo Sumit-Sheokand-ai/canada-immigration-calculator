@@ -568,9 +568,80 @@
   background: linear-gradient(90deg, #00f260, #0575e6);
   box-shadow: 0 0 12px rgba(0, 242, 96, 0.5);
 }
+.path-daily-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.path-daily-stats span {
+  border: 1px solid var(--surface-2);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--text-2);
+  background: var(--surface);
+}
+.path-daily-stats .pace {
+  text-transform: capitalize;
+}
+.path-daily-stats .pace-on-track { border-color: rgba(34,197,94,0.4); color: #16a34a; }
+.path-daily-stats .pace-slightly-behind { border-color: rgba(245,158,11,0.4); color: #d97706; }
+.path-daily-stats .pace-behind { border-color: rgba(239,68,68,0.4); color: #dc2626; }
 .path-coach-note {
   font-size: 12px; color: var(--text-2); margin-bottom: 10px;
   border-left: 3px solid var(--primary); padding-left: 8px;
+}
+.path-daily-section { margin-bottom: 10px; }
+.path-daily-section h5 { margin: 0 0 6px; font-size: 13px; }
+.path-empty-text { font-size: 12px; color: var(--text-3); }
+.path-daily-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.path-daily-list li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+  border: 1px solid var(--surface-2);
+  border-radius: 8px;
+  padding: 8px;
+}
+.path-daily-list li.done { opacity: 0.75; }
+.path-daily-list li button {
+  border: 1px solid var(--surface-3);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-weight: 700;
+}
+.path-daily-list li p { font-size: 12px; color: var(--text-2); margin: 2px 0; }
+.path-daily-list li small { font-size: 11px; color: var(--text-3); }
+.path-upcoming-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.path-upcoming-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  border-bottom: 1px dashed var(--surface-2);
+  padding-bottom: 4px;
+}
+.path-upcoming-list li span:first-child {
+  color: var(--text-3);
+  min-width: 110px;
 }
 .path-milestone-list {
   list-style: none; display: flex; flex-direction: column; gap: 8px;

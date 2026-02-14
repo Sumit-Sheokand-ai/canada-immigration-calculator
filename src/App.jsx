@@ -12,7 +12,12 @@ import {
   getSavedProfileById,
 } from './utils/profileStore';
 import { unsubscribeAlertsByToken } from './utils/cloudProfiles';
-import { getFallbackLatestDraws, getLatestDraws } from './utils/drawDataSource';
+import {
+  getCategoryDrawInfo,
+  getFallbackCategoryDrawInfo,
+  getFallbackLatestDraws,
+  getLatestDraws,
+} from './utils/drawDataSource';
 import './App.css';
 
 const STORAGE_KEY = 'crs-progress';
@@ -63,6 +68,7 @@ export default function App() {
   const [answers, setAnswers] = useState(() => initialAnswers);
   const [unsubscribeState, setUnsubscribeState] = useState(() => (unsubscribeToken ? 'loading' : 'idle'));
   const [drawData, setDrawData] = useState(() => getFallbackLatestDraws());
+  const [categoryInfo, setCategoryInfo] = useState(() => getFallbackCategoryDrawInfo());
 
   useEffect(() => {
     if (!unsubscribeToken) return;
@@ -86,6 +92,20 @@ export default function App() {
         if (!active) return;
         if (res?.status === 'ok' && res.data) {
           setDrawData(res.data);
+        }
+      })
+      .catch(() => {
+        // keep local fallback
+      });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    getCategoryDrawInfo()
+      .then((res) => {
+        if (!active) return;
+        if (res?.status === 'ok' && Array.isArray(res.data) && res.data.length > 0) {
+          setCategoryInfo(res.data);
         }
       })
       .catch(() => {
@@ -183,7 +203,13 @@ export default function App() {
           )}
           {mode === 'results' && (
             <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
-              <Results key="results" answers={answers} onRestart={handleRestart} drawData={drawData} />
+              <Results
+                key="results"
+                answers={answers}
+                onRestart={handleRestart}
+                drawData={drawData}
+                categoryInfo={categoryInfo}
+              />
             </Suspense>
           )}
         </AnimatePresence>
