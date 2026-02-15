@@ -5,7 +5,7 @@ import {
   clbLevels,
   tefBands,
   tcfBands,
-} from './crsData';
+} from './crsData.js';
 
 const bandOpts = (arr, prefix = '') => arr.map((b) => ({ value: String(b), label: `${prefix}${b}` }));
 const clbOpts = bandOpts(clbLevels, 'CLB ');
