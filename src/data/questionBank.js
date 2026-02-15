@@ -503,6 +503,41 @@ export const fallbackQuestionBank = [
     ],
   },
   {
+    id: 'jobOfferDetails',
+    label: 'Job Offer Details',
+    title: 'Job offer details',
+    subtitle: 'Follow-up based on your job-offer answer.',
+    type: 'grouped',
+    visibility: all(neq('knowsScore', 'yes'), eq('answerMode', 'advanced'), eq('hasJobOffer', 'yes')),
+    groups: [
+      {
+        title: 'Offer type',
+        answerKey: 'jobOfferType',
+        type: 'single',
+        options: [
+          { value: 'lmia_supported', label: 'LMIA-supported offer' },
+          { value: 'lmia_exempt', label: 'LMIA-exempt employer-specific offer' },
+          { value: 'public_policy', label: 'Public policy / open permit path' },
+          { value: 'unknown', label: 'Not sure' },
+        ],
+      },
+      {
+        title: 'Offer NOC TEER',
+        answerKey: 'jobOfferTeer',
+        type: 'single',
+        options: [
+          { value: 'teer_0', label: 'TEER 0' },
+          { value: 'teer_1', label: 'TEER 1' },
+          { value: 'teer_2', label: 'TEER 2' },
+          { value: 'teer_3', label: 'TEER 3' },
+          { value: 'teer_4', label: 'TEER 4' },
+          { value: 'teer_5', label: 'TEER 5' },
+          { value: 'unknown', label: 'Unknown' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'hasCertificate',
     label: 'Trade Certificate',
     title: 'Do you hold a Canadian trade certificate of qualification?',
@@ -523,6 +558,17 @@ export const fallbackQuestionBank = [
       { value: 'yes', label: 'Yes — nominated' },
       { value: 'no', label: 'No nomination yet' },
     ],
+  },
+  {
+    id: 'pnpNominationProvince',
+    label: 'PNP Province',
+    title: 'Which province nominated you?',
+    type: 'single',
+    answerKey: 'pnpNominationProvince',
+    searchable: true,
+    searchPlaceholder: 'Search nominated province...',
+    visibility: all(neq('knowsScore', 'yes'), eq('hasPNP', 'yes')),
+    options: provinceOptions,
   },
   {
     id: 'hasSibling',
@@ -551,7 +597,7 @@ export const fallbackQuestionBank = [
     title: 'Current status in Canada',
     type: 'single',
     answerKey: 'currentStatusInCanada',
-    visibility: advancedVisibility,
+    visibility: all(neq('knowsScore', 'yes'), eq('answerMode', 'advanced'), eq('currentResidenceCountry', 'canada')),
     options: [
       { value: 'not_in_canada', label: 'Not currently in Canada' },
       { value: 'visitor', label: 'Visitor' },
@@ -561,6 +607,26 @@ export const fallbackQuestionBank = [
       { value: 'implied_status', label: 'Maintained/implied status' },
       { value: 'pr_or_citizen_spouse', label: 'With spouse who is PR/citizen' },
       { value: 'other', label: 'Other / Prefer not to say' },
+    ],
+  },
+  {
+    id: 'workPermitTimeline',
+    label: 'Work Permit Timeline',
+    title: 'When does your current work authorization expire?',
+    type: 'single',
+    answerKey: 'workPermitTimeline',
+    visibility: all(
+      neq('knowsScore', 'yes'),
+      eq('answerMode', 'advanced'),
+      eq('currentResidenceCountry', 'canada'),
+      inList('currentStatusInCanada', ['worker_closed', 'worker_open', 'implied_status'])
+    ),
+    options: [
+      { value: 'lt_3m', label: 'Within 3 months' },
+      { value: '3_6m', label: '3–6 months' },
+      { value: '6_12m', label: '6–12 months' },
+      { value: '12m_plus', label: 'More than 12 months' },
+      { value: 'unsure', label: 'Not sure' },
     ],
   },
   {

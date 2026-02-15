@@ -100,6 +100,22 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   }, []);
 
+  const updateProfile = useCallback(async ({ fullName }) => {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase auth is not configured.');
+    }
+    const payload = {};
+    if (typeof fullName === 'string') {
+      payload.data = { full_name: fullName.trim() };
+    }
+    const { data, error } = await supabase.auth.updateUser(payload);
+    if (error) throw error;
+    if (data?.user) {
+      setUser(data.user);
+    }
+    return data;
+  }, []);
+
   const refreshSession = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
       return null;
@@ -122,8 +138,9 @@ export function AuthProvider({ children }) {
     verifyEmailOtp,
     signInWithGoogle,
     signOut,
+    updateProfile,
     refreshSession,
-  }), [loading, refreshSession, sendEmailMagicLink, sendEmailOtp, session, signInWithGoogle, signOut, user, verifyEmailOtp]);
+  }), [loading, refreshSession, sendEmailMagicLink, sendEmailOtp, session, signInWithGoogle, signOut, updateProfile, user, verifyEmailOtp]);
 
   return (
     <AuthContext.Provider value={value}>

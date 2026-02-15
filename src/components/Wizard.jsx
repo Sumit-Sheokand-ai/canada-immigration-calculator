@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { searchNOC } from '../data/nocCodes';
-import { countQuestionPrompts, fallbackQuestionBank } from '../data/questionBank';
+import { fallbackQuestionBank } from '../data/questionBank';
 import { useLanguage } from '../i18n/LanguageContext';
 import StarBorder from './StarBorder';
 import { getQuestionBank } from '../utils/questionDataSource';
@@ -219,8 +219,6 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
   const initialAnswerState = useMemo(() => (initialAnswers || {}), [initialAnswers]);
   const [answers, setAnswers] = useState(initialAnswerState);
   const [steps, setSteps] = useState(() => fallbackQuestionBank);
-  const [questionSource, setQuestionSource] = useState('local-fallback');
-  const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [currentIdx, setCurrentIdx] = useState(() => getFirstApplicableIndex(fallbackQuestionBank, initialAnswerState));
   const [history, setHistory] = useState([]);
   const [direction, setDirection] = useState(1);
@@ -232,18 +230,12 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
         if (!active) return;
         const nextSteps = Array.isArray(res?.data) && res.data.length > 0 ? res.data : fallbackQuestionBank;
         setSteps(nextSteps);
-        setQuestionSource(res?.source || 'local-fallback');
         setHistory([]);
         setCurrentIdx(getFirstApplicableIndex(nextSteps, initialAnswerState));
       })
       .catch(() => {
         if (!active) return;
         setSteps(fallbackQuestionBank);
-        setQuestionSource('local-fallback');
-      })
-      .finally(() => {
-        if (!active) return;
-        setLoadingQuestions(false);
       });
     return () => {
       active = false;
@@ -251,7 +243,6 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
   }, [initialAnswerState]);
 
   const step = steps[currentIdx];
-  const promptCount = useMemo(() => countQuestionPrompts(steps), [steps]);
 
   const handleAnswer = useCallback((key, value) => {
     setAnswers((prev) => {
@@ -311,7 +302,6 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
 
   const complete = isComplete(step, answers);
   const stepLayout = getLayoutFromType(step.type, step.layout || 'list');
-  const sourceLabel = questionSource === 'supabase' ? 'Live sync' : 'Local fallback';
 
   return (
     <motion.div
@@ -322,14 +312,10 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
       role="form"
       aria-label="CRS Calculator wizard"
     >
-      <div className={`question-source-pill ${questionSource === 'supabase' ? 'qs-live' : 'qs-fallback'}`}>
-        Question bank: {sourceLabel} · {promptCount} prompts
-      </div>
 
       <div className="progress-bar-wrap">
         <div className="progress-info">
           <span>{t('wizard.step')} {visibleNum} {t('wizard.of')} {visibleCount}</span>
-          {loadingQuestions && <span>Syncing questions...</span>}
         </div>
         <StepProgressBar pct={pct} />
       </div>

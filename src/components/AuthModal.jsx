@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import {
+  isCloudProfilesEnabled,
+  setAlertPreferenceForUser,
+  setProfileEmailForUser,
+} from '../utils/cloudProfiles';
+import { readAccountSettings, saveAccountSettings } from '../utils/accountSettings';
+
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
 export default function AuthModal({ open, onClose }) {
   const {
@@ -11,6 +19,7 @@ export default function AuthModal({ open, onClose }) {
     refreshSession,
     signInWithGoogle,
     signOut,
+    updateProfile,
   } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -19,11 +28,11 @@ export default function AuthModal({ open, onClose }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [settings, setSettings] = useState(() => readAccountSettings());
 
-  const title = useMemo(() => {
-    if (user) return 'Account';
-    return 'Login / Signup';
-  }, [user]);
+  const title = useMemo(() => (user ? 'Account' : 'Login / Signup'), [user]);
+  const cloudEnabled = isCloudProfilesEnabled();
+
   useEffect(() => {
     if (!open) return undefined;
     if (resendCooldown <= 0) return undefined;
@@ -35,6 +44,15 @@ export default function AuthModal({ open, onClose }) {
     }, 1000);
     return () => window.clearInterval(timer);
   }, [open, resendCooldown]);
+
+  useEffect(() => {
+    if (!open || !user) return;
+    setSettings((prev) => ({
+      ...prev,
+      profileName: user.user_metadata?.full_name || prev.profileName || '',
+      contactEmail: prev.contactEmail || user.email || '',
+    }));
+  }, [open, user]);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -56,8 +74,9 @@ export default function AuthModal({ open, onClose }) {
   if (!open) return null;
 
   const normalizedEmail = email.trim().toLowerCase();
+
   const handleSendMagicLink = async () => {
-    if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+    if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
       setStatus('Please enter a valid email address.');
       return;
     }
@@ -75,6 +94,7 @@ export default function AuthModal({ open, onClose }) {
       setBusy(false);
     }
   };
+
   const handleCheckMagicLink = async () => {
     setBusy(true);
     setStatus('');
@@ -133,6 +153,52 @@ export default function AuthModal({ open, onClose }) {
     }
   };
 
+  const handleSaveSettings = async () => {
+    const next = {
+      ...settings,
+      profileName: (settings.profileName || '').trim(),
+      contactEmail: (settings.contactEmail || '').trim().toLowerCase(),
+    };
+    if (next.contactEmail && !EMAIL_RE.test(next.contactEmail)) {
+      setStatus('Please enter a valid contact email.');
+      return;
+    }
+
+    setBusy(true);
+    setStatus('');
+    try {
+      await updateProfile({ fullName: next.profileName });
+      saveAccountSettings(next);
+      setSettings(next);
+
+      if (cloudEnabled && user?.id) {
+        await Promise.all([
+          setAlertPreferenceForUser(user.id, next.defaultDrawAlerts),
+          setProfileEmailForUser(user.id, next.contactEmail || user.email || ''),
+        ]);
+      }
+
+      setStatus('Account settings saved.');
+    } catch (err) {
+      setStatus(err.message || 'Could not save account settings.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRefreshSession = async () => {
+    setBusy(true);
+    setStatus('');
+    try {
+      await refreshSession();
+      setStatus('Session refreshed.');
+    } catch (err) {
+      setStatus(err.message || 'Session refresh failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSignOut = async () => {
     setBusy(true);
     setStatus('');
@@ -168,9 +234,70 @@ export default function AuthModal({ open, onClose }) {
             <p className="auth-note">
               Signed in as <strong>{user.email}</strong>
             </p>
-            <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleSignOut}>
-              {busy ? 'Signing out...' : 'Sign out'}
-            </button>
+
+            <div className="auth-settings-card">
+              <h4>Account settings</h4>
+              <label className="wi-field">
+                <span>Display name</span>
+                <input
+                  type="text"
+                  value={settings.profileName}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, profileName: e.target.value }))}
+                  placeholder="Your name"
+                />
+              </label>
+              <label className="wi-field">
+                <span>Contact email for draw alerts</span>
+                <input
+                  type="email"
+                  value={settings.contactEmail}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, contactEmail: e.target.value }))}
+                  placeholder="you@example.com"
+                />
+              </label>
+
+              <label className="auth-check-row">
+                <input
+                  type="checkbox"
+                  checked={settings.defaultDrawAlerts}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, defaultDrawAlerts: e.target.checked }))}
+                />
+                <span>Enable draw alerts by default</span>
+              </label>
+              <label className="auth-check-row">
+                <input
+                  type="checkbox"
+                  checked={settings.autoSyncProfiles}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, autoSyncProfiles: e.target.checked }))}
+                />
+                <span>Auto-sync saved profiles</span>
+              </label>
+              <label className="auth-check-row">
+                <input
+                  type="checkbox"
+                  checked={settings.autoSaveProgress}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, autoSaveProgress: e.target.checked }))}
+                />
+                <span>Auto-save wizard progress on this device</span>
+              </label>
+              {!cloudEnabled && (
+                <p className="auth-note">
+                  Cloud account settings require Supabase env vars.
+                </p>
+              )}
+            </div>
+
+            <div className="auth-actions">
+              <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleSaveSettings}>
+                {busy ? 'Saving...' : 'Save settings'}
+              </button>
+              <button type="button" className="action-btn" disabled={busy} onClick={handleRefreshSession}>
+                Refresh session
+              </button>
+              <button type="button" className="action-btn" disabled={busy} onClick={handleSignOut}>
+                {busy ? 'Signing out...' : 'Sign out'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -259,3 +386,4 @@ export default function AuthModal({ open, onClose }) {
     </div>
   );
 }
+

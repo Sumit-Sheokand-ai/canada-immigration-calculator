@@ -6,11 +6,6 @@ import Wizard from './components/Wizard';
 import Loader from './components/Loader';
 const Results = lazy(() => import('./components/Results'));
 import { useLanguage } from './i18n/LanguageContext';
-import {
-  decodeShareAnswers,
-  getProfileIdFromQuery,
-  getSavedProfileById,
-} from './utils/profileStore';
 import { unsubscribeAlertsByToken } from './utils/cloudProfiles';
 import {
   getCategoryDrawInfo,
@@ -18,6 +13,7 @@ import {
   getFallbackLatestDraws,
   getLatestDraws,
 } from './utils/drawDataSource';
+import { readAccountSettings } from './utils/accountSettings';
 import './App.css';
 
 const STORAGE_KEY = 'crs-progress';
@@ -46,19 +42,14 @@ function getUnsubscribeToken() {
 }
 
 function getInitialAnswers() {
-  const fromHash = decodeShareAnswers();
-  if (fromHash) return fromHash;
-  const profileId = getProfileIdFromQuery();
-  if (profileId) {
-    const saved = getSavedProfileById(profileId);
-    if (saved?.answers) return saved.answers;
-  }
   return {};
 }
 
 
 export default function App() {
   const { t } = useLanguage();
+  const accountSettings = readAccountSettings();
+  const shouldAutoSaveProgress = accountSettings.autoSaveProgress !== false;
   const unsubscribeToken = getUnsubscribeToken();
   const initialAnswers = getInitialAnswers();
 
@@ -117,12 +108,12 @@ export default function App() {
   }, []);
 
   const handleStart = useCallback((resume) => {
-    if (resume) {
+    if (resume && shouldAutoSaveProgress) {
       const saved = loadProgress();
       if (saved) setAnswers(saved);
     }
     setMode('wizard');
-  }, []);
+  }, [shouldAutoSaveProgress]);
 
   const handleFinish = useCallback((ans) => {
     setAnswers(ans);
@@ -139,7 +130,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const hasSaved = !!loadProgress();
+  const hasSaved = shouldAutoSaveProgress && !!loadProgress();
 
   // Back-to-top button
   const [showTop, setShowTop] = useState(false);
@@ -190,7 +181,7 @@ export default function App() {
       <main className="main" role="main">
         <AnimatePresence mode="wait">
           {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} drawData={drawData} drawSource={drawSource} />}
-          {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={saveProgress} initialAnswers={answers} />}
+          {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={shouldAutoSaveProgress ? saveProgress : undefined} initialAnswers={answers} />}
           {mode === 'unsubscribe' && (
             <div className="card unsubscribe-card">
               <h3>Draw alert preferences</h3>

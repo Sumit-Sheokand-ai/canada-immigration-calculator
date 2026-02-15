@@ -5,7 +5,8 @@ import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { pathways } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
-import { buildProfileShareUrl, encodeShareAnswers, saveProfileLocal } from '../utils/profileStore';
+import { saveProfileLocal } from '../utils/profileStore';
+import { readAccountSettings, saveAccountSettings } from '../utils/accountSettings';
 import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from '../utils/cloudProfiles';
 import { getFallbackCategoryDrawInfo, getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
@@ -302,30 +303,11 @@ function useConfetti(trigger) {
   return canvasRef;
 }
 
-async function copyTextWithFallback(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
 
 export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo }) {
   const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
+  const accountSettings = useMemo(() => readAccountSettings(), []);
   const activeDraws = drawData || getFallbackLatestDraws();
   const activeCategoryInfo = useMemo(
     () => (Array.isArray(categoryInfo) && categoryInfo.length > 0 ? categoryInfo : getFallbackCategoryDrawInfo()),
@@ -336,16 +318,15 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [provOpen, setProvOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
 
-  const [saveName, setSaveName] = useState('');
-  const [saveEmail, setSaveEmail] = useState('');
-  const [saveAlerts, setSaveAlerts] = useState(false);
+  const [saveName, setSaveName] = useState(() => accountSettings.profileName || '');
+  const [saveEmail, setSaveEmail] = useState(() => accountSettings.contactEmail || '');
+  const [saveAlerts, setSaveAlerts] = useState(() => !!accountSettings.defaultDrawAlerts);
   const [saveStatus, setSaveStatus] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
-  const [shareUrl, setShareUrl] = useState(() => `${window.location.origin}${window.location.pathname}#${encodeShareAnswers(answers)}`);
   const [syncedProfiles, setSyncedProfiles] = useState([]);
   const [syncedProfilesStatus, setSyncedProfilesStatus] = useState('idle');
+  const shouldAutoSync = accountSettings.autoSyncProfiles !== false;
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2500);
@@ -428,28 +409,6 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const showConfetti = !loading && diff >= 20;
   const confettiRef = useConfetti(showConfetti);
 
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'My CRS Score', text: `My CRS score is ${score}/1200!`, url: shareUrl });
-        return;
-      }
-    } catch {
-      // continue to copy fallback
-    }
-    const ok = await copyTextWithFallback(shareUrl);
-    if (ok) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleTweet = () => {
-    const target = Math.max(470, cutoff);
-    const text = `My CRS = ${score} — see how to reach ${target}+`;
-    const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
-    window.open(intentUrl, '_blank', 'noopener,noreferrer');
-  };
 
   const handleSaveProfile = async () => {
     const email = saveEmail.trim() || user?.email || '';
@@ -469,12 +428,17 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       email,
       alertOptIn: !!saveAlerts && !!email,
     });
-    const nextShareUrl = buildProfileShareUrl(local.id, answers);
-    setShareUrl(nextShareUrl);
+    const latestSettings = readAccountSettings();
+    saveAccountSettings({
+      ...latestSettings,
+      profileName: saveName.trim(),
+      contactEmail: email,
+      defaultDrawAlerts: !!saveAlerts,
+    });
     setSavingProfile(true);
 
     try {
-      if (email || saveAlerts) {
+      if (shouldAutoSync && (email || saveAlerts)) {
         const cloud = await upsertProfileCloud(local, { userId: user?.id || null });
         if (cloud.status === 'ok') {
           if (isAuthenticated && user?.id) {
@@ -492,7 +456,10 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
           setSaveStatus('Profile saved locally. Configure Supabase env vars to enable cloud sync/alerts.');
         }
       } else {
-        setSaveStatus('Profile saved locally with a unique shareable link.');
+        setSaveStatus(shouldAutoSync
+          ? 'Profile saved locally.'
+          : 'Profile saved locally. Auto-sync is off in account settings.'
+        );
       }
     } catch (err) {
       setSaveStatus(`Profile saved locally, but cloud sync failed: ${err.message}`);
@@ -518,14 +485,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       <motion.div className="score-hero" variants={fadeUp}>
         <ScoreGauge score={score} statusColor={status.color} />
       </motion.div>
-
       <motion.div className="result-actions" variants={fadeUp}>
-        <button className="action-btn" onClick={handleShare} aria-label="Share results">
-          {copied ? '✓ Copied!' : t('results.share')}
-        </button>
-        <button className="action-btn" onClick={handleTweet} aria-label="Tweet score">
-          Share on X
-        </button>
         <button className="action-btn" onClick={handlePDF} aria-label="Download PDF">
           {t('results.pdf')}
         </button>
@@ -556,8 +516,8 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       </motion.div>
 
       <motion.div className="card save-profile-card" variants={fadeUp} id="section-save">
-        <h3>Save & share your profile</h3>
-        <p className="cat-intro">Save this result, generate a unique URL, and optionally subscribe to draw alerts.</p>
+        <h3>Save your profile</h3>
+        <p className="cat-intro">Save this result and optionally subscribe to draw alerts.</p>
         {isAuthenticated ? (
           <p className="save-note">Signed in as {user.email}. Saves are synced across your devices.</p>
         ) : (
@@ -582,9 +542,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
           <button className="action-btn" onClick={handleSaveProfile} disabled={savingProfile}>
             {savingProfile ? 'Saving…' : 'Save Profile'}
           </button>
-          <button className="action-btn" onClick={() => copyTextWithFallback(shareUrl)}>Copy Share URL</button>
         </div>
-        <p className="save-url">{shareUrl}</p>
         {saveStatus && <p className="save-status">{saveStatus}</p>}
         {isAuthenticated && (
           <div className="save-synced-list">
@@ -609,7 +567,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       </motion.div>
 
       {isSelfCalc && (
-        <motion.div className="card" variants={fadeUp} id="section-category">
+        <motion.div className="card" variants={fadeUp} id="section-breakdown">
           <h3>{t('results.breakdown')}</h3>
           <motion.div className="breakdown-grid" variants={stagger} initial="hidden" animate="show">
             {breakdownItems.map(it => <BreakdownItem key={it.label} {...it} />)}
