@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
-import WelcomeScreen from './components/WelcomeScreen';
-import Wizard from './components/Wizard';
 import Loader from './components/Loader';
+const WelcomeScreen = lazy(() => import('./components/WelcomeScreen'));
+const Wizard = lazy(() => import('./components/Wizard'));
 const Results = lazy(() => import('./components/Results'));
 import { useLanguage } from './i18n/LanguageContext';
 import { unsubscribeAlertsByToken } from './utils/cloudProfiles';
@@ -48,8 +48,11 @@ function getInitialAnswers() {
 
 export default function App() {
   const { t } = useLanguage();
-  const accountSettings = readAccountSettings();
+  const [accountSettings, setAccountSettings] = useState(() => readAccountSettings());
   const shouldAutoSaveProgress = accountSettings.autoSaveProgress !== false;
+  const motionIntensity = ['off', 'subtle', 'full'].includes(accountSettings.motionIntensity)
+    ? accountSettings.motionIntensity
+    : 'full';
   const unsubscribeToken = getUnsubscribeToken();
   const initialAnswers = getInitialAnswers();
 
@@ -172,6 +175,81 @@ export default function App() {
     }
   }, [deferredInstallPrompt]);
 
+  useEffect(() => {
+    const refreshSettings = () => {
+      setAccountSettings(readAccountSettings());
+    };
+    window.addEventListener('storage', refreshSettings);
+    window.addEventListener('crs-account-settings-updated', refreshSettings);
+    return () => {
+      window.removeEventListener('storage', refreshSettings);
+      window.removeEventListener('crs-account-settings-updated', refreshSettings);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-motion', motionIntensity);
+  }, [motionIntensity]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    const hasFinePointer = window.matchMedia?.('(pointer: fine)')?.matches;
+    const enabled = motionIntensity !== 'off' && !prefersReduced && !!hasFinePointer;
+
+    if (!enabled) {
+      root.style.setProperty('--pointer-x', '50%');
+      root.style.setProperty('--pointer-y', '40%');
+      root.style.setProperty('--pointer-glow', '0');
+      return undefined;
+    }
+
+    root.style.setProperty('--pointer-glow', motionIntensity === 'subtle' ? '0.45' : '1');
+
+    let rafId = 0;
+    let currentX = 50;
+    let currentY = 40;
+    let targetX = 50;
+    let targetY = 40;
+
+    const tick = () => {
+      currentX += (targetX - currentX) * 0.12;
+      currentY += (targetY - currentY) * 0.12;
+      root.style.setProperty('--pointer-x', `${currentX.toFixed(2)}%`);
+      root.style.setProperty('--pointer-y', `${currentY.toFixed(2)}%`);
+      if (Math.abs(targetX - currentX) > 0.05 || Math.abs(targetY - currentY) > 0.05) {
+        rafId = window.requestAnimationFrame(tick);
+      } else {
+        rafId = 0;
+      }
+    };
+
+    const schedule = () => {
+      if (!rafId) rafId = window.requestAnimationFrame(tick);
+    };
+
+    const onPointerMove = (event) => {
+      targetX = (event.clientX / window.innerWidth) * 100;
+      targetY = (event.clientY / window.innerHeight) * 100;
+      schedule();
+    };
+
+    const onPointerLeave = () => {
+      targetX = 50;
+      targetY = 40;
+      schedule();
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerleave', onPointerLeave, { passive: true });
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerleave', onPointerLeave);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [motionIntensity]);
+
   return (
     <div className="app">
       <div className="anime-bg" aria-hidden="true">
@@ -180,6 +258,7 @@ export default function App() {
         <span className="anime-bg-aurora anime-bg-aurora--three" />
         <span className="anime-bg-grid" />
         <span className="anime-bg-noise" />
+        <span className="anime-bg-pointer-glow" />
         <span className="anime-bg-flare" />
         <span className="anime-bg-vignette" />
         <div className="anime-bg-sparks">
@@ -197,11 +276,33 @@ export default function App() {
       <Header
         canInstallApp={!isStandalone && !!deferredInstallPrompt}
         onInstallApp={handleInstallApp}
+        motionIntensity={motionIntensity}
       />
       <main className="main" role="main" id="main-content">
         <AnimatePresence mode="wait">
-          {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} drawData={drawData} drawSource={drawSource} />}
-          {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={shouldAutoSaveProgress ? saveProgress : undefined} initialAnswers={answers} />}
+          {mode === 'welcome' && (
+            <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
+              <WelcomeScreen
+                key="welcome"
+                onStart={handleStart}
+                hasSaved={hasSaved}
+                drawData={drawData}
+                drawSource={drawSource}
+                motionIntensity={motionIntensity}
+              />
+            </Suspense>
+          )}
+          {mode === 'wizard' && (
+            <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
+              <Wizard
+                key="wizard"
+                onFinish={handleFinish}
+                onProgress={shouldAutoSaveProgress ? saveProgress : undefined}
+                initialAnswers={answers}
+                motionIntensity={motionIntensity}
+              />
+            </Suspense>
+          )}
           {mode === 'unsubscribe' && (
             <div className="card unsubscribe-card">
               <h3>Draw alert preferences</h3>
@@ -223,6 +324,7 @@ export default function App() {
                 drawData={drawData}
                 drawSource={drawSource}
                 categoryInfo={categoryInfo}
+                motionIntensity={motionIntensity}
               />
             </Suspense>
           )}

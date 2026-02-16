@@ -15,8 +15,8 @@ function sourceLabel(source) {
   return source === 'supabase' ? 'Live sync' : 'Local fallback';
 }
 
-export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource = 'local-fallback' }) {
-  const prefersReducedMotion = useReducedMotion();
+export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource = 'local-fallback', motionIntensity = 'full' }) {
+  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
   const { t } = useLanguage();
 
   const features = [

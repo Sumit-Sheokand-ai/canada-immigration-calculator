@@ -295,6 +295,17 @@ export default function AuthModal({ open, onClose }) {
                 />
                 <span>Auto-save wizard progress on this device</span>
               </label>
+              <label className="wi-field">
+                <span>Animation intensity</span>
+                <select
+                  value={settings.motionIntensity || 'full'}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, motionIntensity: e.target.value }))}
+                >
+                  <option value="full">Full</option>
+                  <option value="subtle">Subtle</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
               {!cloudEnabled && (
                 <p className="auth-note">
                   Cloud account settings require Supabase env vars.

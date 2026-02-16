@@ -30,6 +30,10 @@
   --glass-border: rgba(255,255,255,0.55);
   --glass-highlight: rgba(255,255,255,0.68);
   --glass-shadow: rgba(47,20,121,0.22);
+  --focus-ring: rgba(67,34,184,0.28);
+  --pointer-x: 50%;
+  --pointer-y: 40%;
+  --pointer-glow: 1;
   --dur-fast: 120ms;
   --dur-med: 180ms;
   --dur-slow: 280ms;
@@ -65,6 +69,7 @@
   --glass-border: rgba(151,196,228,0.28);
   --glass-highlight: rgba(255,255,255,0.11);
   --glass-shadow: rgba(0,0,0,0.5);
+  --focus-ring: rgba(104,216,255,0.32);
   color-scheme: dark;
 }
 
@@ -105,7 +110,10 @@ a:hover { text-decoration: underline; }
 button, input, select, textarea { font-family: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
-  outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 button:disabled { cursor: not-allowed; }
 
@@ -115,3 +123,35 @@ button:disabled { cursor: not-allowed; }
 }
 
 #root { min-height: 100vh; display: flex; flex-direction: column; }
+
+:root[data-motion='subtle'] {
+  --dur-fast: 90ms;
+  --dur-med: 140ms;
+  --dur-slow: 220ms;
+  --pointer-glow: 0.45;
+}
+:root[data-motion='off'] {
+  --dur-fast: 0.01ms;
+  --dur-med: 0.01ms;
+  --dur-slow: 0.01ms;
+  --pointer-glow: 0;
+}
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (forced-colors: active) {
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    outline: 2px solid CanvasText;
+    box-shadow: none;
+  }
+}

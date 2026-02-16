@@ -6,6 +6,7 @@ export const DEFAULT_ACCOUNT_SETTINGS = {
   defaultDrawAlerts: false,
   autoSyncProfiles: true,
   autoSaveProgress: true,
+  motionIntensity: 'full',
 };
 
 export function readAccountSettings() {
@@ -22,10 +23,18 @@ export function readAccountSettings() {
 
 export function saveAccountSettings(nextSettings) {
   const merged = { ...DEFAULT_ACCOUNT_SETTINGS, ...(nextSettings || {}) };
+  if (!['off', 'subtle', 'full'].includes(merged.motionIntensity)) {
+    merged.motionIntensity = DEFAULT_ACCOUNT_SETTINGS.motionIntensity;
+  }
   try {
     localStorage.setItem(ACCOUNT_SETTINGS_KEY, JSON.stringify(merged));
   } catch {
     // ignore storage errors
+  }
+  try {
+    window.dispatchEvent(new Event('crs-account-settings-updated'));
+  } catch {
+    // ignore dispatch errors (e.g. non-browser tests)
   }
   return merged;
 }

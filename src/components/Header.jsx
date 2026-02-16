@@ -7,8 +7,8 @@ import AuthModal from './AuthModal';
 
 const langLabels = { en: 'EN', fr: 'FR' };
 
-export default function Header({ canInstallApp = false, onInstallApp = () => {} }) {
-  const prefersReducedMotion = useReducedMotion();
+export default function Header({ canInstallApp = false, onInstallApp = () => {}, motionIntensity = 'full' }) {
+  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
   const { dark, toggle } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();

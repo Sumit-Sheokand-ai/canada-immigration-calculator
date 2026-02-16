@@ -1,17 +1,17 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { pathways } from '../data/crsData';
 import { recommendProvinces } from '../data/provinceData';
 import { useLanguage } from '../i18n/LanguageContext';
-import { saveProfileLocal } from '../utils/profileStore';
+import { listSavedProfiles, saveProfileLocal } from '../utils/profileStore';
 import { readAccountSettings, saveAccountSettings } from '../utils/accountSettings';
 import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from '../utils/cloudProfiles';
 import { getFallbackCategoryDrawInfo, getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
-import PathCoach from './PathCoach';
 import Loader from './Loader';
+const PathCoach = lazy(() => import('./PathCoach'));
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
@@ -23,6 +23,31 @@ function getDrawSourceLabel(source) {
 
 function getDrawSourceClass(source) {
   return source === 'supabase' ? 'draw-source-live' : 'draw-source-fallback';
+}
+function parseIsoDate(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+function describeFreshness(value) {
+  const date = parseIsoDate(value);
+  if (!date) return { tier: 'unknown', label: 'Freshness unknown', dateLabel: value || '—' };
+  const now = new Date();
+  const diffMs = Math.max(now.getTime() - date.getTime(), 0);
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const label = days === 0 ? 'Updated today' : days === 1 ? 'Updated 1 day ago' : `Updated ${days} days ago`;
+  if (days <= 2) return { tier: 'fresh', label, dateLabel: date.toLocaleDateString() };
+  if (days <= 14) return { tier: 'recent', label, dateLabel: date.toLocaleDateString() };
+  return { tier: 'stale', label, dateLabel: date.toLocaleDateString() };
+}
+function summarizeProfileAnswers(profileAnswers = {}) {
+  return [
+    { label: 'Age', value: profileAnswers.age || '—' },
+    { label: 'Education', value: profileAnswers.education || '—' },
+    { label: 'Language test', value: profileAnswers.langTestType || '—' },
+    { label: 'Canadian work', value: profileAnswers.canadianWorkExp || '0' },
+    { label: 'Program', value: profileAnswers.pathway || '—' },
+  ];
 }
 
 function AnimatedNumber({ value, duration = 1.2, reduceMotion = false }) {
@@ -322,9 +347,9 @@ function useConfetti(trigger) {
 }
 
 
-export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo }) {
+export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo, motionIntensity = 'full' }) {
   const { t } = useLanguage();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
   const { user, isAuthenticated } = useAuth();
   const accountSettings = useMemo(() => readAccountSettings(), []);
   const activeDraws = drawData || getFallbackLatestDraws();
@@ -337,6 +362,10 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [provOpen, setProvOpen] = useState(false);
+  const [profileCompareOpen, setProfileCompareOpen] = useState(false);
+  const [savedProfiles, setSavedProfiles] = useState(() => listSavedProfiles());
+  const [profileAId, setProfileAId] = useState('__current__');
+  const [profileBId, setProfileBId] = useState(() => listSavedProfiles()[0]?.id || '__current__');
 
   const [saveName, setSaveName] = useState(() => accountSettings.profileName || '');
   const [saveEmail, setSaveEmail] = useState(() => accountSettings.contactEmail || '');
@@ -348,8 +377,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const shouldAutoSync = accountSettings.autoSyncProfiles !== false;
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 900);
+    const timer = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    setSavedProfiles(listSavedProfiles());
   }, []);
 
   const result = useMemo(() => {
@@ -369,6 +401,59 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const cutoff = activeDraws.averageCutoff;
   const diff = score - cutoff;
   const cloudEnabled = isCloudProfilesEnabled();
+  const drawFreshness = useMemo(() => describeFreshness(activeDraws.lastUpdated), [activeDraws.lastUpdated]);
+  const categoryFreshness = useMemo(() => {
+    const newestCategoryIso = activeCategoryInfo
+      .map((cat) => cat?.updatedAt)
+      .filter(Boolean)
+      .map((value) => parseIsoDate(value))
+      .filter(Boolean)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    return describeFreshness(newestCategoryIso ? newestCategoryIso.toISOString() : activeDraws.lastUpdated);
+  }, [activeCategoryInfo, activeDraws.lastUpdated]);
+  const categorySource = useMemo(
+    () => (activeCategoryInfo.some((cat) => cat?.source === 'supabase') ? 'Live sync' : 'Local fallback'),
+    [activeCategoryInfo]
+  );
+  const profileOptions = useMemo(
+    () => [
+      { id: '__current__', name: 'Current profile', score, answers },
+      ...savedProfiles.map((profile) => ({
+        id: profile.id,
+        name: profile.name || profile.id,
+        score: Number(profile.score) || 0,
+        answers: profile.answers || {},
+      })),
+    ],
+    [answers, savedProfiles, score]
+  );
+  const profileA = useMemo(
+    () => profileOptions.find((profile) => profile.id === profileAId),
+    [profileAId, profileOptions]
+  );
+  const profileB = useMemo(
+    () => profileOptions.find((profile) => profile.id === profileBId),
+    [profileBId, profileOptions]
+  );
+  const canCompareProfiles = !!profileA && !!profileB && profileA.id !== profileB.id;
+  const profileDelta = canCompareProfiles ? profileB.score - profileA.score : 0;
+  const profileAFields = useMemo(
+    () => summarizeProfileAnswers(profileA?.answers || answers),
+    [answers, profileA?.answers]
+  );
+  const profileBFields = useMemo(
+    () => summarizeProfileAnswers(profileB?.answers || answers),
+    [answers, profileB?.answers]
+  );
+  useEffect(() => {
+    const hasA = profileOptions.some((profile) => profile.id === profileAId);
+    const hasB = profileOptions.some((profile) => profile.id === profileBId);
+    if (!hasA) setProfileAId('__current__');
+    if (!hasB) {
+      const nextB = profileOptions.find((profile) => profile.id !== profileAId)?.id || '__current__';
+      setProfileBId(nextB);
+    }
+  }, [profileAId, profileBId, profileOptions]);
 
   useEffect(() => {
     if (!isAuthenticated || !cloudEnabled || !user?.id) {
@@ -447,6 +532,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       email,
       alertOptIn: !!saveAlerts && !!email,
     });
+    setSavedProfiles(listSavedProfiles());
     const latestSettings = readAccountSettings();
     saveAccountSettings({
       ...latestSettings,
@@ -513,6 +599,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         <h3>Quick navigation</h3>
         <div className="quick-nav-grid">
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>Save profile</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-profile-compare')}>Profile compare</button>
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>}
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>}
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-coach')}>Expert strategy</button>}
@@ -527,6 +614,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         <p className="status-desc">{status.desc}</p>
         <div className={`draw-source-pill ${getDrawSourceClass(drawSource)}`}>
           Draw data source: {getDrawSourceLabel(drawSource)} · Updated {activeDraws.lastUpdated || '—'}
+          <span className={`freshness-pill freshness-${drawFreshness.tier}`}>{drawFreshness.label}</span>
         </div>
         <div className="cutoff-compare">
           <CutoffBar label="Your Score" value={score} max={Math.max(score, cutoff, 600)} color="var(--primary)" />
@@ -583,6 +671,88 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
             )}
           </div>
         )}
+      </motion.div>
+      <motion.div className="card profile-compare-card" variants={fadeUp} id="section-profile-compare">
+        <SectionToggleHeader
+          id="profile-compare-panel"
+          label="Profile Compare Mode"
+          open={profileCompareOpen}
+          onToggle={() => setProfileCompareOpen(!profileCompareOpen)}
+        />
+        <AnimatePresence initial={false}>
+          {profileCompareOpen && (
+            <motion.div
+              id="profile-compare-panel"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2 }}
+            >
+              <p className="cat-intro">Compare your current answers with any locally saved profile to spot score gaps quickly.</p>
+              <div className="profile-compare-controls wi-grid">
+                <label className="wi-field">
+                  <span>Profile A</span>
+                  <select value={profileAId} onChange={(e) => setProfileAId(e.target.value)}>
+                    {profileOptions.map((profile) => (
+                      <option key={`a-${profile.id}`} value={profile.id}>
+                        {profile.name} ({profile.score})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wi-field">
+                  <span>Profile B</span>
+                  <select value={profileBId} onChange={(e) => setProfileBId(e.target.value)}>
+                    {profileOptions.map((profile) => (
+                      <option key={`b-${profile.id}`} value={profile.id}>
+                        {profile.name} ({profile.score})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {!canCompareProfiles && (
+                <p className="path-empty-text">Choose two different profiles to compare.</p>
+              )}
+              {canCompareProfiles && (
+                <>
+                  <div className="profile-compare-delta">
+                    <strong>{profileB.name}</strong> vs <strong>{profileA.name}</strong>:
+                    <span className={profileDelta > 0 ? 'delta-up' : profileDelta < 0 ? 'delta-down' : ''}>
+                      {' '}{profileDelta > 0 ? '+' : ''}{profileDelta} points
+                    </span>
+                  </div>
+                  <div className="profile-compare-grid">
+                    <div className="profile-compare-column">
+                      <h4>{profileA.name}</h4>
+                      <strong className="profile-compare-score">{profileA.score}</strong>
+                      <ul>
+                        {profileAFields.map((field) => (
+                          <li key={`${profileA.id}-${field.label}`}>
+                            <span>{field.label}</span>
+                            <strong>{field.value}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="profile-compare-column">
+                      <h4>{profileB.name}</h4>
+                      <strong className="profile-compare-score">{profileB.score}</strong>
+                      <ul>
+                        {profileBFields.map((field) => (
+                          <li key={`${profileB.id}-${field.label}`}>
+                            <span>{field.label}</span>
+                            <strong>{field.value}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {isSelfCalc && (
@@ -672,12 +842,15 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
 
       {isSelfCalc && (
         <div id="section-coach">
-          <PathCoach
-            answers={answers}
-            result={result}
-            averageCutoff={activeDraws.averageCutoff}
-            categoryInfo={activeCategoryInfo}
-          />
+          <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
+            <PathCoach
+              answers={answers}
+              result={result}
+              averageCutoff={activeDraws.averageCutoff}
+              categoryInfo={activeCategoryInfo}
+              motionIntensity={motionIntensity}
+            />
+          </Suspense>
         </div>
       )}
 
@@ -685,6 +858,14 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         <motion.div className="card" variants={fadeUp} id="section-category">
           <h3>{t('results.category')}</h3>
           <p className="cat-intro">{t('results.catIntro')}</p>
+        <div className="category-meta-row">
+          <span className={`draw-source-pill ${categorySource === 'Live sync' ? 'draw-source-live' : 'draw-source-fallback'}`}>
+            Category config: {categorySource}
+          </span>
+          <span className={`freshness-pill freshness-${categoryFreshness.tier}`}>
+            {categoryFreshness.label} · {categoryFreshness.dateLabel}
+          </span>
+        </div>
           <div className="cat-grid">
             {activeCategoryInfo.map(cat => {
               const eligible = cat.check(answers);
