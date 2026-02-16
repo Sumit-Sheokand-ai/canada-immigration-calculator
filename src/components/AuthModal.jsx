@@ -8,6 +8,8 @@ import {
 import { readAccountSettings, saveAccountSettings } from '../utils/accountSettings';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const DELETE_ACCOUNT_CONFIRMATION = 'DELETE';
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function AuthModal({ open, onClose }) {
   const {
@@ -20,19 +22,27 @@ export default function AuthModal({ open, onClose }) {
     signInWithGoogle,
     signOut,
     updateProfile,
+    changePassword,
+    deleteAccount,
   } = useAuth();
 
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState('request');
-  const [busy, setBusy] = useState(false);
+  const [activeAction, setActiveAction] = useState('');
   const [status, setStatus] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [settings, setSettings] = useState(() => readAccountSettings());
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const titleId = useId();
 
   const title = useMemo(() => (user ? 'Account' : 'Login / Signup'), [user]);
   const cloudEnabled = isCloudProfilesEnabled();
+  const billingPortalUrl = import.meta.env.VITE_STRIPE_BILLING_PORTAL_URL;
+  const busy = activeAction !== '';
+  const isActionBusy = (name) => activeAction === name;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -68,8 +78,11 @@ export default function AuthModal({ open, onClose }) {
     setStep('request');
     setCode('');
     setStatus('');
-    setBusy(false);
+    setActiveAction('');
     setResendCooldown(0);
+    setNewPassword('');
+    setConfirmPassword('');
+    setDeleteConfirmation('');
   }, [open]);
 
   useEffect(() => {
@@ -89,13 +102,14 @@ export default function AuthModal({ open, onClose }) {
   if (!open) return null;
 
   const normalizedEmail = email.trim().toLowerCase();
+  const normalizedDeleteConfirmation = deleteConfirmation.trim().toUpperCase();
 
   const handleSendMagicLink = async () => {
     if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
       setStatus('Please enter a valid email address.');
       return;
     }
-    setBusy(true);
+    setActiveAction('sendMagicLink');
     setStatus('');
     try {
       await sendEmailMagicLink(normalizedEmail);
@@ -106,26 +120,26 @@ export default function AuthModal({ open, onClose }) {
     } catch (err) {
       setStatus(err.message || 'Could not send magic link.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
     }
   };
 
   const handleCheckMagicLink = async () => {
-    setBusy(true);
+    setActiveAction('checkMagicLink');
     setStatus('');
     try {
       const nextSession = await refreshSession();
       if (nextSession?.user) {
         setStatus('Signed in successfully.');
         setStep('request');
-        setTimeout(() => onClose(), 500);
+        window.setTimeout(() => onClose(), 500);
       } else {
         setStatus('No active session found yet. Click the magic link from your email in this browser, then try again.');
       }
     } catch (err) {
       setStatus(err.message || 'Could not refresh session.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
     }
   };
 
@@ -139,7 +153,7 @@ export default function AuthModal({ open, onClose }) {
       setStatus('Enter your email and 6-digit code.');
       return;
     }
-    setBusy(true);
+    setActiveAction('verifyCode');
     setStatus('');
     try {
       await verifyEmailOtp(normalizedEmail, code.trim());
@@ -147,16 +161,16 @@ export default function AuthModal({ open, onClose }) {
       setStatus('Signed in successfully.');
       setStep('request');
       setCode('');
-      setTimeout(() => onClose(), 500);
+      window.setTimeout(() => onClose(), 500);
     } catch (err) {
       setStatus(err.message || 'Verification failed.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
     }
   };
 
   const handleGoogle = async () => {
-    setBusy(true);
+    setActiveAction('googleAuth');
     setStatus('');
     try {
       await signInWithGoogle();
@@ -164,7 +178,7 @@ export default function AuthModal({ open, onClose }) {
     } catch (err) {
       setStatus(err.message || 'Google login failed.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
     }
   };
 
@@ -179,7 +193,7 @@ export default function AuthModal({ open, onClose }) {
       return;
     }
 
-    setBusy(true);
+    setActiveAction('saveSettings');
     setStatus('');
     try {
       await updateProfile({ fullName: next.profileName });
@@ -197,12 +211,68 @@ export default function AuthModal({ open, onClose }) {
     } catch (err) {
       setStatus(err.message || 'Could not save account settings.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    const nextPassword = newPassword.trim();
+    const confirmation = confirmPassword.trim();
+
+    if (nextPassword.length < MIN_PASSWORD_LENGTH) {
+      setStatus(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (nextPassword !== confirmation) {
+      setStatus('New password and confirmation do not match.');
+      return;
+    }
+
+    setActiveAction('changePassword');
+    setStatus('');
+    try {
+      await changePassword(nextPassword);
+      setNewPassword('');
+      setConfirmPassword('');
+      setStatus('Password updated successfully.');
+    } catch (err) {
+      setStatus(err.message || 'Could not change password.');
+    } finally {
+      setActiveAction('');
+    }
+  };
+
+  const handleOpenMembershipPortal = () => {
+    if (!billingPortalUrl) {
+      setStatus('Membership management is unavailable. Add VITE_STRIPE_BILLING_PORTAL_URL.');
+      return;
+    }
+    window.open(billingPortalUrl, '_blank', 'noopener,noreferrer');
+    setStatus('Opened membership portal in a new tab.');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (normalizedDeleteConfirmation !== DELETE_ACCOUNT_CONFIRMATION) {
+      setStatus(`Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm account deletion.`);
+      return;
+    }
+
+    setActiveAction('deleteAccount');
+    setStatus('');
+    try {
+      await deleteAccount();
+      setDeleteConfirmation('');
+      setStatus('Account deleted.');
+      window.setTimeout(() => onClose(), 350);
+    } catch (err) {
+      setStatus(err.message || 'Could not delete account.');
+    } finally {
+      setActiveAction('');
     }
   };
 
   const handleRefreshSession = async () => {
-    setBusy(true);
+    setActiveAction('refreshSession');
     setStatus('');
     try {
       await refreshSession();
@@ -210,21 +280,21 @@ export default function AuthModal({ open, onClose }) {
     } catch (err) {
       setStatus(err.message || 'Session refresh failed.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
     }
   };
 
   const handleSignOut = async () => {
-    setBusy(true);
+    setActiveAction('signOut');
     setStatus('');
     try {
       await signOut();
       setStatus('Signed out.');
-      setTimeout(() => onClose(), 400);
+      window.setTimeout(() => onClose(), 400);
     } catch (err) {
       setStatus(err.message || 'Sign out failed.');
     } finally {
-      setBusy(false);
+      setActiveAction('');
     }
   };
 
@@ -233,184 +303,262 @@ export default function AuthModal({ open, onClose }) {
       <div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
         <div className="auth-modal-head">
           <h3 id={titleId}>{title}</h3>
-          <button type="button" className="auth-close" onClick={onClose} aria-label="Close dialog">✕</button>
+          <button type="button" className="auth-close" onClick={onClose} aria-label="Close dialog">×</button>
         </div>
 
-        {!isConfigured && (
-          <p className="auth-note">
-            Auth is unavailable. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-          </p>
-        )}
-
-        {isConfigured && loading && <p className="auth-note">Checking session...</p>}
-
-        {isConfigured && !loading && user && (
-          <div className="auth-body">
+        <div className="auth-modal-scroll">
+          {!isConfigured && (
             <p className="auth-note">
-              Signed in as <strong>{user.email}</strong>
+              Auth is unavailable. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
             </p>
+          )}
 
-            <div className="auth-settings-card">
-              <h4>Account settings</h4>
+          {isConfigured && loading && <p className="auth-note">Checking session...</p>}
+
+          {isConfigured && !loading && user && (
+            <div className="auth-body">
+              <p className="auth-note">
+                Signed in as <strong>{user.email}</strong>
+              </p>
+
+              <div className="auth-settings-card auth-settings-section">
+                <h4>Account settings</h4>
+                <label className="wi-field">
+                  <span>Display name</span>
+                  <input
+                    type="text"
+                    value={settings.profileName}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, profileName: e.target.value }))}
+                    placeholder="Your name"
+                  />
+                </label>
+                <label className="wi-field">
+                  <span>Contact email for draw alerts</span>
+                  <input
+                    type="email"
+                    value={settings.contactEmail}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, contactEmail: e.target.value }))}
+                    placeholder="you@example.com"
+                  />
+                </label>
+
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.defaultDrawAlerts}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, defaultDrawAlerts: e.target.checked }))}
+                  />
+                  <span>Enable draw alerts by default</span>
+                </label>
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoSyncProfiles}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, autoSyncProfiles: e.target.checked }))}
+                  />
+                  <span>Auto-sync saved profiles</span>
+                </label>
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoSaveProgress}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, autoSaveProgress: e.target.checked }))}
+                  />
+                  <span>Auto-save wizard progress on this device</span>
+                </label>
+                <label className="wi-field">
+                  <span>Animation intensity</span>
+                  <select
+                    value={settings.motionIntensity || 'full'}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, motionIntensity: e.target.value }))}
+                  >
+                    <option value="full">Full</option>
+                    <option value="subtle">Subtle</option>
+                    <option value="off">Off</option>
+                  </select>
+                </label>
+                {!cloudEnabled && (
+                  <p className="auth-note">
+                    Cloud account settings require Supabase env vars.
+                  </p>
+                )}
+              </div>
+
+              <div className="auth-settings-card auth-settings-section">
+                <h4>Security</h4>
+                <label className="wi-field">
+                  <span>New password</span>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                  />
+                </label>
+                <label className="wi-field">
+                  <span>Confirm new password</span>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    autoComplete="new-password"
+                  />
+                </label>
+                <div className="auth-actions">
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={busy}
+                    onClick={handleChangePassword}
+                  >
+                    {isActionBusy('changePassword') ? 'Updating...' : 'Change password'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="auth-settings-card auth-settings-section">
+                <h4>Membership</h4>
+                <p className="auth-note">
+                  Remove or manage your membership from the billing portal.
+                </p>
+                <div className="auth-actions">
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={busy}
+                    onClick={handleOpenMembershipPortal}
+                  >
+                    Remove membership
+                  </button>
+                </div>
+              </div>
+
+              <div className="auth-settings-card auth-settings-section auth-danger-zone">
+                <h4>Danger zone</h4>
+                <p className="auth-note">
+                  This permanently deletes your account. Type <strong>{DELETE_ACCOUNT_CONFIRMATION}</strong> to confirm.
+                </p>
+                <label className="wi-field">
+                  <span>Confirmation</span>
+                  <input
+                    type="text"
+                    value={deleteConfirmation}
+                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                    placeholder={DELETE_ACCOUNT_CONFIRMATION}
+                  />
+                </label>
+                <div className="auth-actions">
+                  <button
+                    type="button"
+                    className="action-btn auth-btn-danger"
+                    disabled={busy || normalizedDeleteConfirmation !== DELETE_ACCOUNT_CONFIRMATION}
+                    onClick={handleDeleteAccount}
+                  >
+                    {isActionBusy('deleteAccount') ? 'Deleting...' : 'Delete account'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="auth-actions">
+                <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleSaveSettings}>
+                  {isActionBusy('saveSettings') ? 'Saving...' : 'Save settings'}
+                </button>
+                <button type="button" className="action-btn" disabled={busy} onClick={handleRefreshSession}>
+                  {isActionBusy('refreshSession') ? 'Refreshing...' : 'Refresh session'}
+                </button>
+                <button type="button" className="action-btn" disabled={busy} onClick={handleSignOut}>
+                  {isActionBusy('signOut') ? 'Signing out...' : 'Sign out'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isConfigured && !loading && !user && (
+            <div className="auth-body">
+              <p className="auth-note">
+                Sign in with a magic link (recommended) or verify manually with an email code.
+              </p>
               <label className="wi-field">
-                <span>Display name</span>
-                <input
-                  type="text"
-                  value={settings.profileName}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, profileName: e.target.value }))}
-                  placeholder="Your name"
-                />
-              </label>
-              <label className="wi-field">
-                <span>Contact email for draw alerts</span>
+                <span>Email</span>
                 <input
                   type="email"
-                  value={settings.contactEmail}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, contactEmail: e.target.value }))}
                   placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoFocus
                 />
               </label>
 
-              <label className="auth-check-row">
-                <input
-                  type="checkbox"
-                  checked={settings.defaultDrawAlerts}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, defaultDrawAlerts: e.target.checked }))}
-                />
-                <span>Enable draw alerts by default</span>
-              </label>
-              <label className="auth-check-row">
-                <input
-                  type="checkbox"
-                  checked={settings.autoSyncProfiles}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, autoSyncProfiles: e.target.checked }))}
-                />
-                <span>Auto-sync saved profiles</span>
-              </label>
-              <label className="auth-check-row">
-                <input
-                  type="checkbox"
-                  checked={settings.autoSaveProgress}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, autoSaveProgress: e.target.checked }))}
-                />
-                <span>Auto-save wizard progress on this device</span>
-              </label>
-              <label className="wi-field">
-                <span>Animation intensity</span>
-                <select
-                  value={settings.motionIntensity || 'full'}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, motionIntensity: e.target.value }))}
-                >
-                  <option value="full">Full</option>
-                  <option value="subtle">Subtle</option>
-                  <option value="off">Off</option>
-                </select>
-              </label>
-              {!cloudEnabled && (
-                <p className="auth-note">
-                  Cloud account settings require Supabase env vars.
-                </p>
+              {step === 'verify' && (
+                <label className="wi-field">
+                  <span>Email verification code</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                </label>
               )}
-            </div>
 
-            <div className="auth-actions">
-              <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleSaveSettings}>
-                {busy ? 'Saving...' : 'Save settings'}
-              </button>
-              <button type="button" className="action-btn" disabled={busy} onClick={handleRefreshSession}>
-                Refresh session
-              </button>
-              <button type="button" className="action-btn" disabled={busy} onClick={handleSignOut}>
-                {busy ? 'Signing out...' : 'Sign out'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isConfigured && !loading && !user && (
-          <div className="auth-body">
-            <p className="auth-note">
-              Sign in with a magic link (recommended) or verify manually with an email code.
-            </p>
-            <label className="wi-field">
-              <span>Email</span>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-              />
-            </label>
-
-            {step === 'verify' && (
-              <label className="wi-field">
-                <span>Email verification code</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Enter code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-              </label>
-            )}
-
-            <div className="auth-actions">
-              {step === 'request' ? (
-                <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleSendMagicLink}>
-                  {busy ? 'Sending...' : 'Send magic link'}
+              <div className="auth-actions">
+                {step === 'request' ? (
+                  <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleSendMagicLink}>
+                    {isActionBusy('sendMagicLink') ? 'Sending...' : 'Send magic link'}
+                  </button>
+                ) : step === 'sent' ? (
+                  <>
+                    <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleCheckMagicLink}>
+                      {isActionBusy('checkMagicLink') ? 'Checking...' : 'I clicked the magic link'}
+                    </button>
+                    <button type="button" className="action-btn" disabled={busy || resendCooldown > 0} onClick={handleResend}>
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend magic link'}
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setStep('verify');
+                        setStatus('If your email contains a code, enter it below.');
+                      }}
+                    >
+                      Use email code instead
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleVerifyCode}>
+                    {isActionBusy('verifyCode') ? 'Verifying...' : 'Verify and sign in'}
+                  </button>
+                )}
+                <button type="button" className="action-btn" disabled={busy} onClick={handleGoogle}>
+                  {isActionBusy('googleAuth') ? 'Redirecting...' : 'Continue with Google'}
                 </button>
-              ) : step === 'sent' ? (
-                <>
-                  <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleCheckMagicLink}>
-                    {busy ? 'Checking...' : 'I clicked the magic link'}
-                  </button>
-                  <button type="button" className="action-btn" disabled={busy || resendCooldown > 0} onClick={handleResend}>
-                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend magic link'}
-                  </button>
+                {step !== 'request' && (
                   <button
                     type="button"
                     className="action-btn"
                     disabled={busy}
                     onClick={() => {
-                      setStep('verify');
-                      setStatus('If your email contains a code, enter it below.');
+                      setStep('request');
+                      setCode('');
+                      setStatus('');
+                      setResendCooldown(0);
                     }}
                   >
-                    Use email code instead
+                    Back
                   </button>
-                </>
-              ) : (
-                <button type="button" className="action-btn auth-btn-primary" disabled={busy} onClick={handleVerifyCode}>
-                  {busy ? 'Verifying...' : 'Verify and sign in'}
-                </button>
-              )}
-              <button type="button" className="action-btn" disabled={busy} onClick={handleGoogle}>
-                Continue with Google
-              </button>
-              {step !== 'request' && (
-                <button
-                  type="button"
-                  className="action-btn"
-                  disabled={busy}
-                  onClick={() => {
-                    setStep('request');
-                    setCode('');
-                    setStatus('');
-                    setResendCooldown(0);
-                  }}
-                >
-                  Back
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {status && <p className="auth-status" role="status" aria-live="polite">{status}</p>}
+          {status && <p className="auth-status" role="status" aria-live="polite">{status}</p>}
+        </div>
       </div>
     </div>
   );
 }
-
