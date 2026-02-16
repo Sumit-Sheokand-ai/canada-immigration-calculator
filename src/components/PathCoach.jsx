@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { buildPathPlans } from '../scoring/pathPlanner';
 import {
   appendTrackingNote,
@@ -123,6 +123,7 @@ function getRecommendedTarget({ answers, result, averageCutoff, categoryInfo }) 
 }
 
 export default function PathCoach({ answers, result, averageCutoff, categoryInfo = [] }) {
+  const prefersReducedMotion = useReducedMotion();
   const { user, isAuthenticated } = useAuth();
 
   const checkoutUrl = import.meta.env.VITE_STRIPE_TRACKING_CHECKOUT_URL;
@@ -366,7 +367,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
   };
 
   return (
-    <motion.div className="card path-coach-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="card path-coach-card" initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }}>
       <div className="path-coach-head">
         <h3>Expert Strategy Coach</h3>
         <span className="path-pill">Phase 2</span>
@@ -399,11 +400,13 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
       <div className="path-grid">
         {planner.plans.map((plan) => (
           <motion.button
+            type="button"
             key={plan.id}
             className={`path-option ${selectedPath?.id === plan.id ? 'selected' : ''}`}
             onClick={() => setSelectedPathId(plan.id)}
-            whileHover={{ y: -3 }}
-            whileTap={{ scale: 0.98 }}
+            aria-pressed={selectedPath?.id === plan.id}
+            whileHover={prefersReducedMotion ? undefined : { y: -3 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
           >
             <div className="path-option-head">
               <strong>{plan.title}</strong>
@@ -461,6 +464,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
           <p>Includes expert strategy tracking, daily tasks, reminders, and cross-device progress sync.</p>
           <div className="path-pay-actions">
             <button
+              type="button"
               className="action-btn auth-btn-primary"
               disabled={subscribeBusy}
               onClick={handleSubscribe}
@@ -468,6 +472,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
               {subscribeBusy ? 'Opening...' : 'Subscribe (5 CAD/month)'}
             </button>
             <button
+              type="button"
               className="action-btn"
               onClick={async () => {
                 if (!user?.id) return;
@@ -485,6 +490,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
             </button>
             {billingPortalUrl && (
               <button
+                type="button"
                 className="action-btn"
                 onClick={() => window.open(billingPortalUrl, '_blank', 'noopener,noreferrer')}
               >
@@ -520,7 +526,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
               className="path-progress-bar"
               initial={{ width: 0 }}
               animate={{ width: `${progressPct}%` }}
-              transition={{ duration: 0.7 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.7 }}
             />
           </div>
 

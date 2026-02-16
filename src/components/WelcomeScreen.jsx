@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 import StarBorder from './StarBorder';
 
@@ -16,6 +16,7 @@ function sourceLabel(source) {
 }
 
 export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource = 'local-fallback' }) {
+  const prefersReducedMotion = useReducedMotion();
   const { t } = useLanguage();
 
   const features = [
@@ -29,9 +30,9 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource 
     <motion.div
       className="welcome"
       variants={container}
-      initial="hidden"
+      initial={prefersReducedMotion ? false : 'hidden'}
       animate="show"
-      exit={{ opacity: 0, y: -40, transition: { duration: 0.3 } }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -40, transition: { duration: 0.3 } }}
     >
       <motion.div className="welcome-hero" variants={item}>
         <div className="hero-flag">
@@ -45,10 +46,10 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource 
         <motion.div className="resume-banner" variants={item}>
           <p>{t('welcome.resume')}</p>
           <div className="resume-actions">
-            <motion.button className="btn-resume" whileTap={{ scale: 0.96 }} onClick={() => onStart(true)}>
+            <motion.button type="button" className="btn-resume" whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }} onClick={() => onStart(true)}>
               {t('welcome.resumeBtn')}
             </motion.button>
-            <motion.button className="btn-fresh" whileTap={{ scale: 0.96 }} onClick={() => onStart(false)}>
+            <motion.button type="button" className="btn-fresh" whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }} onClick={() => onStart(false)}>
               {t('welcome.startFresh')}
             </motion.button>
           </div>
@@ -61,7 +62,7 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource 
             className="feature-card"
             key={i}
             variants={item}
-            whileHover={{ y: -4, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
+            whileHover={prefersReducedMotion ? undefined : { y: -4, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
           >
             <span className="feature-icon feature-num">{f.icon}</span>
             <strong>{f.title}</strong>
@@ -73,9 +74,10 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource 
       <motion.div variants={item}>
         <StarBorder color="var(--primary)" speed="5s">
           <motion.button
+            type="button"
             className="btn-start"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+            whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
             onClick={() => onStart(false)}
           >
             {t('welcome.btn')}

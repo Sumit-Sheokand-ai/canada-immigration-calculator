@@ -21,6 +21,12 @@
   --glow: rgba(58,12,163,0.18);
   --primary-a8: rgba(58,12,163,0.08);
   --primary-a4: rgba(58,12,163,0.04);
+  --dur-fast: 120ms;
+  --dur-med: 180ms;
+  --dur-slow: 280ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: light;
 }
 
 :root[data-theme='dark'] {
@@ -41,9 +47,19 @@
   --glow: rgba(76,201,240,0.18);
   --primary-a8: rgba(76,201,240,0.1);
   --primary-a4: rgba(76,201,240,0.05);
+  color-scheme: dark;
 }
 
 html { scroll-behavior: smooth; }
+* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track { background: transparent; }
 
 body {
   margin: 0;
@@ -54,14 +70,22 @@ body {
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-button { font-family: inherit; cursor: pointer; }
-button:focus-visible, select:focus-visible, a:focus-visible {
+button, input, select, textarea { font-family: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
   outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px;
+}
+button:disabled { cursor: not-allowed; }
+
+::selection {
+  background: var(--primary-a8);
+  color: var(--text);
 }
 
 #root { min-height: 100vh; display: flex; flex-direction: column; }

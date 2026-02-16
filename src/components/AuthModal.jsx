@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   isCloudProfilesEnabled,
@@ -29,6 +29,7 @@ export default function AuthModal({ open, onClose }) {
   const [status, setStatus] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [settings, setSettings] = useState(() => readAccountSettings());
+  const titleId = useId();
 
   const title = useMemo(() => (user ? 'Account' : 'Login / Signup'), [user]);
   const cloudEnabled = isCloudProfilesEnabled();
@@ -70,6 +71,20 @@ export default function AuthModal({ open, onClose }) {
     setBusy(false);
     setResendCooldown(0);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose, open]);
 
   if (!open) return null;
 
@@ -215,10 +230,10 @@ export default function AuthModal({ open, onClose }) {
 
   return (
     <div className="auth-modal-backdrop" onClick={onClose} role="presentation">
-      <div className="auth-modal" role="dialog" aria-modal="true" aria-label="Authentication" onClick={(e) => e.stopPropagation()}>
+      <div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
         <div className="auth-modal-head">
-          <h3>{title}</h3>
-          <button type="button" className="auth-close" onClick={onClose}>✕</button>
+          <h3 id={titleId}>{title}</h3>
+          <button type="button" className="auth-close" onClick={onClose} aria-label="Close dialog">✕</button>
         </div>
 
         {!isConfigured && (
@@ -313,6 +328,7 @@ export default function AuthModal({ open, onClose }) {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoFocus
               />
             </label>
 
@@ -381,7 +397,7 @@ export default function AuthModal({ open, onClose }) {
           </div>
         )}
 
-        {status && <p className="auth-status">{status}</p>}
+        {status && <p className="auth-status" role="status" aria-live="polite">{status}</p>}
       </div>
     </div>
   );

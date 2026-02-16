@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useCallback, useMemo, useEffect, useId } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { searchNOC } from '../data/nocCodes';
 import { fallbackQuestionBank } from '../data/questionBank';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -94,14 +94,15 @@ function StepProgressBar({ pct }) {
   );
 }
 
-function OptionButton({ opt, selected, layout, onSelect }) {
+function OptionButton({ opt, selected, layout, onSelect, reducedMotion = false }) {
   return (
     <motion.button
       type="button"
       className={`opt-btn${selected ? ' selected' : ''} ${layout}`}
       onClick={onSelect}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
+      aria-pressed={selected}
+      whileHover={reducedMotion ? undefined : { scale: 1.02 }}
+      whileTap={reducedMotion ? undefined : { scale: 0.97 }}
       layout
     >
       {layout === 'list' && <span className="radio-dot" />}
@@ -115,10 +116,20 @@ function OptionButton({ opt, selected, layout, onSelect }) {
 
 function HelpTip({ text }) {
   const [open, setOpen] = useState(false);
+  const bubbleId = useId();
   return (
     <span className="help-tip-wrap">
-      <button className="help-tip-btn" onClick={() => setOpen(!open)} aria-label="More info" type="button">?</button>
-      {open && <div className="help-tip-bubble" onClick={() => setOpen(false)}>{text}</div>}
+      <button
+        className="help-tip-btn"
+        onClick={() => setOpen(!open)}
+        aria-label="More info"
+        aria-expanded={open}
+        aria-controls={bubbleId}
+        type="button"
+      >
+        ?
+      </button>
+      {open && <div id={bubbleId} className="help-tip-bubble" onClick={() => setOpen(false)}>{text}</div>}
     </span>
   );
 }
@@ -163,6 +174,7 @@ function OptionList({
   onAnswer,
   searchable = false,
   searchPlaceholder = 'Search options...',
+  reducedMotion = false,
 }) {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 180);
@@ -204,6 +216,7 @@ function OptionList({
             selected={answers[answerKey] === opt.value}
             layout={layout}
             onSelect={() => onAnswer(answerKey, opt.value)}
+            reducedMotion={reducedMotion}
           />
         ))}
       </div>
@@ -216,6 +229,7 @@ function OptionList({
 
 export default function Wizard({ onFinish, onProgress, initialAnswers }) {
   const { t } = useLanguage();
+  const prefersReducedMotion = useReducedMotion();
   const initialAnswerState = useMemo(() => (initialAnswers || {}), [initialAnswers]);
   const [answers, setAnswers] = useState(initialAnswerState);
   const [steps, setSteps] = useState(() => fallbackQuestionBank);
@@ -306,9 +320,9 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
   return (
     <motion.div
       className="wizard"
-      initial={{ opacity: 0, y: 30 }}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -30, transition: { duration: 0.25 } }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -30, transition: { duration: 0.25 } }}
       role="form"
       aria-label="CRS Calculator wizard"
     >
@@ -329,7 +343,7 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
           initial="enter"
           animate="center"
           exit="exit"
-          transition={{ type: 'spring', stiffness: 200, damping: 26 }}
+          transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 200, damping: 26 }}
         >
           <span className="step-label">{step.label}</span>
           <h2 className="step-title">{step.title} {step.helpTip && <HelpTip text={step.helpTip} />}</h2>
@@ -348,6 +362,7 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
               onAnswer={handleAnswer}
               searchable={step.searchable}
               searchPlaceholder={step.searchPlaceholder}
+              reducedMotion={prefersReducedMotion}
             />
           )}
 
@@ -362,6 +377,7 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
                 onAnswer={handleAnswer}
                 searchable={group.searchable}
                 searchPlaceholder={group.searchPlaceholder}
+                reducedMotion={prefersReducedMotion}
               />
             </div>
           ))}
@@ -370,17 +386,18 @@ export default function Wizard({ onFinish, onProgress, initialAnswers }) {
 
       <div className="wizard-nav">
         {history.length > 0 && (
-          <motion.button className="btn-back" onClick={goBack} whileHover={{ x: -3 }} whileTap={{ scale: 0.95 }} aria-label="Go back">
+          <motion.button type="button" className="btn-back" onClick={goBack} whileHover={prefersReducedMotion ? undefined : { x: -3 }} whileTap={prefersReducedMotion ? undefined : { scale: 0.95 }} aria-label="Go back">
             {t('wizard.back')}
           </motion.button>
         )}
         <StarBorder color="var(--primary)" speed="5s">
           <motion.button
+            type="button"
             className={`btn-next${isLastVisible ? ' finish' : ''}`}
             disabled={!complete}
             onClick={goNext}
-            whileHover={complete ? { scale: 1.02 } : {}}
-            whileTap={complete ? { scale: 0.97 } : {}}
+            whileHover={complete && !prefersReducedMotion ? { scale: 1.02 } : undefined}
+            whileTap={complete && !prefersReducedMotion ? { scale: 0.97 } : undefined}
             aria-label={isLastVisible ? 'Calculate score' : 'Next step'}
           >
             {isLastVisible ? t('wizard.calculate') : t('wizard.next')}

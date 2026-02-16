@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { pathways } from '../data/crsData';
@@ -25,9 +25,10 @@ function getDrawSourceClass(source) {
   return source === 'supabase' ? 'draw-source-live' : 'draw-source-fallback';
 }
 
-function AnimatedNumber({ value, duration = 1.2 }) {
-  const [display, setDisplay] = useState(0);
+function AnimatedNumber({ value, duration = 1.2, reduceMotion = false }) {
+  const [display, setDisplay] = useState(value);
   useEffect(() => {
+    if (reduceMotion) return undefined;
     const end = value;
     const startTime = performance.now();
     const tick = (now) => {
@@ -38,11 +39,11 @@ function AnimatedNumber({ value, duration = 1.2 }) {
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-  }, [value, duration]);
+  }, [value, duration, reduceMotion]);
+  if (reduceMotion) return <>{value}</>;
   return <>{display}</>;
 }
-
-function ScoreGauge({ score, statusColor }) {
+function ScoreGauge({ score, statusColor, reduceMotion = false }) {
   const r = 54;
   const circ = 2 * Math.PI * r;
   const pct = Math.min(score / 1200, 1);
@@ -60,16 +61,33 @@ function ScoreGauge({ score, statusColor }) {
           strokeLinecap="round"
           transform="rotate(-90 60 60)"
           strokeDasharray={circ}
-          initial={{ strokeDashoffset: circ }}
+          initial={reduceMotion ? false : { strokeDashoffset: circ }}
           animate={{ strokeDashoffset: circ - pct * circ }}
-          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
         />
       </svg>
       <div className="gauge-text">
-        <div className="gauge-number" aria-live="polite"><AnimatedNumber value={score} /></div>
+        <div className="gauge-number" aria-live="polite"><AnimatedNumber value={score} reduceMotion={reduceMotion} /></div>
         <div className="gauge-max">/ 1,200</div>
       </div>
     </div>
+  );
+}
+
+function SectionToggleHeader({ id, label, open, onToggle }) {
+  return (
+    <h3 className="section-toggle-heading">
+      <button
+        type="button"
+        className="section-toggle"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={id}
+      >
+        <span>{label}</span>
+        <span className="toggle-arrow" aria-hidden="true">▾</span>
+      </button>
+    </h3>
   );
 }
 
@@ -306,6 +324,7 @@ function useConfetti(trigger) {
 
 export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo }) {
   const { t } = useLanguage();
+  const prefersReducedMotion = useReducedMotion();
   const { user, isAuthenticated } = useAuth();
   const accountSettings = useMemo(() => readAccountSettings(), []);
   const activeDraws = drawData || getFallbackLatestDraws();
@@ -329,7 +348,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const shouldAutoSync = accountSettings.autoSyncProfiles !== false;
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2500);
+    const timer = setTimeout(() => setLoading(false), 900);
     return () => clearTimeout(timer);
   }, []);
 
@@ -406,7 +425,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const moreSuggestions = suggestions.slice(3);
   const pwInfo = pathways[answers.pathway];
   const provinces = useMemo(() => (isSelfCalc ? recommendProvinces(answers) : []), [answers, isSelfCalc]);
-  const showConfetti = !loading && diff >= 20;
+  const showConfetti = !prefersReducedMotion && !loading && diff >= 20;
   const confettiRef = useConfetti(showConfetti);
 
 
@@ -472,8 +491,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
     if (!element) return;
-    const top = element.getBoundingClientRect().top + window.scrollY - 90;
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   if (loading) return <LoadingScreen />;
@@ -483,10 +501,10 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       {showConfetti && <canvas ref={confettiRef} className="confetti-canvas" />}
 
       <motion.div className="score-hero" variants={fadeUp}>
-        <ScoreGauge score={score} statusColor={status.color} />
+        <ScoreGauge score={score} statusColor={status.color} reduceMotion={prefersReducedMotion} />
       </motion.div>
       <motion.div className="result-actions" variants={fadeUp}>
-        <button className="action-btn" onClick={handlePDF} aria-label="Download PDF">
+        <button type="button" className="action-btn" onClick={handlePDF} aria-label="Download PDF">
           {t('results.pdf')}
         </button>
       </motion.div>
@@ -495,10 +513,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         <h3>Quick navigation</h3>
         <div className="quick-nav-grid">
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>Save profile</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-coach')}>Expert strategy</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}>Category draws</button>
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-coach')}>Expert strategy</button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}>Category draws</button>}
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-timeline')}>Timeline</button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>Recent draws</button>
         </div>
       </motion.div>
@@ -526,11 +545,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         <div className="save-grid">
           <label className="wi-field">
             <span>Profile name (optional)</span>
-            <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="e.g., Feb 2026 Profile" />
+            <input type="text" value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="e.g., Feb 2026 Profile" />
           </label>
           <label className="wi-field">
             <span>Email (optional)</span>
-            <input value={saveEmail} onChange={e => setSaveEmail(e.target.value)} placeholder="you@example.com" />
+            <input type="email" value={saveEmail} onChange={e => setSaveEmail(e.target.value)} placeholder="you@example.com" />
           </label>
         </div>
         <label className="save-alert-row">
@@ -539,7 +558,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         </label>
         {!cloudEnabled && <p className="save-note">Cloud alerts need Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).</p>}
         <div className="save-actions">
-          <button className="action-btn" onClick={handleSaveProfile} disabled={savingProfile}>
+          <button type="button" className="action-btn" onClick={handleSaveProfile} disabled={savingProfile}>
             {savingProfile ? 'Saving…' : 'Save Profile'}
           </button>
         </div>
@@ -581,15 +600,26 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
 
       {isSelfCalc && (
         <motion.div className="card whatif-card" variants={fadeUp}>
-          <h3 className="draws-toggle" onClick={() => setCompareOpen(!compareOpen)}>
-            Scenario Compare (A vs B) <span className="toggle-arrow">{compareOpen ? '▲' : '▼'}</span>
-          </h3>
-          {compareOpen && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <p className="cat-intro">{t('results.whatifDesc')}</p>
-              <ScenarioComparePanel answers={answers} originalScore={score} t={t} />
-            </motion.div>
-          )}
+          <SectionToggleHeader
+            id="scenario-compare-panel"
+            label="Scenario Compare (A vs B)"
+            open={compareOpen}
+            onToggle={() => setCompareOpen(!compareOpen)}
+          />
+          <AnimatePresence initial={false}>
+            {compareOpen && (
+              <motion.div
+                id="scenario-compare-panel"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2 }}
+              >
+                <p className="cat-intro">{t('results.whatifDesc')}</p>
+                <ScenarioComparePanel answers={answers} originalScore={score} t={t} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
@@ -632,7 +662,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
                   </div>
                 </motion.div>
               ))}
-              <button className="btn-toggle" onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}>
+              <button type="button" className="btn-toggle" onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}>
                 {showMoreSuggestions ? 'Show fewer ▲' : `Show ${moreSuggestions.length} more suggestions ▼`}
               </button>
             </>
@@ -684,33 +714,44 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
 
       {isSelfCalc && provinces.length > 0 && (
         <motion.div className="card" variants={fadeUp}>
-          <h3 className="draws-toggle" onClick={() => setProvOpen(!provOpen)}>
-            Province Recommender <span className="toggle-arrow">{provOpen ? '▲' : '▼'}</span>
-          </h3>
-          {provOpen && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <p className="cat-intro">Based on your profile, these provinces may be good matches for Provincial Nominee Programs.</p>
-              <div className="prov-grid">
-                {provinces.slice(0, 5).map(prov => (
-                  <div key={prov.id} className="prov-card">
-                    <div className="prov-header">
-                      <span className="prov-abbr">{prov.abbr}</span>
-                      <div>
-                        <strong className="prov-name">{prov.name}</strong>
-                        <span className={`prov-match ${prov.matchScore >= 70 ? 'match-high' : prov.matchScore >= 40 ? 'match-mid' : 'match-low'}`}>
-                          {prov.matchScore}% match
-                        </span>
+          <SectionToggleHeader
+            id="province-recommender-panel"
+            label="Province Recommender"
+            open={provOpen}
+            onToggle={() => setProvOpen(!provOpen)}
+          />
+          <AnimatePresence initial={false}>
+            {provOpen && (
+              <motion.div
+                id="province-recommender-panel"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2 }}
+              >
+                <p className="cat-intro">Based on your profile, these provinces may be good matches for Provincial Nominee Programs.</p>
+                <div className="prov-grid">
+                  {provinces.slice(0, 5).map(prov => (
+                    <div key={prov.id} className="prov-card">
+                      <div className="prov-header">
+                        <span className="prov-abbr">{prov.abbr}</span>
+                        <div>
+                          <strong className="prov-name">{prov.name}</strong>
+                          <span className={`prov-match ${prov.matchScore >= 70 ? 'match-high' : prov.matchScore >= 40 ? 'match-mid' : 'match-low'}`}>
+                            {prov.matchScore}% match
+                          </span>
+                        </div>
                       </div>
+                      <div className="prov-bar-wrap">
+                        <motion.div className="prov-bar" initial={{ width: 0 }} animate={{ width: `${prov.matchScore}%` }} transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.8, ease: 'easeOut' }} style={{ background: prov.matchScore >= 70 ? '#22c55e' : prov.matchScore >= 40 ? '#f59e0b' : 'var(--surface-3)' }} />
+                      </div>
+                      <p className="prov-notes">{prov.notes}</p>
                     </div>
-                    <div className="prov-bar-wrap">
-                      <motion.div className="prov-bar" initial={{ width: 0 }} animate={{ width: `${prov.matchScore}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} style={{ background: prov.matchScore >= 70 ? '#22c55e' : prov.matchScore >= 40 ? '#f59e0b' : 'var(--surface-3)' }} />
-                    </div>
-                    <p className="prov-notes">{prov.notes}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
@@ -723,26 +764,38 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       </motion.div>
 
       <motion.div className="card" variants={fadeUp} id="section-draws">
-        <h3 className="draws-toggle" onClick={() => setDrawsOpen(!drawsOpen)}>
-          {t('results.draws')} <span className="toggle-arrow">{drawsOpen ? '▲' : '▼'}</span>
-        </h3>
+        <SectionToggleHeader
+          id="recent-draws-panel"
+          label={t('results.draws')}
+          open={drawsOpen}
+          onToggle={() => setDrawsOpen(!drawsOpen)}
+        />
         <div className={`draw-source-pill ${getDrawSourceClass(drawSource)}`}>
           Source: {getDrawSourceLabel(drawSource)} · Updated {activeDraws.lastUpdated || '—'}
         </div>
-        {drawsOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="draws-content">
-            <h4 className="draws-subhead">General / CEC Draws</h4>
-            {activeDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
-            <h4 className="draws-subhead">Category-Based Draws</h4>
-            {activeDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
-            {!!activeDraws.pnpDraws?.length && (
-              <>
-                <h4 className="draws-subhead">Provincial Nominee (PNP)</h4>
-                {activeDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
-              </>
-            )}
-          </motion.div>
-        )}
+        <AnimatePresence initial={false}>
+          {drawsOpen && (
+            <motion.div
+              id="recent-draws-panel"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.22 }}
+              className="draws-content"
+            >
+              <h4 className="draws-subhead">General / CEC Draws</h4>
+              {activeDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
+              <h4 className="draws-subhead">Category-Based Draws</h4>
+              {activeDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
+              {!!activeDraws.pnpDraws?.length && (
+                <>
+                  <h4 className="draws-subhead">Provincial Nominee (PNP)</h4>
+                  {activeDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {pwInfo && (
@@ -756,7 +809,14 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         <p><strong>Disclaimer:</strong> {t('results.disclaimer')} <a href="https://www.canada.ca/en/immigration-refugees-citizenship.html" target="_blank" rel="noopener noreferrer">canada.ca</a></p>
       </motion.div>
 
-      <motion.button className="btn-restart" onClick={onRestart} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} variants={fadeUp}>
+      <motion.button
+        type="button"
+        className="btn-restart"
+        onClick={onRestart}
+        whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
+        whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}
+        variants={fadeUp}
+      >
         {t('results.restart')}
       </motion.button>
     </motion.div>

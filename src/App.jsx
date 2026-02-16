@@ -174,11 +174,12 @@ export default function App() {
 
   return (
     <div className="app">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Header
         canInstallApp={!isStandalone && !!deferredInstallPrompt}
         onInstallApp={handleInstallApp}
       />
-      <main className="main" role="main">
+      <main className="main" role="main" id="main-content">
         <AnimatePresence mode="wait">
           {mode === 'welcome' && <WelcomeScreen key="welcome" onStart={handleStart} hasSaved={hasSaved} drawData={drawData} drawSource={drawSource} />}
           {mode === 'wizard' && <Wizard key="wizard" onFinish={handleFinish} onProgress={shouldAutoSaveProgress ? saveProgress : undefined} initialAnswers={answers} />}
@@ -189,7 +190,7 @@ export default function App() {
               {unsubscribeState === 'success' && <p>You’ve been unsubscribed from draw alerts successfully.</p>}
               {unsubscribeState === 'notfound' && <p>This unsubscribe link is invalid or already inactive.</p>}
               {unsubscribeState === 'error' && <p>We couldn’t process this request right now. Please try again later.</p>}
-              <button className="btn-restart" onClick={() => setMode('welcome')}>
+              <button type="button" className="btn-restart" onClick={() => setMode('welcome')}>
                 Back to calculator
               </button>
             </div>
@@ -218,6 +219,7 @@ export default function App() {
       </footer>
       {showTop && (
         <button
+          type="button"
           className="btn-top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Back to top"

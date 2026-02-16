@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import AuthModal from './AuthModal';
 const langLabels = { en: 'EN', fr: 'FR' };
 
 export default function Header({ canInstallApp = false, onInstallApp = () => {} }) {
+  const prefersReducedMotion = useReducedMotion();
   const { dark, toggle } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
@@ -16,9 +17,9 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {} 
   return (
     <motion.header
       className="header"
-      initial={{ y: -60, opacity: 0 }}
+      initial={prefersReducedMotion ? false : { y: -60, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+      transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 20 }}
     >
       <div className="header-inner">
         <div className="logo">
@@ -28,15 +29,17 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {} 
         <div className="header-actions">
           {canInstallApp && (
             <button
+              type="button"
               className="install-btn"
               onClick={onInstallApp}
               aria-label="Install app"
               title="Add app shortcut"
             >
-              Install
+              Install app
             </button>
           )}
           <button
+            type="button"
             className="auth-toggle"
             onClick={() => setShowAuthModal(true)}
             aria-label={user ? 'Manage account' : 'Login or signup'}
@@ -55,6 +58,7 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {} 
             ))}
           </select>
           <button
+            type="button"
             className="theme-toggle"
             onClick={toggle}
             aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
