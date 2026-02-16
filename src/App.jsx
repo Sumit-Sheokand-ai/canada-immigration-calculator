@@ -174,6 +174,25 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="anime-bg" aria-hidden="true">
+        <span className="anime-bg-aurora anime-bg-aurora--one" />
+        <span className="anime-bg-aurora anime-bg-aurora--two" />
+        <span className="anime-bg-aurora anime-bg-aurora--three" />
+        <span className="anime-bg-grid" />
+        <span className="anime-bg-noise" />
+        <span className="anime-bg-flare" />
+        <span className="anime-bg-vignette" />
+        <div className="anime-bg-sparks">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <Header
         canInstallApp={!isStandalone && !!deferredInstallPrompt}

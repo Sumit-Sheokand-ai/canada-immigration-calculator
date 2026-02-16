@@ -50,7 +50,10 @@
   color-scheme: dark;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable both-edges;
+}
 * { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb {
