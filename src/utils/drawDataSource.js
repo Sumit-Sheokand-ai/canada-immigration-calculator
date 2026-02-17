@@ -133,7 +133,7 @@ export async function getLatestDraws({ forceRefresh = false } = {}) {
     return { status: 'ok', source: latestDrawsCache.source, data: latestDrawsCache.data };
   }
 
-  if (isSupabaseConfigured && supabase && canQueryRemoteCategoryConfig) {
+  if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
         .from('draw_snapshots')
@@ -171,7 +171,7 @@ export async function getCategoryDrawInfo({ forceRefresh = false } = {}) {
     return { status: 'ok', source: categoryConfigCache.source, data: categoryConfigCache.data };
   }
 
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && supabase && canQueryRemoteCategoryConfig) {
     try {
       const { data, error } = await supabase
         .from('category_draw_configs')
