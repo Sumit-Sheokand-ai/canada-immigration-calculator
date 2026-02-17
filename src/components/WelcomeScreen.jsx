@@ -12,11 +12,11 @@ const item = {
 };
 
 function sourceLabel(source) {
-  return source === 'supabase' ? 'Live sync' : 'Local fallback';
+  return source === 'supabase' ? 'Live sync' : 'Local data mode';
 }
 
 export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource = 'local-fallback', motionIntensity = 'full' }) {
-  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
+  const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { t } = useLanguage();
 
   const features = [

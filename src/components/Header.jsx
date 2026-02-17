@@ -9,7 +9,7 @@ const AuthModal = lazy(() => import('./AuthModal'));
 const langLabels = { en: 'EN', fr: 'FR' };
 
 export default function Header({ canInstallApp = false, onInstallApp = () => {}, motionIntensity = 'full' }) {
-  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
+  const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { dark, toggle } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();

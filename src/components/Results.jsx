@@ -361,7 +361,7 @@ function useConfetti(trigger) {
 
 export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo, motionIntensity = 'full' }) {
   const { t } = useLanguage();
-  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
+  const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { user, isAuthenticated } = useAuth();
   const accountSettings = useMemo(() => readAccountSettings(), []);
   const activeDraws = drawData || getFallbackLatestDraws();

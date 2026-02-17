@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Loader from './components/Loader';
@@ -45,6 +45,17 @@ function getUnsubscribeToken() {
 function getInitialAnswers() {
   return {};
 }
+function detectLowEndDevice() {
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  if (!nav) return false;
+  const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
+  const saveDataEnabled = Boolean(connection?.saveData);
+  const deviceMemory = Number(nav.deviceMemory || 0);
+  const hardwareCores = Number(nav.hardwareConcurrency || 0);
+  const lowMemory = Number.isFinite(deviceMemory) && deviceMemory > 0 && deviceMemory <= 4;
+  const lowCores = Number.isFinite(hardwareCores) && hardwareCores > 0 && hardwareCores <= 4;
+  return saveDataEnabled || lowMemory || lowCores;
+}
 
 
 export default function App() {
@@ -54,6 +65,10 @@ export default function App() {
   const motionIntensity = ['off', 'subtle', 'full'].includes(accountSettings.motionIntensity)
     ? accountSettings.motionIntensity
     : 'full';
+  const isLowEndDevice = useMemo(() => detectLowEndDevice(), []);
+  const effectiveMotionIntensity = motionIntensity === 'off'
+    ? 'off'
+    : (isLowEndDevice && motionIntensity === 'full' ? 'subtle' : motionIntensity);
   const unsubscribeToken = getUnsubscribeToken();
   const initialAnswers = getInitialAnswers();
 
@@ -197,14 +212,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-motion', motionIntensity);
-  }, [motionIntensity]);
+    document.documentElement.setAttribute('data-motion', effectiveMotionIntensity);
+  }, [effectiveMotionIntensity]);
 
   useEffect(() => {
     const root = document.documentElement;
     const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     const hasFinePointer = window.matchMedia?.('(pointer: fine)')?.matches;
-    const enabled = motionIntensity !== 'off' && !prefersReduced && !!hasFinePointer;
+    const enabled = effectiveMotionIntensity !== 'off' && !prefersReduced && !!hasFinePointer;
 
     if (!enabled) {
       root.style.setProperty('--pointer-x', '50%');
@@ -212,8 +227,7 @@ export default function App() {
       root.style.setProperty('--pointer-glow', '0');
       return undefined;
     }
-
-    root.style.setProperty('--pointer-glow', motionIntensity === 'subtle' ? '0.45' : '1');
+    root.style.setProperty('--pointer-glow', effectiveMotionIntensity === 'subtle' ? '0.45' : '1');
 
     let rafId = 0;
     let currentX = 50;
@@ -257,7 +271,7 @@ export default function App() {
       window.removeEventListener('pointerleave', onPointerLeave);
       if (rafId) window.cancelAnimationFrame(rafId);
     };
-  }, [motionIntensity]);
+  }, [effectiveMotionIntensity]);
 
   return (
     <div className="app">
@@ -285,7 +299,7 @@ export default function App() {
       <Header
         canInstallApp={!isStandalone && !!deferredInstallPrompt}
         onInstallApp={handleInstallApp}
-        motionIntensity={motionIntensity}
+        motionIntensity={effectiveMotionIntensity}
       />
       <main className="main" role="main" id="main-content">
         <AnimatePresence mode="wait">
@@ -297,7 +311,7 @@ export default function App() {
                 hasSaved={hasSaved}
                 drawData={drawData}
                 drawSource={drawSource}
-                motionIntensity={motionIntensity}
+                motionIntensity={effectiveMotionIntensity}
               />
             </Suspense>
           )}
@@ -308,7 +322,7 @@ export default function App() {
                 onFinish={handleFinish}
                 onProgress={shouldAutoSaveProgress ? saveProgress : undefined}
                 initialAnswers={answers}
-                motionIntensity={motionIntensity}
+                motionIntensity={effectiveMotionIntensity}
               />
             </Suspense>
           )}
@@ -333,7 +347,7 @@ export default function App() {
                 drawData={drawData}
                 drawSource={drawSource}
                 categoryInfo={categoryInfo}
-                motionIntensity={motionIntensity}
+                motionIntensity={effectiveMotionIntensity}
               />
             </Suspense>
           )}

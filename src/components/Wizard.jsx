@@ -229,7 +229,7 @@ function OptionList({
 
 export default function Wizard({ onFinish, onProgress, initialAnswers, motionIntensity = 'full' }) {
   const { t } = useLanguage();
-  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
+  const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const initialAnswerState = useMemo(() => (initialAnswers || {}), [initialAnswers]);
   const [answers, setAnswers] = useState(initialAnswerState);
   const [steps, setSteps] = useState(() => fallbackQuestionBank);

@@ -268,7 +268,7 @@
 }
 .theme-toggle {
   background: none; border: 1.5px solid var(--surface-2); border-radius: 8px;
-  padding: 7px 10px; min-height: 34px;
+  padding: 8px 12px; min-height: 40px;
   font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer;
   color: var(--text);
   transition:
@@ -279,7 +279,7 @@
 .theme-toggle:hover { background: var(--surface-2); }
 .install-btn, .auth-toggle {
   background: var(--surface); border: 1.5px solid var(--surface-2); border-radius: 8px;
-  padding: 7px 10px; min-height: 34px; font-size: 12px; font-weight: 600; color: var(--text);
+  padding: 8px 12px; min-height: 40px; font-size: 13px; font-weight: 600; color: var(--text);
   cursor: pointer;
   transition:
     background var(--dur-med) var(--ease-standard),
@@ -289,7 +289,7 @@
 .install-btn:hover, .auth-toggle:hover { background: var(--surface-2); border-color: var(--primary); }
 .lang-select {
   background: var(--surface); border: 1.5px solid var(--surface-2); border-radius: 8px;
-  padding: 7px 10px; min-height: 34px; font-size: 12px; font-weight: 600; color: var(--text);
+  padding: 8px 12px; min-height: 40px; font-size: 13px; font-weight: 600; color: var(--text);
   cursor: pointer;
   transition:
     background var(--dur-med) var(--ease-standard),
@@ -503,6 +503,7 @@
   display: inline-flex; align-items: center; gap: 10px;
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 58%, var(--accent-2) 100%);
   color: #fff; border: none; border-radius: 10px;
+  min-height: 46px;
   padding: 14px 32px; font-size: 16px; font-weight: 600;
   box-shadow: 0 4px 20px var(--glow);
   transition:
@@ -676,7 +677,9 @@
 .wizard-nav { display: flex; gap: 12px; margin-top: 28px; justify-content: flex-end; }
 .btn-back {
   background: transparent; border: 1.5px solid var(--surface-2); border-radius: 10px;
+  min-height: 44px;
   padding: 10px 20px; font-size: 14px; font-weight: 500; color: var(--text-2);
+  display: inline-flex; align-items: center; justify-content: center;
   transition:
     background var(--dur-med) var(--ease-standard),
     border-color var(--dur-fast) var(--ease-standard),
@@ -686,7 +689,9 @@
 .btn-next {
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 58%, var(--accent-2) 100%);
   color: #fff; border: none; border-radius: 10px;
+  min-height: 44px;
   padding: 10px 24px; font-size: 14px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
   transition:
     opacity var(--dur-fast) var(--ease-standard),
     box-shadow var(--dur-med) var(--ease-standard),
@@ -894,8 +899,8 @@
   border: 1px solid transparent;
   border-radius: 10px;
   text-align: left;
-  min-height: 42px;
-  padding: 6px 8px;
+  min-height: 44px;
+  padding: 8px 10px;
   color: var(--text);
   font-size: 16px;
   font-weight: 700;
@@ -988,7 +993,7 @@
     linear-gradient(140deg, var(--glass-highlight) 0%, transparent 54%),
     linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
   border: 1.5px solid var(--glass-border); border-radius: 10px;
-  padding: 8px 16px; min-height: 40px;
+  padding: 10px 16px; min-height: 44px;
   font-size: 13px; font-weight: 600; color: var(--text-2);
   transition:
     background var(--dur-med) var(--ease-standard),
@@ -1981,7 +1986,7 @@
    ═══════════════════════════════════════════ */
 .help-tip-wrap { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
 .help-tip-btn {
-  width: 22px; height: 22px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   background: var(--surface-2); color: var(--text-2); border: 1.5px solid var(--surface-3);
   font-size: 12px; font-weight: 700; line-height: 1;
   display: inline-flex; align-items: center; justify-content: center;
@@ -2341,7 +2346,8 @@
   .logo { margin: 0; font-size: 17px; justify-content: center; }
   .logo-leaf { font-size: 1.5rem; }
   .header-actions { margin-left: 0; flex-wrap: wrap; justify-content: center; }
-  .install-btn, .auth-toggle, .lang-select, .theme-toggle { min-height: 32px; padding: 6px 8px; }
+  .header-actions > * { flex: 1 1 120px; }
+  .install-btn, .auth-toggle, .lang-select, .theme-toggle { min-height: 40px; padding: 8px 10px; }
   .auth-modal-backdrop { padding: 0; }
   .auth-modal {
     width: 100vw;
@@ -2361,8 +2367,14 @@
   /* Results mobile */
   .card { padding: 18px 14px; }
   .result-actions { gap: 6px; }
-  .action-btn { padding: 8px 12px; font-size: 12px; }
-  .quick-nav-grid { grid-template-columns: 1fr 1fr; }
+  .action-btn { min-height: 44px; padding: 10px 12px; font-size: 13px; }
+  .result-actions .action-btn,
+  .save-actions .action-btn { width: 100%; justify-content: center; }
+  .quick-nav-grid { grid-template-columns: 1fr; }
+  .wizard-nav { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
+  .wizard-nav .btn-back,
+  .wizard-nav .star-border,
+  .wizard-nav .btn-next { width: 100%; }
   .strategic-action-grid { grid-template-columns: 1fr; }
   .strategic-action-status { flex-direction: column; align-items: stretch; }
   .next-task-callout { grid-template-columns: 1fr; }

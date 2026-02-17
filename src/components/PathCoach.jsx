@@ -123,7 +123,7 @@ function getRecommendedTarget({ answers, result, averageCutoff, categoryInfo }) 
 }
 
 export default function PathCoach({ answers, result, averageCutoff, categoryInfo = [], motionIntensity = 'full' }) {
-  const prefersReducedMotion = useReducedMotion() || motionIntensity === 'off';
+  const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { user, isAuthenticated } = useAuth();
 
   const checkoutUrl = import.meta.env.VITE_STRIPE_TRACKING_CHECKOUT_URL;
