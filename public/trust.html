@@ -58,8 +58,9 @@
         <h2>Methodology transparency</h2>
         <ul>
           <li>CRS outputs are calculated from your submitted profile fields and rule-based scoring logic.</li>
-          <li>Recommendation panels prioritize opportunities by estimated gain, effort, and timeline signals.</li>
+          <li>Recommendation panels prioritize opportunities by estimated gain, effort, timeline, confidence, and profile-lane fit signals.</li>
           <li>Freshness labels indicate how recent draw/category snapshots are.</li>
+          <li>High-risk warnings are shown when your score gap or profile uncertainty materially increases decision risk.</li>
         </ul>
         <p>
           Guidance is informational and strategic in nature; it is not legal advice.
@@ -72,6 +73,7 @@
           <li>Profile and progress data can be stored locally on your device for continuity.</li>
           <li>If authenticated, selected profile data can be synced through configured backend services.</li>
           <li>Analytics events are limited to product-improvement signals and avoid sensitive free-text content.</li>
+          <li>Analytics payloads include schema/version and session metadata for quality monitoring, not identity profiling.</li>
         </ul>
       </section>
 
@@ -81,6 +83,7 @@
           <li>Update display and contact preferences via the Account panel.</li>
           <li>Reset local progress from calculator restart flows.</li>
           <li>Delete account using the account danger-zone action (when backend deletion is configured).</li>
+          <li>Use unsubscribe links to disable draw alert notifications at any time.</li>
         </ul>
       </section>
 
@@ -90,6 +93,31 @@
           <li>Source and freshness indicators are shown in results sections.</li>
           <li>If live integrations are unavailable, fallback datasets are used and labeled.</li>
           <li>Always verify final eligibility and policy details on official IRCC sources.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Model limitations and decision safety</h2>
+        <ul>
+          <li>Score projections are directional estimates and can be impacted by policy updates, intake caps, and document timing.</li>
+          <li>Execution plans assume consistent weekly follow-through; missed milestones can reduce projected gains.</li>
+          <li>For regulated advice, legal interpretation, or case representation, consult qualified immigration professionals.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Retention and deletion expectations</h2>
+        <ul>
+          <li>Local browser data remains until you clear it, reset the app, or delete storage manually.</li>
+          <li>Cloud-synced records depend on your backend deployment configuration and retention policies.</li>
+          <li>When account deletion is enabled and completed, related user account access is removed.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Trust change log</h2>
+        <ul>
+          <li><strong>February 17, 2026:</strong> Added risk-flag methodology notes, analytics schema transparency, and retention guidance.</li>
         </ul>
       </section>
 
