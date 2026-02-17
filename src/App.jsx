@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Loader from './components/Loader';
@@ -15,6 +15,7 @@ import {
 } from './utils/drawDataSource';
 import { trackEvent } from './utils/analytics';
 import { readAccountSettings } from './utils/accountSettings';
+import { readRuntimeFlags } from './utils/runtimeFlags';
 import './App.css';
 
 const STORAGE_KEY = 'crs-progress';
@@ -77,6 +78,7 @@ async function withRetries(task, { retries = 2, baseDelayMs = 250 } = {}) {
 export default function App() {
   const { t } = useLanguage();
   const [accountSettings, setAccountSettings] = useState(() => readAccountSettings());
+  const [runtimeFlags, setRuntimeFlags] = useState(() => readRuntimeFlags());
   const shouldAutoSaveProgress = accountSettings.autoSaveProgress !== false;
   const motionIntensity = ['off', 'subtle', 'full'].includes(accountSettings.motionIntensity)
     ? accountSettings.motionIntensity
@@ -91,6 +93,8 @@ export default function App() {
   const [mode, setMode] = useState(() => (
     unsubscribeToken ? 'unsubscribe' : (Object.keys(initialAnswers).length > 0 ? 'results' : 'welcome')
   ));
+  const previousModeRef = useRef(mode);
+  const modeEnteredAtRef = useRef(0);
   const [answers, setAnswers] = useState(() => initialAnswers);
   const [unsubscribeState, setUnsubscribeState] = useState(() => (unsubscribeToken ? 'loading' : 'idle'));
   const [drawData, setDrawData] = useState(() => getFallbackLatestDraws());
@@ -267,6 +271,54 @@ export default function App() {
       window.removeEventListener('crs-account-settings-updated', refreshSettings);
     };
   }, []);
+  useEffect(() => {
+    const refreshRuntimeFlags = () => {
+      setRuntimeFlags(readRuntimeFlags());
+    };
+    window.addEventListener('storage', refreshRuntimeFlags);
+    window.addEventListener('crs-runtime-flags-updated', refreshRuntimeFlags);
+    return () => {
+      window.removeEventListener('storage', refreshRuntimeFlags);
+      window.removeEventListener('crs-runtime-flags-updated', refreshRuntimeFlags);
+    };
+  }, []);
+  useEffect(() => {
+    if (modeEnteredAtRef.current !== 0) return;
+    modeEnteredAtRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  }, []);
+  useEffect(() => {
+    if (!runtimeFlags.enablePerfTelemetry) return;
+    try {
+      const navEntry = window.performance?.getEntriesByType?.('navigation')?.[0];
+      if (!navEntry) return;
+      trackEvent('perf_navigation_summary', {
+        type: navEntry.type || 'navigate',
+        dom_content_loaded_ms: Math.round(navEntry.domContentLoadedEventEnd || 0),
+        load_event_ms: Math.round(navEntry.loadEventEnd || 0),
+        transfer_kb: Number(((navEntry.transferSize || 0) / 1024).toFixed(1)),
+      });
+    } catch {
+      // no-op on unsupported browsers
+    }
+  }, [runtimeFlags.enablePerfTelemetry]);
+  useEffect(() => {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const previousMode = previousModeRef.current;
+    if (!runtimeFlags.enablePerfTelemetry) {
+      previousModeRef.current = mode;
+      modeEnteredAtRef.current = now;
+      return;
+    }
+    if (previousMode !== mode) {
+      trackEvent('perf_mode_transition', {
+        from_mode: previousMode,
+        to_mode: mode,
+        duration_ms: Math.max(Math.round(now - modeEnteredAtRef.current), 0),
+      });
+      previousModeRef.current = mode;
+      modeEnteredAtRef.current = now;
+    }
+  }, [mode, runtimeFlags.enablePerfTelemetry]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-motion', effectiveMotionIntensity);

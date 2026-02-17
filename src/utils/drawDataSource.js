@@ -3,6 +3,7 @@ import {
   latestDraws as fallbackLatestDraws,
 } from '../data/crsData';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { readRuntimeFlags } from './runtimeFlags';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const ENABLE_REMOTE_CATEGORY_CONFIG = import.meta.env.VITE_ENABLE_CATEGORY_CONFIG_REMOTE === 'true';
@@ -129,6 +130,15 @@ export function clearCategoryConfigCache() {
 }
 
 export async function getLatestDraws({ forceRefresh = false } = {}) {
+  const runtimeFlags = readRuntimeFlags();
+  if (runtimeFlags.forceLocalData) {
+    latestDrawsCache = {
+      data: fallbackLatestDraws,
+      source: 'local-forced',
+      fetchedAt: Date.now(),
+    };
+    return { status: 'ok', source: 'local-forced', data: fallbackLatestDraws };
+  }
   if (!forceRefresh && latestDrawsCache.data && (Date.now() - latestDrawsCache.fetchedAt) < CACHE_TTL_MS) {
     return { status: 'ok', source: latestDrawsCache.source, data: latestDrawsCache.data };
   }
@@ -167,6 +177,15 @@ export async function getLatestDraws({ forceRefresh = false } = {}) {
 }
 
 export async function getCategoryDrawInfo({ forceRefresh = false } = {}) {
+  const runtimeFlags = readRuntimeFlags();
+  if (runtimeFlags.forceLocalData) {
+    categoryConfigCache = {
+      data: fallbackCategoryDrawInfo,
+      source: 'local-forced',
+      fetchedAt: Date.now(),
+    };
+    return { status: 'ok', source: 'local-forced', data: fallbackCategoryDrawInfo };
+  }
   if (!forceRefresh && categoryConfigCache.data && (Date.now() - categoryConfigCache.fetchedAt) < CACHE_TTL_MS) {
     return { status: 'ok', source: categoryConfigCache.source, data: categoryConfigCache.data };
   }

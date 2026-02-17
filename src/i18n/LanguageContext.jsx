@@ -15,8 +15,8 @@ export function LanguageProvider({ children }) {
     try { localStorage.setItem('crs-lang', l); } catch { /* ignore storage errors */ }
   }, []);
 
-  const t = useCallback((key) => {
-    return translations[lang]?.[key] || translations.en[key] || key;
+  const t = useCallback((key, fallback = '') => {
+    return translations[lang]?.[key] || translations.en[key] || fallback || key;
   }, [lang]);
 
   return (

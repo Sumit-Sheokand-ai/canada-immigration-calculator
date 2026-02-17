@@ -1,5 +1,6 @@
 import { fallbackQuestionBank } from '../data/questionBank';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { readRuntimeFlags } from './runtimeFlags';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let questionCache = {
@@ -112,6 +113,15 @@ export function clearQuestionBankCache() {
 }
 
 export async function getQuestionBank({ forceRefresh = false } = {}) {
+  const runtimeFlags = readRuntimeFlags();
+  if (runtimeFlags.forceLocalData || !runtimeFlags.allowRemoteQuestionBank) {
+    questionCache = {
+      data: fallbackQuestionBank,
+      source: runtimeFlags.forceLocalData ? 'local-forced' : 'local-config',
+      fetchedAt: Date.now(),
+    };
+    return { status: 'ok', source: questionCache.source, data: fallbackQuestionBank };
+  }
   if (!forceRefresh && questionCache.data && (Date.now() - questionCache.fetchedAt) < CACHE_TTL_MS) {
     return { status: 'ok', source: questionCache.source, data: questionCache.data };
   }

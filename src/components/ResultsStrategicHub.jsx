@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  buildOutcomeForecast,
   buildNinetyDayPlan,
   buildStrategyOptimizer,
   readActionPlanProgress,
   saveActionPlanProgress,
 } from '../utils/strategyHub';
 import { trackEvent } from '../utils/analytics';
+import { readRuntimeFlags } from '../utils/runtimeFlags';
+import { useLanguage } from '../i18n/LanguageContext';
 
 function PriorityBadge({ value }) {
   const cls = value === 'High' ? 'priority-high' : value === 'Medium' ? 'priority-medium' : 'priority-low';
@@ -47,6 +50,8 @@ export default function ResultsStrategicHub({
   onJumpToSection,
   onOpenAccount,
 }) {
+  const { t } = useLanguage();
+  const [runtimeFlags, setRuntimeFlags] = useState(() => readRuntimeFlags());
   const strategy = useMemo(
     () => buildStrategyOptimizer({
       answers,
@@ -63,6 +68,11 @@ export default function ResultsStrategicHub({
   useEffect(() => {
     setPlanProgress(readActionPlanProgress(answers));
   }, [answers]);
+  useEffect(() => {
+    const refresh = () => setRuntimeFlags(readRuntimeFlags());
+    window.addEventListener('crs-runtime-flags-updated', refresh);
+    return () => window.removeEventListener('crs-runtime-flags-updated', refresh);
+  }, []);
 
   const actionPlan = useMemo(
     () => buildNinetyDayPlan({
@@ -77,6 +87,16 @@ export default function ResultsStrategicHub({
   const completedCount = actionPlan.completedCount || 0;
   const totalCount = actionPlan.totalCount || actionPlan.tasks.length;
   const completionPct = actionPlan.completionPct || 0;
+  const forecast = useMemo(
+    () => (runtimeFlags.enableAdvancedForecasting
+      ? buildOutcomeForecast({
+        activeDraws,
+        userScore: result?.total || 0,
+        baseConfidence: strategy.overallConfidence,
+      })
+      : null),
+    [activeDraws, result?.total, runtimeFlags.enableAdvancedForecasting, strategy.overallConfidence]
+  );
 
   const topFactors = [
     { label: 'Core Human Capital', value: result?.breakdown?.coreHumanCapital || 0 },
@@ -162,38 +182,43 @@ export default function ResultsStrategicHub({
   return (
     <>
       <section className="card strategic-action-center" id="section-action-center">
-        <h3>Action Center</h3>
-        <p className="cat-intro">Use this control center to execute the highest-impact moves with clear priority and risk visibility.</p>
+        <h3>{t('strategy.actionCenter.title', 'Action Center')}</h3>
+        <p className="cat-intro">{t('strategy.actionCenter.subtitle', 'Use this control center to execute the highest-impact moves with clear priority and risk visibility.')}</p>
         <div className="strategic-action-grid">
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-save', 'save_profile')}>
-            Save profile
+            {t('strategy.actionCenter.saveProfile', 'Save profile')}
           </button>
+          {runtimeFlags.enableAdvancedForecasting && (
+            <button type="button" className="action-btn" onClick={() => jumpFromAction('section-forecast', 'open_forecast')}>
+              {t('strategy.actionCenter.openForecast', 'Open forecast')}
+            </button>
+          )}
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-optimizer', 'open_optimizer')}>
-            Open strategy optimizer
+            {t('strategy.actionCenter.openOptimizer', 'Open strategy optimizer')}
           </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-90-day-plan', 'open_90_day_plan')}>
-            Open 90-day plan
+            {t('strategy.actionCenter.openPlan', 'Open 90-day plan')}
           </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-pricing', 'compare_plans')}>
-            Compare plans
+            {t('strategy.actionCenter.comparePlans', 'Compare plans')}
           </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-coach', 'expert_strategy_coach')}>
-            Expert strategy coach
+            {t('strategy.actionCenter.expertCoach', 'Expert strategy coach')}
           </button>
           <button type="button" className="action-btn" onClick={openAccountFromAction}>
-            Manage account
+            {t('strategy.actionCenter.manageAccount', 'Manage account')}
           </button>
         </div>
         <div className="strategic-action-status">
-          <span>Profile save status: <strong>{saveStatus || 'Not saved yet'}</strong></span>
-          <span>90-day completion: <strong>{completionPct}%</strong> ({completedCount}/{totalCount})</span>
-          <span>Confidence: <strong>{strategy.confidenceBand}</strong> ({strategy.overallConfidence} / 100)</span>
-          <span>Risk level: <strong>{riskLevelLabel}</strong></span>
+          <span>{t('strategy.actionCenter.profileStatus', 'Profile save status')}: <strong>{saveStatus || t('strategy.actionCenter.notSavedYet', 'Not saved yet')}</strong></span>
+          <span>{t('strategy.actionCenter.planCompletion', '90-day completion')}: <strong>{completionPct}%</strong> ({completedCount}/{totalCount})</span>
+          <span>{t('strategy.actionCenter.confidence', 'Confidence')}: <strong>{strategy.confidenceBand}</strong> ({strategy.overallConfidence} / 100)</span>
+          <span>{t('strategy.actionCenter.riskLevel', 'Risk level')}: <strong>{riskLevelLabel}</strong></span>
         </div>
         {actionPlan.nextBestTask && (
           <div className="next-task-callout">
             <div>
-              <strong>Next best task: {actionPlan.nextBestTask.title}</strong>
+              <strong>{t('strategy.actionCenter.nextTask', 'Next best task')}: {actionPlan.nextBestTask.title}</strong>
               <p>{actionPlan.nextBestTask.dateWindow} · {actionPlan.nextBestTask.weekWindow}</p>
               <small>{actionPlan.nextBestTask.successMetric}</small>
             </div>
@@ -202,14 +227,42 @@ export default function ResultsStrategicHub({
               className="action-btn auth-btn-primary"
               onClick={() => jumpFromAction('section-90-day-plan', 'next_best_task')}
             >
-              Start task
+              {t('strategy.actionCenter.startTask', 'Start task')}
             </button>
           </div>
         )}
       </section>
+      {runtimeFlags.enableAdvancedForecasting && forecast && (
+        <section className="card strategic-forecast" id="section-forecast">
+          <h3>{t('strategy.forecast.title', 'Forecast Outlook')}</h3>
+          <p className="cat-intro">{t('strategy.forecast.subtitle', 'Projection based on recent draw cutoffs, volatility, and freshness of available data.')}</p>
+          <div className="strategic-action-status">
+            <span>{t('strategy.forecast.trend', 'Trend')}: <strong>{forecast.trendLabel}</strong></span>
+            <span>{t('strategy.forecast.confidence', 'Forecast confidence')}: <strong>{forecast.confidenceBand}</strong> ({forecast.confidenceScore}/100)</span>
+            <span>{t('strategy.forecast.sampleSize', 'Sample size')}: <strong>{forecast.sampleSize}</strong></span>
+            <span>{t('strategy.forecast.likelihood', 'Invitation likelihood')}: <strong>{forecast.invitationLikelihood}</strong></span>
+          </div>
+          <div className="optimizer-top-callout">
+            <div className="optimizer-option-head">
+              <strong>{t('strategy.forecast.nextCutoff', 'Projected next cutoff')}: {forecast.projectedNextCutoff}</strong>
+              <span className="optimizer-score">{t('strategy.forecast.threeDrawAvg', '3-draw avg')} {forecast.projectedThreeDrawAvg}</span>
+            </div>
+            <p>
+              {t('strategy.forecast.latestObserved', 'Latest observed cutoff')}: {forecast.latestObservedCutoff}
+              {' · '}
+              {t('strategy.forecast.gapToProjection', 'Gap to projection')}: {forecast.userGapToNext > 0 ? '+' : ''}{forecast.userGapToNext}
+            </p>
+            <div className="optimizer-meta">
+              <span>{t('strategy.forecast.projectedSequence', 'Projected sequence')}: {forecast.projectedDraws.join(' → ')}</span>
+              <span>{t('strategy.forecast.volatility', 'Volatility')}: {forecast.volatility.toFixed(2)}</span>
+              <span>{t('strategy.forecast.slope', 'Slope/draw')}: {forecast.slopePerDraw}</span>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="card strategic-optimizer" id="section-optimizer">
-        <h3>Strategy Optimizer</h3>
+        <h3>{t('strategy.optimizer.title', 'Strategy Optimizer')}</h3>
         <p className="cat-intro">{strategy.guidanceSummary}</p>
         {strategy.top && (
           <div className="optimizer-top-callout">
@@ -259,7 +312,7 @@ export default function ResultsStrategicHub({
       </section>
 
       <section className="card strategic-plan" id="section-90-day-plan">
-        <h3>90-Day Action Plan</h3>
+        <h3>{t('strategy.plan.title', '90-Day Action Plan')}</h3>
         <p className="cat-intro">Execution-focused milestones with calendar windows, measurable outcomes, and fallback controls.</p>
         <p className="plan-guidance">{actionPlan.completionGuidance}</p>
         <div className="plan-review-dates">
@@ -309,7 +362,7 @@ export default function ResultsStrategicHub({
       </section>
 
       <section className="card strategic-pricing" id="section-pricing">
-        <h3>Plans & Upgrade Path</h3>
+        <h3>{t('strategy.pricing.title', 'Plans & Upgrade Path')}</h3>
         <p className="cat-intro">Choose support depth based on your current gap, risk profile, and execution complexity.</p>
         <div className="pricing-recommendation-banner">
           <strong>{pricingRecommendation.badge}: {normalizeTierName(pricingRecommendation.tier)}</strong>
@@ -360,7 +413,7 @@ export default function ResultsStrategicHub({
       </section>
 
       <section className="card strategic-explainability" id="section-explainability">
-        <h3>Explainability & Confidence</h3>
+        <h3>{t('strategy.explainability.title', 'Explainability & Confidence')}</h3>
         <p className="cat-intro">Structured reasoning for lane ranking, confidence, and risk assumptions.</p>
         <div className="explain-grid">
           <article>

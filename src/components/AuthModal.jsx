@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   isCloudProfilesEnabled,
@@ -6,6 +6,16 @@ import {
   setProfileEmailForUser,
 } from '../utils/cloudProfiles';
 import { readAccountSettings, saveAccountSettings } from '../utils/accountSettings';
+import { getCategoryDrawInfo, getLatestDraws, clearCategoryConfigCache, clearLatestDrawsCache } from '../utils/drawDataSource';
+import { clearQuestionBankCache, getQuestionBank } from '../utils/questionDataSource';
+import { readRuntimeFlags, resetRuntimeFlags, saveRuntimeFlags } from '../utils/runtimeFlags';
+import {
+  clearPolicyRuleSetOverride,
+  getAvailablePolicyRuleSets,
+  readPolicyRuleSetOverride,
+  resolvePolicyRuleSet,
+  savePolicyRuleSetOverride,
+} from '../scoring/policy';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 const DELETE_ACCOUNT_CONFIRMATION = 'DELETE';
@@ -33,16 +43,57 @@ export default function AuthModal({ open, onClose }) {
   const [status, setStatus] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [settings, setSettings] = useState(() => readAccountSettings());
+  const [runtimeFlags, setRuntimeFlags] = useState(() => readRuntimeFlags());
+  const [policyOverrideId, setPolicyOverrideId] = useState(() => readPolicyRuleSetOverride() || '');
+  const [adminMeta, setAdminMeta] = useState(() => ({
+    drawSource: 'unknown',
+    drawUpdatedAt: '—',
+    categorySource: 'unknown',
+    categoryCount: 0,
+    questionSource: 'unknown',
+    questionCount: 0,
+    activePolicy: resolvePolicyRuleSet(),
+    refreshedAt: '',
+  }));
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const titleId = useId();
 
   const title = useMemo(() => (user ? 'Account' : 'Login / Signup'), [user]);
+  const policyRuleSets = useMemo(() => getAvailablePolicyRuleSets(), []);
   const cloudEnabled = isCloudProfilesEnabled();
   const billingPortalUrl = import.meta.env.VITE_STRIPE_BILLING_PORTAL_URL;
   const busy = activeAction !== '';
   const isActionBusy = (name) => activeAction === name;
+  const refreshAdminMetadata = useCallback(async ({ forceRefresh = false, silent = false } = {}) => {
+    if (!silent) {
+      setActiveAction('refreshAdminMeta');
+      setStatus('');
+    }
+    try {
+      const [latestRes, categoryRes, questionRes] = await Promise.all([
+        getLatestDraws({ forceRefresh }),
+        getCategoryDrawInfo({ forceRefresh }),
+        getQuestionBank({ forceRefresh }),
+      ]);
+      setAdminMeta({
+        drawSource: latestRes?.source || 'unknown',
+        drawUpdatedAt: latestRes?.data?.lastUpdated || '—',
+        categorySource: categoryRes?.source || 'unknown',
+        categoryCount: Array.isArray(categoryRes?.data) ? categoryRes.data.length : 0,
+        questionSource: questionRes?.source || 'unknown',
+        questionCount: Array.isArray(questionRes?.data) ? questionRes.data.length : 0,
+        activePolicy: resolvePolicyRuleSet(),
+        refreshedAt: new Date().toISOString(),
+      });
+      if (!silent) setStatus('Admin metadata refreshed.');
+    } catch (err) {
+      if (!silent) setStatus(err.message || 'Could not refresh admin metadata.');
+    } finally {
+      if (!silent) setActiveAction('');
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -63,7 +114,10 @@ export default function AuthModal({ open, onClose }) {
       profileName: user.user_metadata?.full_name || prev.profileName || '',
       contactEmail: prev.contactEmail || user.email || '',
     }));
-  }, [open, user]);
+    setRuntimeFlags(readRuntimeFlags());
+    setPolicyOverrideId(readPolicyRuleSetOverride() || '');
+    void refreshAdminMetadata({ silent: true });
+  }, [open, refreshAdminMetadata, user]);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -302,6 +356,62 @@ export default function AuthModal({ open, onClose }) {
       setActiveAction('');
     }
   };
+  const handleSaveAdminControls = async () => {
+    setActiveAction('saveAdminControls');
+    setStatus('');
+    try {
+      saveRuntimeFlags(runtimeFlags);
+      if (policyOverrideId) {
+        savePolicyRuleSetOverride(policyOverrideId);
+      } else {
+        clearPolicyRuleSetOverride();
+      }
+      clearLatestDrawsCache();
+      clearCategoryConfigCache();
+      clearQuestionBankCache();
+      await refreshAdminMetadata({ forceRefresh: true, silent: true });
+      setStatus('Admin controls saved.');
+    } catch (err) {
+      setStatus(err.message || 'Could not save admin controls.');
+    } finally {
+      setActiveAction('');
+    }
+  };
+
+  const handleResetAdminControls = async () => {
+    setActiveAction('resetAdminControls');
+    setStatus('');
+    try {
+      setRuntimeFlags(resetRuntimeFlags());
+      clearPolicyRuleSetOverride();
+      setPolicyOverrideId('');
+      clearLatestDrawsCache();
+      clearCategoryConfigCache();
+      clearQuestionBankCache();
+      await refreshAdminMetadata({ forceRefresh: true, silent: true });
+      setStatus('Admin controls reset to defaults.');
+    } catch (err) {
+      setStatus(err.message || 'Could not reset admin controls.');
+    } finally {
+      setActiveAction('');
+    }
+  };
+
+  const handleClearAdminCaches = async () => {
+    setActiveAction('clearAdminCaches');
+    setStatus('');
+    try {
+      clearLatestDrawsCache();
+      clearCategoryConfigCache();
+      clearQuestionBankCache();
+      await refreshAdminMetadata({ forceRefresh: true, silent: true });
+      setStatus('Draw/category/question caches cleared.');
+    } catch (err) {
+      setStatus(err.message || 'Could not clear caches.');
+    } finally {
+      setActiveAction('');
+    }
+  };
 
   return (
     <div className="auth-modal-backdrop" onClick={onClose} role="presentation">
@@ -330,6 +440,9 @@ export default function AuthModal({ open, onClose }) {
                 <div className="auth-action-shortcuts">
                   <button type="button" className="action-btn" onClick={() => scrollToAccountSection('auth-security')}>
                     Change password
+                  </button>
+                  <button type="button" className="action-btn" onClick={() => scrollToAccountSection('auth-admin')}>
+                    Admin controls
                   </button>
                   <button type="button" className="action-btn" onClick={() => scrollToAccountSection('auth-membership')}>
                     Remove membership
@@ -401,6 +514,96 @@ export default function AuthModal({ open, onClose }) {
                     Cloud account settings require Supabase env vars.
                   </p>
                 )}
+              </div>
+              <div className="auth-settings-card auth-settings-section" id="auth-admin">
+                <h4>Admin controls</h4>
+                <p className="auth-note">
+                  Runtime controls for data mode, policy versioning, and source metadata.
+                </p>
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={runtimeFlags.forceLocalData}
+                    onChange={(e) => setRuntimeFlags((prev) => ({ ...prev, forceLocalData: e.target.checked }))}
+                  />
+                  <span>Force local data mode (disable remote Supabase reads)</span>
+                </label>
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={runtimeFlags.allowRemoteQuestionBank}
+                    onChange={(e) => setRuntimeFlags((prev) => ({ ...prev, allowRemoteQuestionBank: e.target.checked }))}
+                  />
+                  <span>Allow remote question-bank payloads</span>
+                </label>
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={runtimeFlags.enableAdvancedForecasting}
+                    onChange={(e) => setRuntimeFlags((prev) => ({ ...prev, enableAdvancedForecasting: e.target.checked }))}
+                  />
+                  <span>Enable advanced trend forecasting widgets</span>
+                </label>
+                <label className="auth-check-row">
+                  <input
+                    type="checkbox"
+                    checked={runtimeFlags.enablePerfTelemetry}
+                    onChange={(e) => setRuntimeFlags((prev) => ({ ...prev, enablePerfTelemetry: e.target.checked }))}
+                  />
+                  <span>Enable route/performance telemetry events</span>
+                </label>
+                <label className="wi-field">
+                  <span>Scoring policy override</span>
+                  <select value={policyOverrideId} onChange={(e) => setPolicyOverrideId(e.target.value)}>
+                    <option value="">Automatic (effective-date ruleset)</option>
+                    {policyRuleSets.map((ruleSet) => (
+                      <option key={ruleSet.id} value={ruleSet.id}>
+                        {ruleSet.id} · effective {ruleSet.effectiveDate}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="auth-admin-meta">
+                  <p><strong>Active policy:</strong> {adminMeta.activePolicy?.id || '—'} ({adminMeta.activePolicy?.source || 'unknown'})</p>
+                  <p><strong>Draw source:</strong> {adminMeta.drawSource} · Updated {adminMeta.drawUpdatedAt}</p>
+                  <p><strong>Category source:</strong> {adminMeta.categorySource} · {adminMeta.categoryCount} categories</p>
+                  <p><strong>Question bank:</strong> {adminMeta.questionSource} · {adminMeta.questionCount} steps</p>
+                  <p><strong>Metadata refreshed:</strong> {adminMeta.refreshedAt ? new Date(adminMeta.refreshedAt).toLocaleString() : '—'}</p>
+                </div>
+                <div className="auth-actions">
+                  <button
+                    type="button"
+                    className="action-btn auth-btn-primary"
+                    disabled={busy}
+                    onClick={handleSaveAdminControls}
+                  >
+                    {isActionBusy('saveAdminControls') ? 'Saving controls...' : 'Save controls'}
+                  </button>
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={busy}
+                    onClick={() => void refreshAdminMetadata({ forceRefresh: true })}
+                  >
+                    {isActionBusy('refreshAdminMeta') ? 'Refreshing metadata...' : 'Refresh metadata'}
+                  </button>
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={busy}
+                    onClick={handleClearAdminCaches}
+                  >
+                    {isActionBusy('clearAdminCaches') ? 'Clearing caches...' : 'Clear caches'}
+                  </button>
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={busy}
+                    onClick={handleResetAdminControls}
+                  >
+                    {isActionBusy('resetAdminControls') ? 'Resetting...' : 'Reset controls'}
+                  </button>
+                </div>
               </div>
 
               <div className="auth-settings-card auth-settings-section" id="auth-security">

@@ -437,6 +437,106 @@ function buildScoredOption(option, gap) {
   };
 }
 
+function parseDrawDate(draw) {
+  const parsed = new Date(draw?.date || '');
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function collectRecentDrawSeries(activeDraws = {}, maxItems = 10) {
+  const merged = [
+    ...(activeDraws.generalProgram || []),
+    ...(activeDraws.categoryBased || []),
+    ...(activeDraws.pnpDraws || []),
+  ]
+    .map((draw) => ({
+      score: toNumber(draw?.score),
+      date: parseDrawDate(draw),
+      program: draw?.program || 'Unknown',
+    }))
+    .filter((item) => item.score > 0 && item.date)
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, maxItems);
+  return merged;
+}
+
+function standardDeviation(values = []) {
+  if (!values.length) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+function confidenceBand(score = 0) {
+  if (score >= 75) return 'High';
+  if (score >= 55) return 'Medium';
+  return 'Low';
+}
+
+export function buildOutcomeForecast({ activeDraws, userScore, baseConfidence = 60 }) {
+  const series = collectRecentDrawSeries(activeDraws, 10);
+  if (!series.length) return null;
+
+  const latest = series[0];
+  const chronological = [...series].reverse();
+  const first = chronological[0];
+  const last = chronological[chronological.length - 1];
+  const sampleSize = chronological.length;
+  const slopePerDraw = sampleSize > 1
+    ? (last.score - first.score) / (sampleSize - 1)
+    : 0;
+
+  const latestScore = latest.score;
+  const projectedNextCutoff = Math.round(clamp(latestScore + slopePerDraw, 300, 800));
+  const projectedSecondCutoff = Math.round(clamp(projectedNextCutoff + slopePerDraw, 300, 800));
+  const projectedThirdCutoff = Math.round(clamp(projectedSecondCutoff + slopePerDraw, 300, 800));
+  const projectedThreeDrawAvg = Math.round((projectedNextCutoff + projectedSecondCutoff + projectedThirdCutoff) / 3);
+
+  const volatility = standardDeviation(series.map((item) => item.score));
+  const latestDate = latest.date;
+  const daysSinceUpdate = latestDate
+    ? Math.floor((Date.now() - latestDate.getTime()) / DAY_MS)
+    : 999;
+
+  let confidenceScore = toNumber(baseConfidence, 60);
+  confidenceScore += Math.min(sampleSize * 3, 18);
+  confidenceScore -= Math.min(volatility * 1.2, 24);
+  if (daysSinceUpdate <= 2) confidenceScore += 5;
+  else if (daysSinceUpdate <= 7) confidenceScore += 1;
+  else if (daysSinceUpdate > 14) confidenceScore -= 9;
+  confidenceScore = clamp(Math.round(confidenceScore), 20, 92);
+
+  const trendDirection = slopePerDraw > 1.5 ? 'rising' : slopePerDraw < -1.5 ? 'falling' : 'stable';
+  const trendLabel = trendDirection === 'rising'
+    ? 'Cutoff trend is rising'
+    : trendDirection === 'falling'
+      ? 'Cutoff trend is falling'
+      : 'Cutoff trend is stable';
+
+  const userGapToNext = toNumber(userScore) - projectedNextCutoff;
+  const invitationLikelihood = userGapToNext >= 20
+    ? 'High'
+    : userGapToNext >= 0
+      ? 'Medium'
+      : 'Low';
+
+  return {
+    sampleSize,
+    volatility: Number(volatility.toFixed(2)),
+    slopePerDraw: Number(slopePerDraw.toFixed(2)),
+    projectedNextCutoff,
+    projectedThreeDrawAvg,
+    projectedDraws: [projectedNextCutoff, projectedSecondCutoff, projectedThirdCutoff],
+    trendDirection,
+    trendLabel,
+    confidenceScore,
+    confidenceBand: confidenceBand(confidenceScore),
+    invitationLikelihood,
+    userGapToNext,
+    latestObservedCutoff: latestScore,
+    latestObservedProgram: latest.program,
+    latestObservedDateIso: latestDate?.toISOString() || '',
+  };
+}
 export function buildStrategyOptimizer({
   answers,
   result,
