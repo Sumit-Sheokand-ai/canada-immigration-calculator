@@ -24,6 +24,9 @@ export default defineConfig({
           if (id.includes('/src/components/PathCoach.jsx') || id.includes('/src/scoring/pathPlanner.js')) {
             return 'feature-path-coach'
           }
+          if (id.includes('/src/components/ResultsStrategicHub.jsx') || id.includes('/src/utils/strategyHub.js')) {
+            return 'feature-strategy-hub'
+          }
           return undefined
         },
       },

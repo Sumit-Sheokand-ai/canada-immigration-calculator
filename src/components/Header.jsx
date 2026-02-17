@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
-import AuthModal from './AuthModal';
+const AuthModal = lazy(() => import('./AuthModal'));
 
 const langLabels = { en: 'EN', fr: 'FR' };
 
@@ -82,7 +82,28 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
           </div>
         </div>
       </motion.header>
-      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      {showAuthModal && (
+        <Suspense fallback={(
+          <div className="auth-modal-backdrop" role="presentation">
+            <div className="auth-modal auth-modal-loading" role="dialog" aria-modal="true">
+              <div className="auth-modal-head">
+                <h3>Loading account…</h3>
+                <button
+                  type="button"
+                  className="auth-close"
+                  onClick={() => setShowAuthModal(false)}
+                  aria-label="Close dialog"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        >
+          <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        </Suspense>
+      )}
     </>
   );
 }

@@ -11,16 +11,16 @@ import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from 
 import { getFallbackCategoryDrawInfo, getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
-import ResultsStrategicHub from './ResultsStrategicHub';
 import Loader from './Loader';
 const PathCoach = lazy(() => import('./PathCoach'));
+const ResultsStrategicHub = lazy(() => import('./ResultsStrategicHub'));
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
 
 function getDrawSourceLabel(source) {
   if (source === 'supabase') return 'Live sync';
-  return 'Local fallback';
+  return 'Local data mode';
 }
 
 function getDrawSourceClass(source) {
@@ -298,6 +298,16 @@ function LoadingScreen() {
   );
 }
 
+function SectionLoadShell({ message = 'Loading section…', compact = false }) {
+  return (
+    <div className={`section-load-shell ${compact ? 'compact' : ''}`}>
+      <div className="section-load-line" />
+      <div className="section-load-line short" />
+      <p>{message}</p>
+    </div>
+  );
+}
+
 function useConfetti(trigger) {
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -364,6 +374,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [provOpen, setProvOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
   const [profileCompareOpen, setProfileCompareOpen] = useState(false);
   const [savedProfiles, setSavedProfiles] = useState(() => listSavedProfiles());
   const [profileAId, setProfileAId] = useState('__current__');
@@ -379,7 +390,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
   const shouldAutoSync = accountSettings.autoSyncProfiles !== false;
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
+    const timer = setTimeout(() => setLoading(false), 160);
     return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
@@ -414,7 +425,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
     return describeFreshness(newestCategoryIso ? newestCategoryIso.toISOString() : activeDraws.lastUpdated);
   }, [activeCategoryInfo, activeDraws.lastUpdated]);
   const categorySource = useMemo(
-    () => (activeCategoryInfo.some((cat) => cat?.source === 'supabase') ? 'Live sync' : 'Local fallback'),
+    () => (activeCategoryInfo.some((cat) => cat?.source === 'supabase') ? 'Live sync' : 'Local data mode'),
     [activeCategoryInfo]
   );
   const profileOptions = useMemo(
@@ -640,20 +651,27 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         </button>
       </motion.div>
 
-      <ResultsStrategicHub
-        answers={answers}
-        result={result}
-        suggestions={suggestions}
-        averageCutoff={activeDraws.averageCutoff}
-        activeDraws={activeDraws}
-        activeCategoryInfo={activeCategoryInfo}
-        provinces={provinces}
-        drawFreshness={drawFreshness}
-        categoryFreshness={categoryFreshness}
-        saveStatus={saveStatus}
-        onJumpToSection={scrollToSection}
-        onOpenAccount={openAccountModal}
-      />
+      <Suspense fallback={(
+        <div className="card">
+          <SectionLoadShell message="Loading action center and strategy insights…" />
+        </div>
+      )}
+      >
+        <ResultsStrategicHub
+          answers={answers}
+          result={result}
+          suggestions={suggestions}
+          averageCutoff={activeDraws.averageCutoff}
+          activeDraws={activeDraws}
+          activeCategoryInfo={activeCategoryInfo}
+          provinces={provinces}
+          drawFreshness={drawFreshness}
+          categoryFreshness={categoryFreshness}
+          saveStatus={saveStatus}
+          onJumpToSection={scrollToSection}
+          onOpenAccount={openAccountModal}
+        />
+      </Suspense>
 
       <motion.div className="card quick-nav-card" variants={fadeUp}>
         <h3>Quick navigation</h3>
@@ -914,17 +932,39 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       )}
 
       {isSelfCalc && (
-        <div id="section-coach">
-          <Suspense fallback={<div className="loading-fallback"><Loader /></div>}>
-            <PathCoach
-              answers={answers}
-              result={result}
-              averageCutoff={activeDraws.averageCutoff}
-              categoryInfo={activeCategoryInfo}
-              motionIntensity={motionIntensity}
-            />
-          </Suspense>
-        </div>
+        <motion.div className="card" variants={fadeUp} id="section-coach">
+          <SectionToggleHeader
+            id="expert-coach-panel"
+            label="Expert strategy coach"
+            open={coachOpen}
+            onToggle={() => {
+              const next = !coachOpen;
+              setCoachOpen(next);
+              trackEvent('path_coach_toggled', { open: next });
+            }}
+          />
+          <AnimatePresence initial={false}>
+            {coachOpen && (
+              <motion.div
+                id="expert-coach-panel"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2 }}
+              >
+                <Suspense fallback={<SectionLoadShell message="Loading expert strategy coach…" compact />}>
+                  <PathCoach
+                    answers={answers}
+                    result={result}
+                    averageCutoff={activeDraws.averageCutoff}
+                    categoryInfo={activeCategoryInfo}
+                    motionIntensity={motionIntensity}
+                  />
+                </Suspense>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       {isSelfCalc && (
@@ -939,30 +979,34 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
             {categoryFreshness.label} · {categoryFreshness.dateLabel}
           </span>
         </div>
-          <div className="cat-grid">
-            {activeCategoryInfo.map(cat => {
-              const eligible = cat.check(answers);
-              const aboveCutoff = eligible && score >= cat.recentCutoff;
-              return (
-                <motion.div key={cat.id} className={`cat-card ${eligible ? (aboveCutoff ? 'cat-above' : 'cat-eligible') : 'cat-na'}`} variants={fadeUp}>
-                  <div className="cat-header">
-                    <span className="cat-icon">{cat.icon}</span>
-                    <div>
-                      <strong className="cat-name">{cat.name}</strong>
-                      {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? 'Above Cutoff' : 'Eligible'}</span>}
-                      {!eligible && <span className="cat-badge badge-na">Not Eligible</span>}
+          {activeCategoryInfo.length === 0 ? (
+            <p className="path-empty-text">Category draw details are temporarily unavailable. The calculator is running in local data mode.</p>
+          ) : (
+            <div className="cat-grid">
+              {activeCategoryInfo.map(cat => {
+                const eligible = cat.check(answers);
+                const aboveCutoff = eligible && score >= cat.recentCutoff;
+                return (
+                  <motion.div key={cat.id} className={`cat-card ${eligible ? (aboveCutoff ? 'cat-above' : 'cat-eligible') : 'cat-na'}`} variants={fadeUp}>
+                    <div className="cat-header">
+                      <span className="cat-icon">{cat.icon}</span>
+                      <div>
+                        <strong className="cat-name">{cat.name}</strong>
+                        {eligible && <span className={`cat-badge ${aboveCutoff ? 'badge-above' : 'badge-eligible'}`}>{aboveCutoff ? 'Above Cutoff' : 'Eligible'}</span>}
+                        {!eligible && <span className="cat-badge badge-na">Not Eligible</span>}
+                      </div>
                     </div>
-                  </div>
-                  <p className="cat-desc">{cat.description}</p>
-                  <div className="cat-cutoff">
-                    <span>Recent cutoff: <strong>{cat.recentCutoff}</strong></span>
-                    <span className="cat-range">Range: {cat.cutoffRange}</span>
-                  </div>
-                  {!eligible && <p className="cat-req">{cat.eligibility}</p>}
-                </motion.div>
-              );
-            })}
-          </div>
+                    <p className="cat-desc">{cat.description}</p>
+                    <div className="cat-cutoff">
+                      <span>Recent cutoff: <strong>{cat.recentCutoff}</strong></span>
+                      <span className="cat-range">Range: {cat.cutoffRange}</span>
+                    </div>
+                    {!eligible && <p className="cat-req">{cat.eligibility}</p>}
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -1045,15 +1089,21 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
               transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.22 }}
               className="draws-content"
             >
-              <h4 className="draws-subhead">General / CEC Draws</h4>
-              {activeDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
-              <h4 className="draws-subhead">Category-Based Draws</h4>
-              {activeDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
-              {!!activeDraws.pnpDraws?.length && (
+              {activeDraws.generalProgram?.length || activeDraws.categoryBased?.length || activeDraws.pnpDraws?.length ? (
                 <>
-                  <h4 className="draws-subhead">Provincial Nominee (PNP)</h4>
-                  {activeDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
+                  <h4 className="draws-subhead">General / CEC Draws</h4>
+                  {activeDraws.generalProgram.slice(0, 4).map((dr, i) => <DrawRow key={`g${i}`} draw={dr} userScore={score} />)}
+                  <h4 className="draws-subhead">Category-Based Draws</h4>
+                  {activeDraws.categoryBased.slice(0, 4).map((dr, i) => <DrawRow key={`c${i}`} draw={dr} userScore={score} />)}
+                  {!!activeDraws.pnpDraws?.length && (
+                    <>
+                      <h4 className="draws-subhead">Provincial Nominee (PNP)</h4>
+                      {activeDraws.pnpDraws.slice(0, 3).map((dr, i) => <DrawRow key={`p${i}`} draw={dr} userScore={score} />)}
+                    </>
+                  )}
                 </>
+              ) : (
+                <p className="path-empty-text">Recent draw records are temporarily unavailable. Please check back shortly.</p>
               )}
             </motion.div>
           )}

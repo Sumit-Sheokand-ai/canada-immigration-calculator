@@ -30,7 +30,6 @@ function confidenceClass(value = '') {
 
 function normalizeTierName(value) {
   if (value === 'free') return 'Free';
-  if (value === 'advisor') return 'Advisor Mode';
   return 'Pro Tracking';
 }
 
@@ -96,9 +95,9 @@ export default function ResultsStrategicHub({
 
     if (largeGap && complexProfile) {
       return {
-        tier: 'advisor',
-        badge: 'Best for complex case',
-        rationale: 'Your profile looks high-complexity with a wider gap. Advisor workflows may reduce execution risk.',
+        tier: 'pro',
+        badge: 'Priority recommendation',
+        rationale: 'Your profile looks high-complexity with a wider gap. Pro tracking helps reduce execution risk with tighter follow-through.',
       };
     }
     if (needsGuidance) {
@@ -356,23 +355,6 @@ export default function ResultsStrategicHub({
             >
               Go to Pro setup
             </button>
-          </article>
-          <article className={`pricing-tier ${pricingRecommendation.tier === 'advisor' ? 'recommended' : ''}`}>
-            {pricingRecommendation.tier === 'advisor' && <span className="pricing-reco-badge">Complex-case fit</span>}
-            <h4>Advisor Mode</h4>
-            <strong>Coming soon</strong>
-            <ul>
-              <li>Multi-profile management</li>
-              <li>Team workflows</li>
-              <li>Priority insights</li>
-            </ul>
-            <a
-              className="action-btn action-link-btn"
-              href="/guides.html"
-              onClick={() => trackEvent('pricing_cta_clicked', { tier: 'advisor_mode_waitlist', recommended: pricingRecommendation.tier === 'advisor' })}
-            >
-              View Advisor playbooks
-            </a>
           </article>
         </div>
       </section>
