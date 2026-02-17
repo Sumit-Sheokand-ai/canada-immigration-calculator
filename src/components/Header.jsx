@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m as motion, useReducedMotion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
+import { prefetchAuthModalChunk } from '../utils/chunkPrefetch';
 const AuthModal = lazy(() => import('./AuthModal'));
 
 const langLabels = { en: 'EN', fr: 'FR' };
@@ -12,16 +13,20 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
   const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { dark, toggle } = useTheme();
   const { lang, setLang, t } = useLanguage();
-  const { user } = useAuth();
+  const { user, ensureAuthReady } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
-    const openAccount = () => setShowAuthModal(true);
+    const openAccount = () => {
+      setShowAuthModal(true);
+      prefetchAuthModalChunk();
+      void ensureAuthReady().catch(() => {});
+    };
     window.addEventListener('crs-open-account-modal', openAccount);
     return () => {
       window.removeEventListener('crs-open-account-modal', openAccount);
     };
-  }, []);
+  }, [ensureAuthReady]);
 
   return (
     <>
@@ -52,8 +57,18 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
               type="button"
               className="auth-toggle"
               onClick={() => {
+                prefetchAuthModalChunk();
                 setShowAuthModal(true);
+                void ensureAuthReady().catch(() => {});
                 trackEvent('account_modal_opened', { source: 'header_button', is_authenticated: !!user });
+              }}
+              onMouseEnter={() => {
+                prefetchAuthModalChunk();
+                void ensureAuthReady().catch(() => {});
+              }}
+              onFocus={() => {
+                prefetchAuthModalChunk();
+                void ensureAuthReady().catch(() => {});
               }}
               aria-label={user ? 'Manage account' : 'Login or signup'}
               title={user ? user.email : 'Login / Signup'}

@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 function normalizeProfilePayload(profile, userId) {
   const answers = profile.answers || {};
@@ -32,12 +32,16 @@ function toErrorMessage(prefix, error) {
 }
 
 export function isCloudProfilesEnabled() {
-  return isSupabaseConfigured && !!supabase;
+  return isSupabaseConfigured;
 }
 
 export async function upsertProfileCloud(profile, options = {}) {
   if (!isCloudProfilesEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable' };
   }
 
   const userId = options.userId || null;
@@ -63,6 +67,10 @@ export async function unsubscribeAlertsByToken(token) {
   if (!isCloudProfilesEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
   }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable' };
+  }
 
   const { data, error } = await supabase
     .from('saved_profiles')
@@ -85,6 +93,10 @@ export async function listProfilesForUser(userId) {
   if (!userId) return { status: 'skipped', reason: 'Missing user id' };
   if (!isCloudProfilesEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable' };
   }
 
   const { data, error } = await supabase
@@ -110,6 +122,10 @@ export async function setAlertPreferenceForUser(userId, alertOptIn) {
   if (!userId) return { status: 'skipped', reason: 'Missing user id' };
   if (!isCloudProfilesEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable' };
   }
 
   const { error, data } = await supabase
@@ -138,6 +154,10 @@ export async function setProfileEmailForUser(userId, email) {
   if (!userId) return { status: 'skipped', reason: 'Missing user id' };
   if (!isCloudProfilesEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable' };
   }
 
   const normalized = email ? String(email).trim().toLowerCase() : null;

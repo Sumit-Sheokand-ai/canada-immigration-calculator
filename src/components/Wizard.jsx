@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo, useEffect, useId } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { m as motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { searchNOC } from '../data/nocCodes';
 import { fallbackQuestionBank } from '../data/questionBank';
 import { useLanguage } from '../i18n/LanguageContext';
 import StarBorder from './StarBorder';
-import { getQuestionBank } from '../utils/questionDataSource';
+import { getQuestionBank, peekQuestionBankCache } from '../utils/questionDataSource';
+import { prefetchResultsChunk } from '../utils/chunkPrefetch';
 
 function useDebouncedValue(value, delay = 220) {
   const [debounced, setDebounced] = useState(value);
@@ -231,9 +232,16 @@ export default function Wizard({ onFinish, onProgress, initialAnswers, motionInt
   const { t } = useLanguage();
   const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const initialAnswerState = useMemo(() => (initialAnswers || {}), [initialAnswers]);
+  const initialQuestionSnapshot = useMemo(() => peekQuestionBankCache(), []);
+  const initialStepSet = useMemo(
+    () => (Array.isArray(initialQuestionSnapshot?.data) && initialQuestionSnapshot.data.length > 0
+      ? initialQuestionSnapshot.data
+      : fallbackQuestionBank),
+    [initialQuestionSnapshot]
+  );
   const [answers, setAnswers] = useState(initialAnswerState);
-  const [steps, setSteps] = useState(() => fallbackQuestionBank);
-  const [currentIdx, setCurrentIdx] = useState(() => getFirstApplicableIndex(fallbackQuestionBank, initialAnswerState));
+  const [steps, setSteps] = useState(() => initialStepSet);
+  const [currentIdx, setCurrentIdx] = useState(() => getFirstApplicableIndex(initialStepSet, initialAnswerState));
   const [history, setHistory] = useState([]);
   const [direction, setDirection] = useState(1);
 
@@ -283,6 +291,16 @@ export default function Wizard({ onFinish, onProgress, initialAnswers, motionInt
     }
     return true;
   }, [answers, currentIdx, step, steps]);
+  useEffect(() => {
+    if (pct >= 65) {
+      prefetchResultsChunk({ idle: true });
+    }
+  }, [pct]);
+  const handleNextIntent = useCallback(() => {
+    if (isLastVisible || pct >= 65) {
+      prefetchResultsChunk();
+    }
+  }, [isLastVisible, pct]);
 
   const goNext = useCallback(() => {
     if (!step || !isComplete(step, answers)) return;
@@ -396,6 +414,8 @@ export default function Wizard({ onFinish, onProgress, initialAnswers, motionInt
             className={`btn-next${isLastVisible ? ' finish' : ''}`}
             disabled={!complete}
             onClick={goNext}
+            onMouseEnter={handleNextIntent}
+            onFocus={handleNextIntent}
             whileHover={complete && !prefersReducedMotion ? { scale: 1.02 } : undefined}
             whileTap={complete && !prefersReducedMotion ? { scale: 0.97 } : undefined}
             aria-label={isLastVisible ? 'Calculate score' : 'Next step'}

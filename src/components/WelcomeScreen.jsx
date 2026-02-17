@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { m as motion, useReducedMotion } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 import StarBorder from './StarBorder';
 
@@ -15,7 +15,7 @@ function sourceLabel(source) {
   return source === 'supabase' ? 'Live sync' : 'Local data mode';
 }
 
-export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource = 'local-fallback', motionIntensity = 'full' }) {
+export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasSaved, drawData, drawSource = 'local-fallback', motionIntensity = 'full' }) {
   const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { t } = useLanguage();
 
@@ -46,10 +46,10 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource 
         <motion.div className="resume-banner" variants={item}>
           <p>{t('welcome.resume')}</p>
           <div className="resume-actions">
-            <motion.button type="button" className="btn-resume" whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }} onClick={() => onStart(true)}>
+            <motion.button type="button" className="btn-resume" whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }} onClick={() => onStart(true)} onMouseEnter={onPrepareStart} onFocus={onPrepareStart}>
               {t('welcome.resumeBtn')}
             </motion.button>
-            <motion.button type="button" className="btn-fresh" whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }} onClick={() => onStart(false)}>
+            <motion.button type="button" className="btn-fresh" whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }} onClick={() => onStart(false)} onMouseEnter={onPrepareStart} onFocus={onPrepareStart}>
               {t('welcome.startFresh')}
             </motion.button>
           </div>
@@ -79,6 +79,8 @@ export default function WelcomeScreen({ onStart, hasSaved, drawData, drawSource 
             whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
             onClick={() => onStart(false)}
+            onMouseEnter={onPrepareStart}
+            onFocus={onPrepareStart}
           >
             {t('welcome.btn')}
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

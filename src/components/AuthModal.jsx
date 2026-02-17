@@ -26,6 +26,7 @@ export default function AuthModal({ open, onClose }) {
     isConfigured,
     loading,
     user,
+    ensureAuthReady,
     sendEmailMagicLink,
     verifyEmailOtp,
     refreshSession,
@@ -47,10 +48,13 @@ export default function AuthModal({ open, onClose }) {
   const [policyOverrideId, setPolicyOverrideId] = useState(() => readPolicyRuleSetOverride() || '');
   const [adminMeta, setAdminMeta] = useState(() => ({
     drawSource: 'unknown',
+    drawFreshness: 'unknown',
     drawUpdatedAt: '—',
     categorySource: 'unknown',
+    categoryFreshness: 'unknown',
     categoryCount: 0,
     questionSource: 'unknown',
+    questionFreshness: 'unknown',
     questionCount: 0,
     activePolicy: resolvePolicyRuleSet(),
     refreshedAt: '',
@@ -79,10 +83,13 @@ export default function AuthModal({ open, onClose }) {
       ]);
       setAdminMeta({
         drawSource: latestRes?.source || 'unknown',
+        drawFreshness: latestRes?.freshness || 'unknown',
         drawUpdatedAt: latestRes?.data?.lastUpdated || '—',
         categorySource: categoryRes?.source || 'unknown',
+        categoryFreshness: categoryRes?.freshness || 'unknown',
         categoryCount: Array.isArray(categoryRes?.data) ? categoryRes.data.length : 0,
         questionSource: questionRes?.source || 'unknown',
+        questionFreshness: questionRes?.freshness || 'unknown',
         questionCount: Array.isArray(questionRes?.data) ? questionRes.data.length : 0,
         activePolicy: resolvePolicyRuleSet(),
         refreshedAt: new Date().toISOString(),
@@ -94,6 +101,13 @@ export default function AuthModal({ open, onClose }) {
       if (!silent) setActiveAction('');
     }
   }, []);
+
+  useEffect(() => {
+    if (!open || !isConfigured) return;
+    void ensureAuthReady().catch(() => {
+      // no-op: existing UI already communicates unavailable auth states
+    });
+  }, [ensureAuthReady, isConfigured, open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -565,9 +579,9 @@ export default function AuthModal({ open, onClose }) {
                 </label>
                 <div className="auth-admin-meta">
                   <p><strong>Active policy:</strong> {adminMeta.activePolicy?.id || '—'} ({adminMeta.activePolicy?.source || 'unknown'})</p>
-                  <p><strong>Draw source:</strong> {adminMeta.drawSource} · Updated {adminMeta.drawUpdatedAt}</p>
-                  <p><strong>Category source:</strong> {adminMeta.categorySource} · {adminMeta.categoryCount} categories</p>
-                  <p><strong>Question bank:</strong> {adminMeta.questionSource} · {adminMeta.questionCount} steps</p>
+                  <p><strong>Draw source:</strong> {adminMeta.drawSource} ({adminMeta.drawFreshness}) · Updated {adminMeta.drawUpdatedAt}</p>
+                  <p><strong>Category source:</strong> {adminMeta.categorySource} ({adminMeta.categoryFreshness}) · {adminMeta.categoryCount} categories</p>
+                  <p><strong>Question bank:</strong> {adminMeta.questionSource} ({adminMeta.questionFreshness}) · {adminMeta.questionCount} steps</p>
                   <p><strong>Metadata refreshed:</strong> {adminMeta.refreshedAt ? new Date(adminMeta.refreshedAt).toLocaleString() : '—'}</p>
                 </div>
                 <div className="auth-actions">

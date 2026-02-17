@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { trackEvent } from '../utils/analytics';
+import { trackError } from '../utils/analytics';
 
 export default class AppErrorBoundary extends Component {
   constructor(props) {
@@ -18,9 +18,9 @@ export default class AppErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    trackEvent('app_error_boundary_triggered', {
-      message: String(error?.message || 'unknown_error'),
-      stack: String(errorInfo?.componentStack || '').slice(0, 280),
+    trackError('app_error_boundary_triggered', error, {
+      component_stack: String(errorInfo?.componentStack || '').slice(0, 600),
+      route: typeof window !== 'undefined' ? window.location.pathname : 'server',
     });
   }
 

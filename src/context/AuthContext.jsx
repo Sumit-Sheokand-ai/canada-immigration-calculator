@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { isSupabaseConfigured, supabase } from '../utils/supabaseClient';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getSupabaseClient, isSupabaseConfigured } from '../utils/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -40,50 +40,75 @@ async function extractEdgeFunctionErrorMessage(error) {
 }
 
 export function AuthProvider({ children }) {
-  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
+  const mountedRef = useRef(true);
+  const authSubscriptionRef = useRef(null);
+  const hydratePromiseRef = useRef(null);
+
+  const applySessionState = useCallback((nextSession) => {
+    setSession(nextSession || null);
+    setUser(nextSession?.user || null);
+  }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      return;
-    }
-
-    let mounted = true;
-
-    supabase.auth.getSession()
-      .then(({ data, error }) => {
-        if (!mounted) return;
-        if (error) {
-          setLoading(false);
-          return;
-        }
-        setSession(data.session || null);
-        setUser(data.session?.user || null);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession || null);
-      setUser(nextSession?.user || null);
-      setLoading(false);
-    });
-
     return () => {
-      mounted = false;
-      data?.subscription?.unsubscribe();
+      mountedRef.current = false;
+      authSubscriptionRef.current?.unsubscribe?.();
+      authSubscriptionRef.current = null;
     };
   }, []);
 
-  const sendEmailMagicLink = useCallback(async (email) => {
-    if (!isSupabaseConfigured || !supabase) {
+  const ensureAuthReady = useCallback(async () => {
+    if (!isSupabaseConfigured) return null;
+    if (hydratePromiseRef.current) return hydratePromiseRef.current;
+
+    hydratePromiseRef.current = (async () => {
+      const client = await getSupabaseClient();
+      if (!client) return null;
+
+      if (!authSubscriptionRef.current) {
+        const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
+          if (!mountedRef.current) return;
+          applySessionState(nextSession || null);
+        });
+        authSubscriptionRef.current = data?.subscription || null;
+      }
+
+      if (mountedRef.current) setLoading(true);
+      try {
+        const { data, error } = await client.auth.getSession();
+        if (error) throw error;
+        if (mountedRef.current) {
+          applySessionState(data.session || null);
+        }
+      } finally {
+        if (mountedRef.current) setLoading(false);
+      }
+
+      return client;
+    })().finally(() => {
+      hydratePromiseRef.current = null;
+    });
+
+    return hydratePromiseRef.current;
+  }, [applySessionState]);
+
+  const requireClient = useCallback(async () => {
+    if (!isSupabaseConfigured) {
       throw new Error('Supabase auth is not configured.');
     }
-    const { error } = await supabase.auth.signInWithOtp({
+    const client = await ensureAuthReady();
+    if (!client) {
+      throw new Error('Supabase auth is not configured.');
+    }
+    return client;
+  }, [ensureAuthReady]);
+
+  const sendEmailMagicLink = useCallback(async (email) => {
+    const client = await requireClient();
+    const { error } = await client.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
@@ -92,31 +117,27 @@ export function AuthProvider({ children }) {
     });
     if (error) throw error;
     return { status: 'sent' };
-  }, []);
+  }, [requireClient]);
 
   const sendEmailOtp = useCallback(async (email) => {
     return sendEmailMagicLink(email);
   }, [sendEmailMagicLink]);
 
   const verifyEmailOtp = useCallback(async (email, token) => {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase auth is not configured.');
-    }
+    const client = await requireClient();
     const possibleTypes = ['email', 'magiclink', 'signup'];
     let lastError = null;
     for (const type of possibleTypes) {
-      const { data, error } = await supabase.auth.verifyOtp({ email, token, type });
+      const { data, error } = await client.auth.verifyOtp({ email, token, type });
       if (!error) return data;
       lastError = error;
     }
     throw lastError || new Error('Unable to verify the email code.');
-  }, []);
+  }, [requireClient]);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase auth is not configured.');
-    }
-    const { error } = await supabase.auth.signInWithOAuth({
+    const client = await requireClient();
+    const { error } = await client.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: getRedirectTo(),
@@ -124,53 +145,48 @@ export function AuthProvider({ children }) {
     });
     if (error) throw error;
     return { status: 'redirecting' };
-  }, []);
+  }, [requireClient]);
 
   const signOut = useCallback(async () => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signOut();
+    const client = await ensureAuthReady();
+    if (!client) return;
+    const { error } = await client.auth.signOut();
     if (error) throw error;
-  }, []);
+  }, [ensureAuthReady]);
 
   const updateProfile = useCallback(async ({ fullName }) => {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase auth is not configured.');
-    }
+    const client = await requireClient();
     const payload = {};
     if (typeof fullName === 'string') {
       payload.data = { full_name: fullName.trim() };
     }
-    const { data, error } = await supabase.auth.updateUser(payload);
+    const { data, error } = await client.auth.updateUser(payload);
     if (error) throw error;
     if (data?.user) {
       setUser(data.user);
     }
     return data;
-  }, []);
+  }, [requireClient]);
 
   const changePassword = useCallback(async (password) => {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase auth is not configured.');
-    }
+    const client = await requireClient();
     const nextPassword = String(password || '');
     if (nextPassword.length < 8) {
       throw new Error('Password must be at least 8 characters.');
     }
-    const { data, error } = await supabase.auth.updateUser({ password: nextPassword });
+    const { data, error } = await client.auth.updateUser({ password: nextPassword });
     if (error) throw error;
     if (data?.user) {
       setUser(data.user);
     }
     return data;
-  }, []);
+  }, [requireClient]);
 
   const deleteAccount = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase auth is not configured.');
-    }
+    const client = await requireClient();
 
     const functionName = import.meta.env.VITE_SUPABASE_DELETE_ACCOUNT_FUNCTION || 'delete-account';
-    const { data, error } = await supabase.functions.invoke(functionName, {
+    const { data, error } = await client.functions.invoke(functionName, {
       body: { confirm: true },
     });
 
@@ -187,22 +203,22 @@ export function AuthProvider({ children }) {
       throw new Error(String(data?.message || data?.error || 'Could not delete account.'));
     }
 
-    await supabase.auth.signOut();
+    await client.auth.signOut();
     setSession(null);
     setUser(null);
     return data;
-  }, []);
+  }, [requireClient]);
 
   const refreshSession = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) {
+    const client = await ensureAuthReady();
+    if (!client) {
       return null;
     }
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await client.auth.getSession();
     if (error) throw error;
-    setSession(data.session || null);
-    setUser(data.session?.user || null);
+    applySessionState(data.session || null);
     return data.session || null;
-  }, []);
+  }, [applySessionState, ensureAuthReady]);
 
   const value = useMemo(() => ({
     isConfigured: isSupabaseConfigured,
@@ -213,13 +229,14 @@ export function AuthProvider({ children }) {
     sendEmailOtp,
     sendEmailMagicLink,
     verifyEmailOtp,
+    ensureAuthReady,
     signInWithGoogle,
     signOut,
     updateProfile,
     changePassword,
     deleteAccount,
     refreshSession,
-  }), [changePassword, deleteAccount, loading, refreshSession, sendEmailMagicLink, sendEmailOtp, session, signInWithGoogle, signOut, updateProfile, user, verifyEmailOtp]);
+  }), [changePassword, deleteAccount, ensureAuthReady, loading, refreshSession, sendEmailMagicLink, sendEmailOtp, session, signInWithGoogle, signOut, updateProfile, user, verifyEmailOtp]);
 
   return (
     <AuthContext.Provider value={value}>

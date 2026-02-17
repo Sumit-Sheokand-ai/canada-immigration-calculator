@@ -2,11 +2,13 @@ import {
   categoryBasedInfo as fallbackCategoryDrawInfo,
   latestDraws as fallbackLatestDraws,
 } from '../data/crsData';
-import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 import { readRuntimeFlags } from './runtimeFlags';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const ENABLE_REMOTE_CATEGORY_CONFIG = import.meta.env.VITE_ENABLE_CATEGORY_CONFIG_REMOTE === 'true';
+const LATEST_DRAWS_STORAGE_KEY = 'crs-cache-latest-draws-v1';
+const CATEGORY_CONFIG_STORAGE_KEY = 'crs-cache-category-config-v1';
 let latestDrawsCache = {
   data: null,
   source: 'none',
@@ -17,6 +19,8 @@ let categoryConfigCache = {
   source: 'none',
   fetchedAt: 0,
 };
+let latestDrawsCacheHydrated = false;
+let categoryConfigCacheHydrated = false;
 let canQueryRemoteCategoryConfig = ENABLE_REMOTE_CATEGORY_CONFIG;
 
 function hasBasicShape(payload) {
@@ -114,37 +118,164 @@ function mergeCategoryDrawInfo(configRows = []) {
   return [...mergedKnown, ...unknownOverrides];
 }
 
+function readPersistedCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedCache(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // no-op for private mode/storage quota issues
+  }
+}
+
+function removePersistedCache(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // no-op for private mode/storage quota issues
+  }
+}
+
+function isCacheFresh(fetchedAt) {
+  return Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < CACHE_TTL_MS;
+}
+
+function toFreshness(fetchedAt) {
+  return isCacheFresh(fetchedAt) ? 'fresh' : 'stale';
+}
+
+function toDrawResponse(cacheEntry, { revalidating = false } = {}) {
+  return {
+    status: 'ok',
+    source: cacheEntry.source,
+    data: cacheEntry.data,
+    fetchedAt: cacheEntry.fetchedAt,
+    freshness: toFreshness(cacheEntry.fetchedAt),
+    revalidating,
+  };
+}
+
+function serializeCategoryRows(rows = []) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => ({
+    id: row?.id || '',
+    source: row?.source || 'supabase',
+    name: row?.name || '',
+    icon: row?.icon || '',
+    description: row?.description || '',
+    eligibility: row?.eligibility || '',
+    recent_cutoff: Number(row?.recentCutoff ?? row?.recent_cutoff),
+    cutoff_range: row?.cutoffRange ?? row?.cutoff_range ?? 'N/A',
+    updated_at: row?.updatedAt ?? row?.updated_at ?? null,
+  }));
+}
+
+function hydrateLatestDrawCacheFromStorage() {
+  if (latestDrawsCacheHydrated) return;
+  latestDrawsCacheHydrated = true;
+  const persisted = readPersistedCache(LATEST_DRAWS_STORAGE_KEY);
+  const normalized = normalizeDrawPayload(persisted?.data);
+  const fetchedAt = Number(persisted?.fetchedAt || 0);
+  if (!normalized || !Number.isFinite(fetchedAt) || fetchedAt <= 0) return;
+  latestDrawsCache = {
+    data: normalized,
+    source: String(persisted?.source || 'supabase-cache'),
+    fetchedAt,
+  };
+}
+
+function hydrateCategoryCacheFromStorage() {
+  if (categoryConfigCacheHydrated) return;
+  categoryConfigCacheHydrated = true;
+  const persisted = readPersistedCache(CATEGORY_CONFIG_STORAGE_KEY);
+  const rows = serializeCategoryRows(persisted?.data || []);
+  if (!rows.length) return;
+  const merged = mergeCategoryDrawInfo(rows);
+  if (!merged.length) return;
+  const fetchedAt = Number(persisted?.fetchedAt || 0);
+  if (!Number.isFinite(fetchedAt) || fetchedAt <= 0) return;
+  categoryConfigCache = {
+    data: merged,
+    source: String(persisted?.source || 'supabase-cache'),
+    fetchedAt,
+  };
+}
+
+function setLatestDrawsCache(data, source) {
+  latestDrawsCache = {
+    data,
+    source,
+    fetchedAt: Date.now(),
+  };
+  writePersistedCache(LATEST_DRAWS_STORAGE_KEY, {
+    data,
+    source,
+    fetchedAt: latestDrawsCache.fetchedAt,
+  });
+}
+
+function setCategoryConfigCache(data, source) {
+  categoryConfigCache = {
+    data,
+    source,
+    fetchedAt: Date.now(),
+  };
+  writePersistedCache(CATEGORY_CONFIG_STORAGE_KEY, {
+    data: serializeCategoryRows(data),
+    source,
+    fetchedAt: categoryConfigCache.fetchedAt,
+  });
+}
+
 export function getFallbackLatestDraws() {
   return fallbackLatestDraws;
 }
 export function getFallbackCategoryDrawInfo() {
   return fallbackCategoryDrawInfo;
 }
+export function peekLatestDrawsCache() {
+  hydrateLatestDrawCacheFromStorage();
+  if (latestDrawsCache.data) return toDrawResponse(latestDrawsCache);
+  return toDrawResponse({
+    data: fallbackLatestDraws,
+    source: 'local-fallback',
+    fetchedAt: 0,
+  });
+}
+export function peekCategoryDrawInfoCache() {
+  hydrateCategoryCacheFromStorage();
+  if (categoryConfigCache.data) return toDrawResponse(categoryConfigCache);
+  return toDrawResponse({
+    data: fallbackCategoryDrawInfo,
+    source: 'local-fallback',
+    fetchedAt: 0,
+  });
+}
 
 export function clearLatestDrawsCache() {
   latestDrawsCache = { data: null, source: 'none', fetchedAt: 0 };
+  latestDrawsCacheHydrated = true;
+  removePersistedCache(LATEST_DRAWS_STORAGE_KEY);
 }
 export function clearCategoryConfigCache() {
   categoryConfigCache = { data: null, source: 'none', fetchedAt: 0 };
+  categoryConfigCacheHydrated = true;
   canQueryRemoteCategoryConfig = ENABLE_REMOTE_CATEGORY_CONFIG;
+  removePersistedCache(CATEGORY_CONFIG_STORAGE_KEY);
 }
 
-export async function getLatestDraws({ forceRefresh = false } = {}) {
-  const runtimeFlags = readRuntimeFlags();
-  if (runtimeFlags.forceLocalData) {
-    latestDrawsCache = {
-      data: fallbackLatestDraws,
-      source: 'local-forced',
-      fetchedAt: Date.now(),
-    };
-    return { status: 'ok', source: 'local-forced', data: fallbackLatestDraws };
-  }
-  if (!forceRefresh && latestDrawsCache.data && (Date.now() - latestDrawsCache.fetchedAt) < CACHE_TTL_MS) {
-    return { status: 'ok', source: latestDrawsCache.source, data: latestDrawsCache.data };
-  }
-
-  if (isSupabaseConfigured && supabase) {
+async function refreshLatestDrawsFromRemote() {
+  if (isSupabaseConfigured) {
     try {
+      const supabase = await getSupabaseClient();
+      if (!supabase) throw new Error('Supabase client unavailable');
       const { data, error } = await supabase
         .from('draw_snapshots')
         .select('payload,last_updated')
@@ -155,12 +286,8 @@ export async function getLatestDraws({ forceRefresh = false } = {}) {
         const row = data?.[0];
         const normalized = normalizeDrawPayload(row?.payload);
         if (normalized) {
-          latestDrawsCache = {
-            data: normalized,
-            source: 'supabase',
-            fetchedAt: Date.now(),
-          };
-          return { status: 'ok', source: 'supabase', data: normalized };
+          setLatestDrawsCache(normalized, 'supabase');
+          return toDrawResponse(latestDrawsCache);
         }
       }
     } catch {
@@ -168,30 +295,19 @@ export async function getLatestDraws({ forceRefresh = false } = {}) {
     }
   }
 
-  latestDrawsCache = {
-    data: fallbackLatestDraws,
-    source: 'local-fallback',
-    fetchedAt: Date.now(),
-  };
-  return { status: 'ok', source: 'local-fallback', data: fallbackLatestDraws };
+  if (latestDrawsCache.data) {
+    return toDrawResponse(latestDrawsCache);
+  }
+
+  setLatestDrawsCache(fallbackLatestDraws, 'local-fallback');
+  return toDrawResponse(latestDrawsCache);
 }
 
-export async function getCategoryDrawInfo({ forceRefresh = false } = {}) {
-  const runtimeFlags = readRuntimeFlags();
-  if (runtimeFlags.forceLocalData) {
-    categoryConfigCache = {
-      data: fallbackCategoryDrawInfo,
-      source: 'local-forced',
-      fetchedAt: Date.now(),
-    };
-    return { status: 'ok', source: 'local-forced', data: fallbackCategoryDrawInfo };
-  }
-  if (!forceRefresh && categoryConfigCache.data && (Date.now() - categoryConfigCache.fetchedAt) < CACHE_TTL_MS) {
-    return { status: 'ok', source: categoryConfigCache.source, data: categoryConfigCache.data };
-  }
-
-  if (isSupabaseConfigured && supabase && canQueryRemoteCategoryConfig) {
+async function refreshCategoryConfigFromRemote() {
+  if (isSupabaseConfigured && canQueryRemoteCategoryConfig) {
     try {
+      const supabase = await getSupabaseClient();
+      if (!supabase) throw new Error('Supabase client unavailable');
       const { data, error } = await supabase
         .from('category_draw_configs')
         .select('id,source,name,icon,description,eligibility,recent_cutoff,cutoff_range,is_active,updated_at')
@@ -203,22 +319,75 @@ export async function getCategoryDrawInfo({ forceRefresh = false } = {}) {
 
       if (!error && Array.isArray(data) && data.length > 0) {
         const merged = mergeCategoryDrawInfo(data);
-        categoryConfigCache = {
-          data: merged,
-          source: 'supabase',
-          fetchedAt: Date.now(),
-        };
-        return { status: 'ok', source: 'supabase', data: merged };
+        setCategoryConfigCache(merged, 'supabase');
+        return toDrawResponse(categoryConfigCache);
       }
     } catch {
       // fallback path below
     }
   }
 
-  categoryConfigCache = {
-    data: fallbackCategoryDrawInfo,
-    source: 'local-fallback',
-    fetchedAt: Date.now(),
-  };
-  return { status: 'ok', source: 'local-fallback', data: fallbackCategoryDrawInfo };
+  if (categoryConfigCache.data) {
+    return toDrawResponse(categoryConfigCache);
+  }
+
+  setCategoryConfigCache(fallbackCategoryDrawInfo, 'local-fallback');
+  return toDrawResponse(categoryConfigCache);
+}
+
+function notifyRevalidated(onRevalidated, payload) {
+  if (typeof onRevalidated !== 'function') return;
+  onRevalidated(payload);
+}
+
+export async function getLatestDraws({ forceRefresh = false, staleWhileRevalidate = true, onRevalidated = null } = {}) {
+  const runtimeFlags = readRuntimeFlags();
+  if (runtimeFlags.forceLocalData) {
+    setLatestDrawsCache(fallbackLatestDraws, 'local-forced');
+    return toDrawResponse(latestDrawsCache);
+  }
+
+  hydrateLatestDrawCacheFromStorage();
+
+  if (!forceRefresh && latestDrawsCache.data) {
+    const cachedResponse = toDrawResponse(latestDrawsCache);
+    if (cachedResponse.freshness === 'fresh' || !staleWhileRevalidate) {
+      return cachedResponse;
+    }
+    void refreshLatestDrawsFromRemote()
+      .then((next) => notifyRevalidated(onRevalidated, next))
+      .catch(() => {
+        // no-op: keep stale cache response
+      });
+    return { ...cachedResponse, revalidating: true };
+  }
+
+  const refreshed = await refreshLatestDrawsFromRemote();
+  return refreshed;
+}
+
+export async function getCategoryDrawInfo({ forceRefresh = false, staleWhileRevalidate = true, onRevalidated = null } = {}) {
+  const runtimeFlags = readRuntimeFlags();
+  if (runtimeFlags.forceLocalData) {
+    setCategoryConfigCache(fallbackCategoryDrawInfo, 'local-forced');
+    return toDrawResponse(categoryConfigCache);
+  }
+
+  hydrateCategoryCacheFromStorage();
+
+  if (!forceRefresh && categoryConfigCache.data) {
+    const cachedResponse = toDrawResponse(categoryConfigCache);
+    if (cachedResponse.freshness === 'fresh' || !staleWhileRevalidate) {
+      return cachedResponse;
+    }
+    void refreshCategoryConfigFromRemote()
+      .then((next) => notifyRevalidated(onRevalidated, next))
+      .catch(() => {
+        // no-op: keep stale cache response
+      });
+    return { ...cachedResponse, revalidating: true };
+  }
+
+  const refreshed = await refreshCategoryConfigFromRemote();
+  return refreshed;
 }

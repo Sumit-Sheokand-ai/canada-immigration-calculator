@@ -185,6 +185,43 @@ function dispatchToPlausible(eventName, payload) {
   }
 }
 
+function summarizeErrorLike(error) {
+  if (error instanceof Error) {
+    const firstStackLine = String(error.stack || '').split('\n')[0] || '';
+    const causeMessage = error?.cause instanceof Error
+      ? error.cause.message
+      : (typeof error?.cause === 'string' ? error.cause : '');
+    return {
+      error_name: String(error.name || 'Error').slice(0, 120),
+      error_message: String(error.message || 'Unknown error').slice(0, 280),
+      error_stack_head: String(firstStackLine || '').slice(0, 280),
+      error_cause: String(causeMessage || '').slice(0, 200),
+    };
+  }
+  if (typeof error === 'string') {
+    return {
+      error_name: 'Error',
+      error_message: error.slice(0, 280),
+      error_stack_head: '',
+      error_cause: '',
+    };
+  }
+  if (error && typeof error === 'object') {
+    return {
+      error_name: String(error.name || 'Error').slice(0, 120),
+      error_message: String(error.message || JSON.stringify(error)).slice(0, 280),
+      error_stack_head: String(error.stack || '').split('\n')[0]?.slice(0, 280) || '',
+      error_cause: '',
+    };
+  }
+  return {
+    error_name: 'Error',
+    error_message: 'Unknown error',
+    error_stack_head: '',
+    error_cause: '',
+  };
+}
+
 export function trackEvent(eventName, payload = {}) {
   if (typeof window === 'undefined') return;
   const name = sanitizeEventName(eventName);
@@ -215,6 +252,20 @@ export function trackEvent(eventName, payload = {}) {
     session_seq: session.seq,
   });
   void dispatchToOptionalEndpoint(event);
+}
+
+export function trackError(eventName, error, context = {}) {
+  if (typeof window === 'undefined') return;
+  const safeContext = sanitizePayload(context);
+  const errorSummary = summarizeErrorLike(error);
+  const online = typeof navigator !== 'undefined' ? navigator.onLine : undefined;
+  const payload = {
+    ...safeContext,
+    ...errorSummary,
+    online: typeof online === 'boolean' ? online : undefined,
+    visibility: typeof document !== 'undefined' ? document.visibilityState : undefined,
+  };
+  trackEvent(eventName || 'app_error', payload);
 }
 
 export function readTrackedEvents(limit = 100) {

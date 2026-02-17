@@ -543,6 +543,7 @@ export function buildStrategyOptimizer({
   averageCutoff,
   categoryInfo = [],
   provinces = [],
+  eligibleCategoryCount = Number.NaN,
 }) {
   const score = toNumber(result?.total);
   const cutoff = toNumber(averageCutoff, 520);
@@ -550,7 +551,10 @@ export function buildStrategyOptimizer({
   const signals = deriveProfileSignals(answers, result, cutoff);
   const pathPlans = buildPathPlans(answers, result, { averageCutoff: cutoff }).plans || [];
   const pathOptions = pathPlans.slice(0, 2).map((path) => buildPathwayOption(path, signals, gap));
-  const eligibleCount = categoryInfo.filter((cat) => typeof cat?.check === 'function' && cat.check(answers)).length;
+  const explicitEligibleCount = toNumber(eligibleCategoryCount, Number.NaN);
+  const eligibleCount = Number.isFinite(explicitEligibleCount)
+    ? Math.max(Math.round(explicitEligibleCount), 0)
+    : categoryInfo.filter((cat) => typeof cat?.check === 'function' && cat.check(answers)).length;
   const categoryOption = buildCategoryOption({ score, cutoff, eligibleCount, signals });
   const provinceOption = buildProvinceOption((provinces || [])[0] || null);
 
@@ -609,6 +613,42 @@ export function buildStrategyOptimizer({
     scoreWeights: SCORE_WEIGHTS,
     guidanceSummary,
   };
+}
+
+export function computeStrategicInsights({
+  answers,
+  result,
+  suggestions = [],
+  averageCutoff,
+  activeDraws,
+  categoryInfo = [],
+  provinces = [],
+  progress = {},
+  enableAdvancedForecasting = false,
+  eligibleCategoryCount = Number.NaN,
+}) {
+  const strategy = buildStrategyOptimizer({
+    answers,
+    result,
+    averageCutoff,
+    categoryInfo,
+    provinces,
+    eligibleCategoryCount,
+  });
+  const actionPlan = buildNinetyDayPlan({
+    suggestions,
+    strategy,
+    scoreGap: Math.max((averageCutoff || 0) - (result?.total || 0), 0),
+    progress,
+  });
+  const forecast = enableAdvancedForecasting
+    ? buildOutcomeForecast({
+      activeDraws,
+      userScore: result?.total || 0,
+      baseConfidence: strategy.overallConfidence,
+    })
+    : null;
+  return { strategy, actionPlan, forecast };
 }
 function createPlanTask(
   id,

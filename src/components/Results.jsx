@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { m as motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { calculate, recalcWith } from '../scoring/scoring';
 import { generateSuggestions, estimateTimeline } from '../scoring/suggestions';
 import { pathways } from '../data/crsData';
@@ -11,6 +11,7 @@ import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from 
 import { getFallbackCategoryDrawInfo, getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
+import { prefetchPathCoachChunk } from '../utils/chunkPrefetch';
 import Loader from './Loader';
 const PathCoach = lazy(() => import('./PathCoach'));
 const ResultsStrategicHub = lazy(() => import('./ResultsStrategicHub'));
@@ -101,13 +102,15 @@ function ScoreGauge({ score, statusColor, reduceMotion = false }) {
   );
 }
 
-function SectionToggleHeader({ id, label, open, onToggle }) {
+function SectionToggleHeader({ id, label, open, onToggle, onIntent = null }) {
   return (
     <h3 className="section-toggle-heading">
       <button
         type="button"
         className="section-toggle"
         onClick={onToggle}
+        onMouseEnter={() => { if (typeof onIntent === 'function') onIntent(); }}
+        onFocus={() => { if (typeof onIntent === 'function') onIntent(); }}
         aria-expanded={open}
         aria-controls={id}
       >
@@ -369,6 +372,9 @@ export default function Results({
   onRetryDataSync = null,
   isDataSyncing = false,
   dataSyncError = '',
+  dataSyncFreshness = 'fresh',
+  isDataRevalidating = false,
+  dataLastSyncedAt = '',
 }) {
   const { t } = useLanguage();
   const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
@@ -694,9 +700,20 @@ export default function Results({
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-pricing')}>Plans</button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-explainability')}>Explainability</button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-profile-compare')}>Profile compare</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-profile-trend')}>Profile trend</button>
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>}
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>}
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-coach')}>Expert strategy</button>}
+          {isSelfCalc && (
+            <button
+              type="button"
+              className="action-btn"
+              onClick={() => scrollToSection('section-coach')}
+              onMouseEnter={() => prefetchPathCoachChunk()}
+              onFocus={() => prefetchPathCoachChunk()}
+            >
+              Expert strategy
+            </button>
+          )}
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}>Category draws</button>}
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-timeline')}>Timeline</button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>Recent draws</button>
@@ -725,6 +742,16 @@ export default function Results({
             </button>
             {dataSyncError && <small className="data-sync-note">{dataSyncError}</small>}
           </div>
+        )}
+        {isDataRevalidating && (
+          <p className="data-sync-note">
+            Using cached data while background refresh completes…
+          </p>
+        )}
+        {!isDataRevalidating && dataSyncFreshness === 'stale' && (
+          <p className="data-sync-note">
+            Cached data is currently stale.{dataLastSyncedAt ? ` Last sync: ${new Date(dataLastSyncedAt).toLocaleString()}.` : ''}
+          </p>
         )}
         <div className="cutoff-compare">
           <CutoffBar label="Your Score" value={score} max={Math.max(score, cutoff, 600)} color="var(--primary)" />
@@ -964,6 +991,7 @@ export default function Results({
             id="expert-coach-panel"
             label="Expert strategy coach"
             open={coachOpen}
+            onIntent={() => prefetchPathCoachChunk()}
             onToggle={() => {
               const next = !coachOpen;
               setCoachOpen(next);

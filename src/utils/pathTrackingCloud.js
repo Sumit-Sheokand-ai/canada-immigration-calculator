@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 function tableMissing(error, tableName) {
   const message = String(error?.message || '');
@@ -15,7 +15,7 @@ function nowIso() {
 }
 
 export function isTrackingFeatureEnabled() {
-  return isSupabaseConfigured && !!supabase;
+  return isSupabaseConfigured;
 }
 
 export function isTrackingAccessActive(accessRow) {
@@ -32,6 +32,10 @@ export async function getTrackingAccess(userId) {
   if (!userId) return { status: 'skipped', reason: 'Missing user id', active: false };
   if (!isTrackingFeatureEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured', active: false };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable', active: false };
   }
   const { data, error } = await supabase
     .from('user_tracking_access')
@@ -61,6 +65,10 @@ export async function savePathTrackingCloud(userId, tracking) {
   }
   if (!isTrackingFeatureEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable' };
   }
   const payload = {
     id: tracking.id,
@@ -98,6 +106,10 @@ export async function loadLatestPathTrackingCloud(userId) {
   if (!userId) return { status: 'skipped', reason: 'Missing user id' };
   if (!isTrackingFeatureEnabled()) {
     return { status: 'skipped', reason: 'Supabase env vars are not configured' };
+  }
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return { status: 'skipped', reason: 'Supabase client is unavailable', data: null };
   }
 
   const { data, error } = await supabase

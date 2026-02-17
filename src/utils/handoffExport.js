@@ -168,3 +168,46 @@ export function downloadConsultantHandoff(payload, { filePrefix = 'consultant-ha
     return false;
   }
 }
+
+function encodePayloadForUrl(payload) {
+  try {
+    return btoa(encodeURIComponent(JSON.stringify(payload)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+  } catch {
+    return '';
+  }
+}
+
+function decodePayloadFromUrl(value) {
+  try {
+    if (!value) return null;
+    const normalized = String(value)
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+    return JSON.parse(decodeURIComponent(atob(normalized + padding)));
+  } catch {
+    return null;
+  }
+}
+
+export function buildConsultantHandoffShareUrl(payload) {
+  if (typeof window === 'undefined') return '';
+  const encoded = encodePayloadForUrl(payload);
+  if (!encoded) return '';
+  const url = new URL(`${window.location.origin}${window.location.pathname}`);
+  url.searchParams.set('handoff', encoded);
+  return url.toString();
+}
+
+export function readConsultantHandoffFromQuery(search = window.location.search) {
+  try {
+    const params = new URLSearchParams(search || '');
+    const encoded = params.get('handoff');
+    return decodePayloadFromUrl(encoded);
+  } catch {
+    return null;
+  }
+}

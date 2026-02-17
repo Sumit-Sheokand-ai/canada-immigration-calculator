@@ -1,13 +1,15 @@
 import { fallbackQuestionBank } from '../data/questionBank';
-import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 import { readRuntimeFlags } from './runtimeFlags';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const QUESTION_BANK_STORAGE_KEY = 'crs-cache-question-bank-v1';
 let questionCache = {
   data: null,
   source: 'none',
   fetchedAt: 0,
 };
+let questionCacheHydrated = false;
 
 function normalizeOption(option) {
   if (!option || typeof option !== 'object') return null;
@@ -17,6 +19,73 @@ function normalizeOption(option) {
   const example = typeof option.example === 'string' ? option.example : '';
   const keywords = Array.isArray(option.keywords) ? option.keywords.map((item) => String(item)) : [];
   return { value, label, example, keywords };
+}
+
+function readPersistedCache() {
+  try {
+    const raw = localStorage.getItem(QUESTION_BANK_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedCache(value) {
+  try {
+    localStorage.setItem(QUESTION_BANK_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op for private mode/storage quota issues
+  }
+}
+
+function removePersistedCache() {
+  try {
+    localStorage.removeItem(QUESTION_BANK_STORAGE_KEY);
+  } catch {
+    // no-op for private mode/storage quota issues
+  }
+}
+
+function isCacheFresh(fetchedAt) {
+  return Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < CACHE_TTL_MS;
+}
+
+function toQuestionResponse(cacheEntry, { revalidating = false } = {}) {
+  return {
+    status: 'ok',
+    source: cacheEntry.source,
+    data: cacheEntry.data,
+    fetchedAt: cacheEntry.fetchedAt,
+    freshness: isCacheFresh(cacheEntry.fetchedAt) ? 'fresh' : 'stale',
+    revalidating,
+  };
+}
+
+function hydrateQuestionCacheFromStorage() {
+  if (questionCacheHydrated) return;
+  questionCacheHydrated = true;
+  const persisted = readPersistedCache();
+  const normalized = normalizeQuestionSetPayload(persisted?.data);
+  const fetchedAt = Number(persisted?.fetchedAt || 0);
+  if (!normalized || !Number.isFinite(fetchedAt) || fetchedAt <= 0) return;
+  questionCache = {
+    data: normalized,
+    source: String(persisted?.source || 'supabase-cache'),
+    fetchedAt,
+  };
+}
+
+function setQuestionCache(data, source) {
+  questionCache = {
+    data,
+    source,
+    fetchedAt: Date.now(),
+  };
+  writePersistedCache({
+    data,
+    source,
+    fetchedAt: questionCache.fetchedAt,
+  });
 }
 
 function normalizeGroup(group) {
@@ -107,27 +176,27 @@ function normalizeQuestionSetPayload(payload) {
 export function getFallbackQuestionBank() {
   return fallbackQuestionBank;
 }
+export function peekQuestionBankCache() {
+  hydrateQuestionCacheFromStorage();
+  if (questionCache.data) return toQuestionResponse(questionCache);
+  return toQuestionResponse({
+    data: fallbackQuestionBank,
+    source: 'local-fallback',
+    fetchedAt: 0,
+  });
+}
 
 export function clearQuestionBankCache() {
   questionCache = { data: null, source: 'none', fetchedAt: 0 };
+  questionCacheHydrated = true;
+  removePersistedCache();
 }
 
-export async function getQuestionBank({ forceRefresh = false } = {}) {
-  const runtimeFlags = readRuntimeFlags();
-  if (runtimeFlags.forceLocalData || !runtimeFlags.allowRemoteQuestionBank) {
-    questionCache = {
-      data: fallbackQuestionBank,
-      source: runtimeFlags.forceLocalData ? 'local-forced' : 'local-config',
-      fetchedAt: Date.now(),
-    };
-    return { status: 'ok', source: questionCache.source, data: fallbackQuestionBank };
-  }
-  if (!forceRefresh && questionCache.data && (Date.now() - questionCache.fetchedAt) < CACHE_TTL_MS) {
-    return { status: 'ok', source: questionCache.source, data: questionCache.data };
-  }
-
-  if (isSupabaseConfigured && supabase) {
+async function refreshQuestionBankFromRemote() {
+  if (isSupabaseConfigured) {
     try {
+      const supabase = await getSupabaseClient();
+      if (!supabase) throw new Error('Supabase client unavailable');
       const { data, error } = await supabase
         .from('question_sets')
         .select('id,source,version,payload,updated_at')
@@ -139,12 +208,8 @@ export async function getQuestionBank({ forceRefresh = false } = {}) {
         const row = data?.[0];
         const normalized = normalizeQuestionSetPayload(row?.payload);
         if (normalized) {
-          questionCache = {
-            data: normalized,
-            source: 'supabase',
-            fetchedAt: Date.now(),
-          };
-          return { status: 'ok', source: 'supabase', data: normalized };
+          setQuestionCache(normalized, 'supabase');
+          return toQuestionResponse(questionCache);
         }
       }
     } catch {
@@ -152,11 +217,42 @@ export async function getQuestionBank({ forceRefresh = false } = {}) {
     }
   }
 
-  questionCache = {
-    data: fallbackQuestionBank,
-    source: 'local-fallback',
-    fetchedAt: Date.now(),
-  };
-  return { status: 'ok', source: 'local-fallback', data: fallbackQuestionBank };
+  if (questionCache.data) {
+    return toQuestionResponse(questionCache);
+  }
+
+  setQuestionCache(fallbackQuestionBank, 'local-fallback');
+  return toQuestionResponse(questionCache);
+}
+
+function notifyRevalidated(onRevalidated, payload) {
+  if (typeof onRevalidated !== 'function') return;
+  onRevalidated(payload);
+}
+
+export async function getQuestionBank({ forceRefresh = false, staleWhileRevalidate = true, onRevalidated = null } = {}) {
+  const runtimeFlags = readRuntimeFlags();
+  if (runtimeFlags.forceLocalData || !runtimeFlags.allowRemoteQuestionBank) {
+    setQuestionCache(fallbackQuestionBank, runtimeFlags.forceLocalData ? 'local-forced' : 'local-config');
+    return toQuestionResponse(questionCache);
+  }
+
+  hydrateQuestionCacheFromStorage();
+
+  if (!forceRefresh && questionCache.data) {
+    const cachedResponse = toQuestionResponse(questionCache);
+    if (cachedResponse.freshness === 'fresh' || !staleWhileRevalidate) {
+      return cachedResponse;
+    }
+    void refreshQuestionBankFromRemote()
+      .then((next) => notifyRevalidated(onRevalidated, next))
+      .catch(() => {
+        // no-op: keep stale cache response
+      });
+    return { ...cachedResponse, revalidating: true };
+  }
+
+  const refreshed = await refreshQuestionBankFromRemote();
+  return refreshed;
 }
 

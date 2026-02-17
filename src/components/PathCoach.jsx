@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m as motion, useReducedMotion } from 'framer-motion';
 import { buildPathPlans } from '../scoring/pathPlanner';
 import {
   appendTrackingNote,
@@ -25,7 +25,7 @@ import {
   savePathTrackingCloud,
 } from '../utils/pathTrackingCloud';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../utils/supabaseClient';
+import { getSupabaseClient } from '../utils/supabaseClient';
 import StarBorder from './StarBorder';
 
 function formatDate(dateIso) {
@@ -332,6 +332,7 @@ export default function PathCoach({ answers, result, averageCutoff, categoryInfo
     setSubscribeBusy(true);
     setTrackingStatus('');
     try {
+      const supabase = await getSupabaseClient();
       if (!supabase) {
         throw new Error('Supabase client is not configured.');
       }

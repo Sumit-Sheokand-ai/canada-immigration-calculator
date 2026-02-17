@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildOutcomeForecast,
-  buildNinetyDayPlan,
-  buildStrategyOptimizer,
+  computeStrategicInsights,
   readActionPlanProgress,
   saveActionPlanProgress,
 } from '../utils/strategyHub';
@@ -10,7 +8,8 @@ import { trackEvent } from '../utils/analytics';
 import { readRuntimeFlags } from '../utils/runtimeFlags';
 import { useLanguage } from '../i18n/LanguageContext';
 import { getExperimentAssignment, trackExperimentGoal } from '../utils/experiments';
-import { buildConsultantHandoffPayload, downloadConsultantHandoff } from '../utils/handoffExport';
+import { buildConsultantHandoffPayload, buildConsultantHandoffShareUrl, downloadConsultantHandoff } from '../utils/handoffExport';
+import { listSavedProfiles } from '../utils/profileStore';
 
 function PriorityBadge({ value }) {
   const cls = value === 'High' ? 'priority-high' : value === 'Medium' ? 'priority-medium' : 'priority-low';
@@ -37,6 +36,34 @@ function normalizeTierName(value) {
   if (value === 'free') return 'Free';
   return 'Pro Tracking';
 }
+function readStorageJson(key, fallback = null) {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorageJson(key, value) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore storage write issues
+  }
+}
+
+function hashAnswersFingerprint(answers = {}) {
+  const seed = JSON.stringify(answers || {});
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+}
 
 export default function ResultsStrategicHub({
   answers,
@@ -59,22 +86,28 @@ export default function ResultsStrategicHub({
     variant: 'control',
     source: 'init',
   }));
-  const strategy = useMemo(
-    () => buildStrategyOptimizer({
-      answers,
-      result,
-      averageCutoff,
-      categoryInfo: activeCategoryInfo,
-      provinces,
-    }),
-    [activeCategoryInfo, answers, averageCutoff, provinces, result]
-  );
 
   const [planProgress, setPlanProgress] = useState(() => readActionPlanProgress(answers));
+  const workerRef = useRef(null);
+  const workerRequestIdRef = useRef(0);
+  const [computedInsights, setComputedInsights] = useState(null);
+  const profileFingerprint = useMemo(() => hashAnswersFingerprint(answers), [answers]);
+  const lastVisitSnapshotKey = useMemo(() => `crs-last-visit-snapshot-v1:${profileFingerprint}`, [profileFingerprint]);
+  const reminderStateKey = useMemo(() => `crs-action-reminders-v1:${profileFingerprint}`, [profileFingerprint]);
+  const [changeSummary, setChangeSummary] = useState(null);
+  const [taskReminders, setTaskReminders] = useState(() => readStorageJson(reminderStateKey, {}) || {});
+  const [shareStatus, setShareStatus] = useState('');
+  const eligibleCategoryCount = useMemo(
+    () => activeCategoryInfo.filter((cat) => typeof cat?.check === 'function' && cat.check(answers)).length,
+    [activeCategoryInfo, answers]
+  );
 
   useEffect(() => {
     setPlanProgress(readActionPlanProgress(answers));
   }, [answers]);
+  useEffect(() => {
+    setTaskReminders(readStorageJson(reminderStateKey, {}) || {});
+  }, [reminderStateKey]);
   useEffect(() => {
     const refresh = () => setRuntimeFlags(readRuntimeFlags());
     window.addEventListener('crs-runtime-flags-updated', refresh);
@@ -83,30 +116,128 @@ export default function ResultsStrategicHub({
   useEffect(() => {
     setPricingExperiment(getExperimentAssignment('pricing_layout_v1', { autoTrack: true }));
   }, []);
+  const strategicInput = useMemo(() => ({
+    answers,
+    result,
+    suggestions,
+    averageCutoff,
+    activeDraws,
+    provinces,
+    progress: planProgress,
+    enableAdvancedForecasting: runtimeFlags.enableAdvancedForecasting,
+    eligibleCategoryCount,
+  }), [activeDraws, answers, averageCutoff, eligibleCategoryCount, planProgress, provinces, result, runtimeFlags.enableAdvancedForecasting, suggestions]);
+  useEffect(() => {
+    let cancelled = false;
+    const applySyncFallback = () => {
+      if (cancelled) return;
+      setComputedInsights(computeStrategicInsights(strategicInput));
+    };
 
-  const actionPlan = useMemo(
-    () => buildNinetyDayPlan({
-      suggestions,
-      strategy,
-      scoreGap: Math.max((averageCutoff || 0) - (result?.total || 0), 0),
-      progress: planProgress,
-    }),
-    [averageCutoff, planProgress, result?.total, strategy, suggestions]
+    if (typeof Worker === 'undefined') {
+      applySyncFallback();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    try {
+      if (!workerRef.current) {
+        workerRef.current = new Worker(new URL('../workers/strategy.worker.js', import.meta.url), { type: 'module' });
+      }
+      const worker = workerRef.current;
+      const requestId = (workerRequestIdRef.current += 1);
+      const handleMessage = (event) => {
+        const message = event?.data || {};
+        if (cancelled || message.id !== requestId) return;
+        if (message.status === 'ok' && message.data) {
+          setComputedInsights(message.data);
+          return;
+        }
+        applySyncFallback();
+      };
+      const handleError = () => {
+        if (cancelled) return;
+        applySyncFallback();
+      };
+      worker.addEventListener('message', handleMessage);
+      worker.addEventListener('error', handleError);
+      worker.postMessage({ id: requestId, input: strategicInput });
+      return () => {
+        cancelled = true;
+        worker.removeEventListener('message', handleMessage);
+        worker.removeEventListener('error', handleError);
+      };
+    } catch {
+      applySyncFallback();
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [strategicInput]);
+  useEffect(() => () => {
+    workerRef.current?.terminate?.();
+    workerRef.current = null;
+  }, []);
+
+  const strategyFallback = useMemo(() => ({
+    score: Number(result?.total) || 0,
+    cutoff: Number(averageCutoff) || 0,
+    gap: Math.max((Number(averageCutoff) || 0) - (Number(result?.total) || 0), 0),
+    ranked: [],
+    top: null,
+    nextBest: null,
+    bottlenecks: [],
+    assumptions: [],
+    globalRiskFlags: [],
+    overallConfidence: 0,
+    confidenceBand: 'Low',
+    profileSignals: { profileComplexity: 0, minLanguageClb: 0, languageHeadroom: 0 },
+    guidanceSummary: 'Preparing strategic insights...',
+  }), [averageCutoff, result?.total]);
+  const actionPlanFallback = useMemo(() => ({
+    tasks: [],
+    milestones: [],
+    completedCount: 0,
+    totalCount: 0,
+    completionPct: 0,
+    nextBestTask: null,
+    completionGuidance: 'Preparing action plan...',
+    calendar: { reviewDates: [] },
+  }), []);
+  const strategy = useMemo(
+    () => computedInsights?.strategy || strategyFallback,
+    [computedInsights?.strategy, strategyFallback]
   );
-
+  const actionPlan = useMemo(
+    () => computedInsights?.actionPlan || actionPlanFallback,
+    [actionPlanFallback, computedInsights?.actionPlan]
+  );
+  const forecast = computedInsights?.forecast || null;
   const completedCount = actionPlan.completedCount || 0;
   const totalCount = actionPlan.totalCount || actionPlan.tasks.length;
   const completionPct = actionPlan.completionPct || 0;
-  const forecast = useMemo(
-    () => (runtimeFlags.enableAdvancedForecasting
-      ? buildOutcomeForecast({
-        activeDraws,
-        userScore: result?.total || 0,
-        baseConfidence: strategy.overallConfidence,
-      })
-      : null),
-    [activeDraws, result?.total, runtimeFlags.enableAdvancedForecasting, strategy.overallConfidence]
-  );
+  useEffect(() => {
+    if (!computedInsights?.strategy) return;
+    const previous = readStorageJson(lastVisitSnapshotKey, null);
+    const current = {
+      score: Number(strategy.score) || 0,
+      cutoff: Number(strategy.cutoff) || 0,
+      confidence: Number(strategy.overallConfidence) || 0,
+      updatedAt: new Date().toISOString(),
+    };
+    if (previous && Number.isFinite(Number(previous.score))) {
+      setChangeSummary({
+        scoreDelta: current.score - (Number(previous.score) || 0),
+        cutoffDelta: current.cutoff - (Number(previous.cutoff) || 0),
+        confidenceDelta: current.confidence - (Number(previous.confidence) || 0),
+        previousUpdatedAt: previous.updatedAt || '',
+      });
+    } else {
+      setChangeSummary(null);
+    }
+    writeStorageJson(lastVisitSnapshotKey, current);
+  }, [computedInsights?.strategy, lastVisitSnapshotKey, strategy.cutoff, strategy.overallConfidence, strategy.score]);
 
   const topFactors = [
     { label: 'Core Human Capital', value: result?.breakdown?.coreHumanCapital || 0 },
@@ -116,6 +247,82 @@ export default function ResultsStrategicHub({
   ]
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
+  const confidenceV2 = useMemo(() => {
+    const drawDataScore = drawFreshness?.tier === 'fresh'
+      ? 92
+      : drawFreshness?.tier === 'recent'
+        ? 74
+        : 48;
+    const categoryDataScore = categoryFreshness?.tier === 'fresh'
+      ? 88
+      : categoryFreshness?.tier === 'recent'
+        ? 72
+        : 45;
+    const dataScore = Math.round((drawDataScore + categoryDataScore) / 2);
+    const executionScore = Math.max(Math.min(Math.round((completionPct * 0.9) + 10), 100), 0);
+    const highRiskCount = (strategy.globalRiskFlags || []).filter((flag) => flag.severity === 'high').length;
+    const mediumRiskCount = (strategy.globalRiskFlags || []).filter((flag) => flag.severity === 'medium').length;
+    const riskPenalty = Math.min((highRiskCount * 12) + (mediumRiskCount * 6), 36);
+    const forecastScore = Number(forecast?.confidenceScore || strategy.overallConfidence || 0);
+    const total = Math.max(Math.min(Math.round(
+      (Number(strategy.overallConfidence || 0) * 0.35)
+      + (dataScore * 0.25)
+      + (executionScore * 0.2)
+      + (forecastScore * 0.2)
+      - riskPenalty
+    ), 100), 0);
+    return {
+      total,
+      dataScore,
+      executionScore,
+      forecastScore,
+      riskPenalty,
+    };
+  }, [categoryFreshness?.tier, completionPct, drawFreshness?.tier, forecast?.confidenceScore, strategy.globalRiskFlags, strategy.overallConfidence]);
+  const queuedTasks = useMemo(
+    () => [...(actionPlan.tasks || [])]
+      .filter((task) => !planProgress[task.id])
+      .sort((a, b) => {
+        const priorityRank = (a.priority === 'High' ? 0 : a.priority === 'Medium' ? 1 : 2)
+          - (b.priority === 'High' ? 0 : b.priority === 'Medium' ? 1 : 2);
+        if (priorityRank !== 0) return priorityRank;
+        return (a.dayFrom || 0) - (b.dayFrom || 0);
+      })
+      .slice(0, 4),
+    [actionPlan.tasks, planProgress]
+  );
+  const profileTrendPoints = (() => {
+    const saved = listSavedProfiles()
+      .slice(0, 8)
+      .map((profile) => ({
+        id: profile.id,
+        label: profile.updatedAt ? new Date(profile.updatedAt).toLocaleDateString() : 'Saved',
+        score: Number(profile.score) || 0,
+        current: false,
+      }));
+    const current = {
+      id: 'current-profile',
+      label: 'Now',
+      score: Number(result?.total) || 0,
+      current: true,
+    };
+    return [...saved, current]
+      .filter((point) => point.score > 0)
+      .slice(-9);
+  })();
+  const handoffPayload = useMemo(() => buildConsultantHandoffPayload({
+    answers,
+    result,
+    strategy,
+    forecast,
+    actionPlan,
+    drawData: {
+      ...activeDraws,
+      source: drawFreshness?.tier || 'unknown',
+    },
+    categoryInfo: activeCategoryInfo,
+  }), [actionPlan, activeCategoryInfo, activeDraws, answers, drawFreshness?.tier, forecast, result, strategy]);
+  const trendMaxScore = Math.max(...profileTrendPoints.map((point) => point.score || 0), 600);
 
   const pricingRecommendation = useMemo(() => {
     const hasHighRisk = strategy.globalRiskFlags?.some((flag) => flag.severity === 'high');
@@ -176,19 +383,8 @@ export default function ResultsStrategicHub({
     });
   };
   const handleExportHandoff = () => {
-    const payload = buildConsultantHandoffPayload({
-      answers,
-      result,
-      strategy,
-      forecast,
-      actionPlan,
-      drawData: {
-        ...activeDraws,
-        source: drawFreshness?.tier || 'unknown',
-      },
-      categoryInfo: activeCategoryInfo,
-    });
-    const ok = downloadConsultantHandoff(payload);
+    const ok = downloadConsultantHandoff(handoffPayload);
+    setShareStatus(ok ? 'Handoff file downloaded.' : 'Could not generate handoff file.');
     trackEvent('consultant_handoff_exported', {
       status: ok ? 'ok' : 'failed',
       score: Number(result?.total) || 0,
@@ -199,6 +395,30 @@ export default function ResultsStrategicHub({
     trackExperimentGoal('pricing_layout_v1', 'handoff_export', {
       status: ok ? 'ok' : 'failed',
     });
+  };
+  const handleCopyHandoffLink = async () => {
+    const shareUrl = buildConsultantHandoffShareUrl(handoffPayload);
+    if (!shareUrl) {
+      setShareStatus('Could not generate share link.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareStatus('Share link copied to clipboard.');
+      trackEvent('consultant_handoff_share_link', {
+        status: 'copied',
+        url_length: shareUrl.length,
+        confidence_band: strategy.confidenceBand,
+      });
+    } catch {
+      setShareStatus('Clipboard blocked. Copy this link manually from browser URL after opening it.');
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+      trackEvent('consultant_handoff_share_link', {
+        status: 'fallback_opened',
+        url_length: shareUrl.length,
+        confidence_band: strategy.confidenceBand,
+      });
+    }
   };
 
   const toggleTask = (taskId) => {
@@ -219,6 +439,20 @@ export default function ResultsStrategicHub({
       completed_count: nextCompletedCount,
       total_count: actionPlan.tasks.length,
       next_task_id: actionPlan.nextBestTask?.id || 'none',
+    });
+  };
+  const toggleTaskReminder = (taskId) => {
+    setTaskReminders((prev) => {
+      const next = {
+        ...prev,
+        [taskId]: !prev[taskId],
+      };
+      writeStorageJson(reminderStateKey, next);
+      trackEvent('action_queue_reminder_toggled', {
+        task_id: taskId,
+        enabled: !!next[taskId],
+      });
+      return next;
     });
   };
 
@@ -248,8 +482,17 @@ export default function ResultsStrategicHub({
           <button type="button" className="action-btn" onClick={handleExportHandoff}>
             {t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}
           </button>
+          <button type="button" className="action-btn" onClick={handleCopyHandoffLink}>
+            {t('strategy.actionCenter.shareHandoff', 'Copy handoff share link')}
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-action-queue', 'open_action_queue')}>
+            {t('strategy.actionCenter.actionQueue', 'Smart action queue')}
+          </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-coach', 'expert_strategy_coach')}>
             {t('strategy.actionCenter.expertCoach', 'Expert strategy coach')}
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-profile-trend', 'profile_trend_timeline')}>
+            {t('strategy.actionCenter.profileTrend', 'Profile trend timeline')}
           </button>
           <button type="button" className="action-btn" onClick={openAccountFromAction}>
             {t('strategy.actionCenter.manageAccount', 'Manage account')}
@@ -261,6 +504,7 @@ export default function ResultsStrategicHub({
           <span>{t('strategy.actionCenter.confidence', 'Confidence')}: <strong>{strategy.confidenceBand}</strong> ({strategy.overallConfidence} / 100)</span>
           <span>{t('strategy.actionCenter.riskLevel', 'Risk level')}: <strong>{riskLevelLabel}</strong></span>
         </div>
+        {shareStatus && <p className="save-note">{shareStatus}</p>}
         {actionPlan.nextBestTask && (
           <div className="next-task-callout">
             <div>
@@ -276,6 +520,61 @@ export default function ResultsStrategicHub({
               {t('strategy.actionCenter.startTask', 'Start task')}
             </button>
           </div>
+        )}
+      </section>
+      {changeSummary && (
+        <section className="card change-since-last-card">
+          <h3>{t('strategy.changes.title', 'Since your last visit')}</h3>
+          <div className="strategic-action-status">
+            <span>Score delta: <strong>{changeSummary.scoreDelta > 0 ? '+' : ''}{changeSummary.scoreDelta}</strong></span>
+            <span>Cutoff delta: <strong>{changeSummary.cutoffDelta > 0 ? '+' : ''}{changeSummary.cutoffDelta}</strong></span>
+            <span>Confidence delta: <strong>{changeSummary.confidenceDelta > 0 ? '+' : ''}{changeSummary.confidenceDelta}</strong></span>
+          </div>
+          {changeSummary.previousUpdatedAt && (
+            <p className="save-note">
+              Previous snapshot: {new Date(changeSummary.previousUpdatedAt).toLocaleString()}
+            </p>
+          )}
+        </section>
+      )}
+      <section className="card strategic-action-queue" id="section-action-queue">
+        <h3>{t('strategy.queue.title', 'Smart action queue')}</h3>
+        <p className="cat-intro">
+          {t('strategy.queue.subtitle', 'Prioritized next actions ordered by urgency and impact, with reminder toggles for follow-through.')}
+        </p>
+        {!queuedTasks.length && (
+          <p className="save-note">All queued tasks are complete. Nice work.</p>
+        )}
+        {!!queuedTasks.length && (
+          <ul className="plan-task-list">
+            {queuedTasks.map((task) => (
+              <li key={`queue-${task.id}`}>
+                <button
+                  type="button"
+                  className="plan-task-toggle"
+                  aria-label={`Toggle reminder for ${task.title}`}
+                  onClick={() => toggleTaskReminder(task.id)}
+                >
+                  {taskReminders[task.id] ? '🔔' : '🔕'}
+                </button>
+                <div>
+                  <div className="plan-task-head">
+                    <strong>{task.title}</strong>
+                    <PriorityBadge value={task.priority} />
+                  </div>
+                  <p>{task.rationale}</p>
+                  <div className="optimizer-meta">
+                    <span>{task.dateWindow}</span>
+                    <span>{task.weekWindow}</span>
+                    <span>Impact +{task.impact}</span>
+                  </div>
+                  <small className="plan-task-metric">
+                    Reminder: {taskReminders[task.id] ? 'Enabled' : 'Disabled'}
+                  </small>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
       {runtimeFlags.enableAdvancedForecasting && forecast && (
@@ -473,6 +772,30 @@ export default function ResultsStrategicHub({
         </div>
       </section>
 
+      <section className="card strategic-profile-trend" id="section-profile-trend">
+        <h3>{t('strategy.trend.title', 'Profile trend timeline')}</h3>
+        <p className="cat-intro">{t('strategy.trend.subtitle', 'Track score movement across your saved snapshots and current profile.')}</p>
+        {!profileTrendPoints.length && (
+          <p className="save-note">Save a few profiles to unlock your timeline view.</p>
+        )}
+        {!!profileTrendPoints.length && (
+          <ul className="profile-trend-list">
+            {profileTrendPoints.map((point) => (
+              <li key={point.id} className={point.current ? 'current' : ''}>
+                <div className="profile-trend-label">
+                  <strong>{point.label}</strong>
+                  {point.current && <span className="profile-trend-current">Current</span>}
+                </div>
+                <div className="profile-trend-bar-wrap">
+                  <span className="profile-trend-bar" style={{ width: `${Math.max(Math.min(Math.round((point.score / trendMaxScore) * 100), 100), 5)}%` }} />
+                </div>
+                <span className="profile-trend-score">{point.score}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="card strategic-explainability" id="section-explainability">
         <h3>{t('strategy.explainability.title', 'Explainability & Confidence')}</h3>
         <p className="cat-intro">Structured reasoning for lane ranking, confidence, and risk assumptions.</p>
@@ -508,7 +831,12 @@ export default function ResultsStrategicHub({
           <article>
             <h4>Data confidence</h4>
             <ul>
+              <li>Confidence v2: <strong>{confidenceV2.total}/100</strong></li>
               <li>Overall confidence: <strong>{strategy.confidenceBand} ({strategy.overallConfidence}/100)</strong></li>
+              <li>Data signal score: <strong>{confidenceV2.dataScore}/100</strong></li>
+              <li>Execution signal score: <strong>{confidenceV2.executionScore}/100</strong></li>
+              <li>Forecast signal score: <strong>{confidenceV2.forecastScore}/100</strong></li>
+              <li>Risk penalty: <strong>-{confidenceV2.riskPenalty}</strong></li>
               <li>Draw freshness: <strong>{drawFreshness?.label || 'Unknown'}</strong></li>
               <li>Category freshness: <strong>{categoryFreshness?.label || 'Unknown'}</strong></li>
               <li>Draw source snapshot: <strong>{activeDraws?.lastUpdated || 'Unavailable'}</strong></li>
