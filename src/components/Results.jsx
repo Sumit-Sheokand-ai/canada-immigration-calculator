@@ -10,6 +10,8 @@ import { readAccountSettings, saveAccountSettings } from '../utils/accountSettin
 import { isCloudProfilesEnabled, listProfilesForUser, upsertProfileCloud } from '../utils/cloudProfiles';
 import { getFallbackCategoryDrawInfo, getFallbackLatestDraws } from '../utils/drawDataSource';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../utils/analytics';
+import ResultsStrategicHub from './ResultsStrategicHub';
 import Loader from './Loader';
 const PathCoach = lazy(() => import('./PathCoach'));
 
@@ -541,6 +543,12 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       defaultDrawAlerts: !!saveAlerts,
     });
     setSavingProfile(true);
+    trackEvent('profile_save_started', {
+      has_email: !!email,
+      alerts_opt_in: !!saveAlerts,
+      is_authenticated: !!isAuthenticated,
+      score,
+    });
 
     try {
       if (shouldAutoSync && (email || saveAlerts)) {
@@ -557,28 +565,65 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
             ? 'Profile saved, synced, and draw alerts subscribed.'
             : 'Profile saved and synced with your account.'
           );
+          trackEvent('profile_save_completed', {
+            status: 'cloud_synced',
+            alerts_opt_in: !!saveAlerts,
+            score,
+          });
         } else {
           setSaveStatus('Profile saved locally. Configure Supabase env vars to enable cloud sync/alerts.');
+          trackEvent('profile_save_completed', {
+            status: 'local_only',
+            alerts_opt_in: !!saveAlerts,
+            score,
+          });
         }
       } else {
         setSaveStatus(shouldAutoSync
           ? 'Profile saved locally.'
           : 'Profile saved locally. Auto-sync is off in account settings.'
         );
+        trackEvent('profile_save_completed', {
+          status: shouldAutoSync ? 'local_only' : 'local_autosync_off',
+          alerts_opt_in: !!saveAlerts,
+          score,
+        });
       }
     } catch (err) {
       setSaveStatus(`Profile saved locally, but cloud sync failed: ${err.message}`);
+      trackEvent('profile_save_completed', {
+        status: 'cloud_sync_failed',
+        alerts_opt_in: !!saveAlerts,
+        score,
+      });
     } finally {
       setSavingProfile(false);
     }
   };
-
-  const handlePDF = () => window.print();
+  const handlePDF = () => {
+    trackEvent('results_pdf_print_clicked', { score });
+    window.print();
+  };
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
     if (!element) return;
     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    trackEvent('results_section_jump', { section_id: sectionId });
   };
+  const openAccountModal = () => {
+    window.dispatchEvent(new CustomEvent('crs-open-account-modal'));
+    trackEvent('account_modal_open_requested', { source: 'results_action_center' });
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    trackEvent('results_viewed', {
+      score,
+      diff_from_cutoff: diff,
+      draw_source: drawSource,
+      category_count: activeCategoryInfo.length,
+    });
+  }, [activeCategoryInfo.length, diff, drawSource, loading, score]);
 
   if (loading) return <LoadingScreen />;
 
@@ -595,10 +640,30 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
         </button>
       </motion.div>
 
+      <ResultsStrategicHub
+        answers={answers}
+        result={result}
+        suggestions={suggestions}
+        averageCutoff={activeDraws.averageCutoff}
+        activeDraws={activeDraws}
+        activeCategoryInfo={activeCategoryInfo}
+        provinces={provinces}
+        drawFreshness={drawFreshness}
+        categoryFreshness={categoryFreshness}
+        saveStatus={saveStatus}
+        onJumpToSection={scrollToSection}
+        onOpenAccount={openAccountModal}
+      />
+
       <motion.div className="card quick-nav-card" variants={fadeUp}>
         <h3>Quick navigation</h3>
         <div className="quick-nav-grid">
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-action-center')}>Action center</button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>Save profile</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-optimizer')}>Optimizer</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-90-day-plan')}>90-day plan</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-pricing')}>Plans</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-explainability')}>Explainability</button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-profile-compare')}>Profile compare</button>
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>}
           {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>}
@@ -677,7 +742,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
           id="profile-compare-panel"
           label="Profile Compare Mode"
           open={profileCompareOpen}
-          onToggle={() => setProfileCompareOpen(!profileCompareOpen)}
+          onToggle={() => {
+            const next = !profileCompareOpen;
+            setProfileCompareOpen(next);
+            trackEvent('profile_compare_toggled', { open: next });
+          }}
         />
         <AnimatePresence initial={false}>
           {profileCompareOpen && (
@@ -774,7 +843,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
             id="scenario-compare-panel"
             label="Scenario Compare (A vs B)"
             open={compareOpen}
-            onToggle={() => setCompareOpen(!compareOpen)}
+            onToggle={() => {
+              const next = !compareOpen;
+              setCompareOpen(next);
+              trackEvent('scenario_compare_toggled', { open: next });
+            }}
           />
           <AnimatePresence initial={false}>
             {compareOpen && (
@@ -899,7 +972,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
             id="province-recommender-panel"
             label="Province Recommender"
             open={provOpen}
-            onToggle={() => setProvOpen(!provOpen)}
+            onToggle={() => {
+              const next = !provOpen;
+              setProvOpen(next);
+              trackEvent('province_recommender_toggled', { open: next });
+            }}
           />
           <AnimatePresence initial={false}>
             {provOpen && (
@@ -949,7 +1026,11 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
           id="recent-draws-panel"
           label={t('results.draws')}
           open={drawsOpen}
-          onToggle={() => setDrawsOpen(!drawsOpen)}
+          onToggle={() => {
+            const next = !drawsOpen;
+            setDrawsOpen(next);
+            trackEvent('recent_draws_toggled', { open: next });
+          }}
         />
         <div className={`draw-source-pill ${getDrawSourceClass(drawSource)}`}>
           Source: {getDrawSourceLabel(drawSource)} · Updated {activeDraws.lastUpdated || '—'}
@@ -993,7 +1074,10 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
       <motion.button
         type="button"
         className="btn-restart"
-        onClick={onRestart}
+        onClick={() => {
+          trackEvent('results_restart_clicked', { score });
+          onRestart();
+        }}
         whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}
         variants={fadeUp}

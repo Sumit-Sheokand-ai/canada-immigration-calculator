@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../utils/analytics';
 import AuthModal from './AuthModal';
 
 const langLabels = { en: 'EN', fr: 'FR' };
@@ -13,6 +14,14 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  useEffect(() => {
+    const openAccount = () => setShowAuthModal(true);
+    window.addEventListener('crs-open-account-modal', openAccount);
+    return () => {
+      window.removeEventListener('crs-open-account-modal', openAccount);
+    };
+  }, []);
 
   return (
     <motion.header
@@ -41,7 +50,10 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
           <button
             type="button"
             className="auth-toggle"
-            onClick={() => setShowAuthModal(true)}
+            onClick={() => {
+              setShowAuthModal(true);
+              trackEvent('account_modal_opened', { source: 'header_button', is_authenticated: !!user });
+            }}
             aria-label={user ? 'Manage account' : 'Login or signup'}
             title={user ? user.email : 'Login / Signup'}
           >

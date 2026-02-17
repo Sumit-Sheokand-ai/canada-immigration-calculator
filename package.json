@@ -17,7 +17,8 @@
     "test:e2e:install": "playwright install chromium",
     "sync:questions": "node scripts/sync-question-bank.mjs",
     "deploy:fn:tracking-checkout": "supabase functions deploy create-tracking-checkout",
-    "deploy:fn:stripe-webhook": "supabase functions deploy stripe-webhook --no-verify-jwt"
+    "deploy:fn:stripe-webhook": "supabase functions deploy stripe-webhook --no-verify-jwt",
+    "deploy:fn:delete-account": "supabase functions deploy delete-account"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",

@@ -13,6 +13,7 @@ import {
   getFallbackLatestDraws,
   getLatestDraws,
 } from './utils/drawDataSource';
+import { trackEvent } from './utils/analytics';
 import { readAccountSettings } from './utils/accountSettings';
 import './App.css';
 
@@ -115,12 +116,14 @@ export default function App() {
       const saved = loadProgress();
       if (saved) setAnswers(saved);
     }
+    trackEvent('wizard_started', { resumed: !!resume });
     setMode('wizard');
   }, [shouldAutoSaveProgress]);
 
   const handleFinish = useCallback((ans) => {
     setAnswers(ans);
     clearProgress();
+    trackEvent('wizard_completed', { answer_count: Object.keys(ans || {}).length });
     setMode('results');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -128,6 +131,7 @@ export default function App() {
   const handleRestart = useCallback(() => {
     setAnswers({});
     clearProgress();
+    trackEvent('calculator_restarted');
     window.history.replaceState(null, '', window.location.pathname);
     setMode('welcome');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -168,10 +172,14 @@ export default function App() {
 
   const handleInstallApp = useCallback(async () => {
     if (!deferredInstallPrompt) return;
+    trackEvent('install_prompt_triggered');
     deferredInstallPrompt.prompt();
     const choice = await deferredInstallPrompt.userChoice;
     if (choice?.outcome === 'accepted') {
       setDeferredInstallPrompt(null);
+      trackEvent('install_prompt_accepted');
+    } else {
+      trackEvent('install_prompt_dismissed');
     }
   }, [deferredInstallPrompt]);
 
@@ -333,9 +341,13 @@ export default function App() {
       <footer className="footer">
         <p>© {new Date().getFullYear()} {t('footer.copy')}</p>
         <p className="footer-legal-links">
+          <a href="/guides.html">Guides</a>
+          <span aria-hidden="true"> · </span>
           <a href="/terms.html">Terms of Service</a>
           <span aria-hidden="true"> · </span>
           <a href="/privacy.html">Privacy Policy</a>
+          <span aria-hidden="true"> · </span>
+          <a href="/trust.html">Trust Center</a>
         </p>
       </footer>
       {showTop && (
