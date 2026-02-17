@@ -1361,6 +1361,24 @@
   justify-content: space-between;
   gap: 8px;
 }
+.optimizer-constraint-panel {
+  border: 1px solid var(--surface-2);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--surface);
+}
+.optimizer-constraint-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.optimizer-constraint-head h4 {
+  margin: 0;
+  font-size: 13px;
+}
 .optimizer-top-callout {
   border: 1px solid var(--surface-2);
   border-radius: 10px;

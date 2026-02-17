@@ -16,6 +16,12 @@ const SCORE_WEIGHTS = {
   effort: 0.12,
   laneFit: 0.14,
 };
+export const DEFAULT_OPTIMIZER_CONSTRAINTS = {
+  budgetCad: 3500,
+  weeklyHours: 6,
+  examAttempts: 2,
+  relocationPreference: 'balanced',
+};
 const DIGITAL_TWIN_HORIZONS = [
   { id: '3m', label: '3 months', months: 3, gainFactor: 0.35 },
   { id: '6m', label: '6 months', months: 6, gainFactor: 0.62 },
@@ -37,6 +43,18 @@ function toNumber(value, fallback = 0) {
 function toInt(value, fallback = 0) {
   const num = parseInt(value, 10);
   return Number.isFinite(num) ? num : fallback;
+}
+export function normalizeOptimizerConstraints(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const relocationPreference = ['balanced', 'province', 'federal'].includes(source.relocationPreference)
+    ? source.relocationPreference
+    : DEFAULT_OPTIMIZER_CONSTRAINTS.relocationPreference;
+  return {
+    budgetCad: clamp(toInt(source.budgetCad, DEFAULT_OPTIMIZER_CONSTRAINTS.budgetCad), 500, 20000),
+    weeklyHours: clamp(toInt(source.weeklyHours, DEFAULT_OPTIMIZER_CONSTRAINTS.weeklyHours), 2, 30),
+    examAttempts: clamp(toInt(source.examAttempts, DEFAULT_OPTIMIZER_CONSTRAINTS.examAttempts), 1, 8),
+    relocationPreference,
+  };
 }
 
 function startOfDay(date = new Date()) {
@@ -308,6 +326,8 @@ function buildPathwayOption(path, signals, gap) {
     months: path.estimatedMonths,
     confidence: path.likelihoodPercent,
     effort: path.difficulty,
+    estimatedCostCad: toNumber(path.estimatedCostCad, 0),
+    examSensitive: path.category === 'Language' || /language|ielts|celpip|tef|tcf|french/i.test(path.title || ''),
     laneFit,
     riskFlags,
   };
@@ -348,6 +368,8 @@ function buildCategoryOption({ score, cutoff, eligibleCount, signals }) {
     months: gap <= 0 ? 1 : gap <= 20 ? 4 : 8,
     confidence,
     effort: gap <= 0 ? 'Easy' : gap <= 20 ? 'Medium' : 'Hard',
+    estimatedCostCad: 1200,
+    examSensitive: !signals.hasFrench,
     laneFit: clamp((eligibleCount > 0 ? 70 : 35) + (signals.hasFrench ? 8 : 0), 25, 90),
     riskFlags,
   };
@@ -385,6 +407,8 @@ function buildProvinceOption(bestProvince) {
     months: bestProvince.matchScore >= 70 ? 6 : 9,
     confidence: clamp(bestProvince.matchScore, 35, 88),
     effort: bestProvince.matchScore >= 70 ? 'Medium' : 'Hard',
+    estimatedCostCad: bestProvince.matchScore >= 70 ? 3200 : 4200,
+    examSensitive: false,
     laneFit: clamp(bestProvince.matchScore + (bestProvince.matchScore >= 70 ? 6 : -4), 25, 95),
     riskFlags,
   };
@@ -439,6 +463,89 @@ function buildScoredOption(option, gap) {
       { key: 'effort', label: 'Execution ease', value: effort, weight: SCORE_WEIGHTS.effort },
       { key: 'laneFit', label: 'Profile-lane fit', value: laneFit, weight: SCORE_WEIGHTS.laneFit },
     ],
+  };
+}
+
+function requiredWeeklyHoursForOption(option = {}) {
+  const base = option.effort === 'Hard' ? 10 : option.effort === 'Medium' ? 6 : 3;
+  const timelinePressure = toNumber(option.months, 6) <= 3 ? 2 : toNumber(option.months, 6) <= 6 ? 1 : 0;
+  return base + timelinePressure;
+}
+function estimatedCostForOption(option = {}) {
+  const explicit = toNumber(option.estimatedCostCad, 0);
+  if (explicit > 0) return explicit;
+  if (option.lane === 'Provincial') return 3600;
+  if (option.lane === 'Category Draws') return 1200;
+  if (option.lane === 'Language') return 1800;
+  return 2200;
+}
+function isProvincialLane(option = {}) {
+  return /provincial/i.test(option.lane || '');
+}
+function applyConstraintAwareScore(option, constraintsInput) {
+  const constraints = normalizeOptimizerConstraints(constraintsInput);
+  const factors = [];
+  const estimatedCostCad = estimatedCostForOption(option);
+  const requiredWeeklyHours = requiredWeeklyHoursForOption(option);
+  let adjustment = 0;
+
+  const budgetCoverage = constraints.budgetCad / Math.max(estimatedCostCad, 1);
+  if (budgetCoverage < 0.75) {
+    const penalty = Math.min(Math.round((0.75 - budgetCoverage) * 20), 12);
+    adjustment -= penalty;
+    factors.push({ id: 'budget', label: 'Budget pressure', delta: -penalty });
+  } else if (budgetCoverage > 1.35) {
+    const bonus = Math.min(Math.round((budgetCoverage - 1.35) * 8), 5);
+    adjustment += bonus;
+    factors.push({ id: 'budget', label: 'Budget headroom', delta: bonus });
+  }
+
+  const hourGap = constraints.weeklyHours - requiredWeeklyHours;
+  if (hourGap < 0) {
+    const penalty = Math.min(Math.abs(hourGap) * 2, 10);
+    adjustment -= penalty;
+    factors.push({ id: 'time', label: 'Time constraint', delta: -penalty });
+  } else if (hourGap > 0) {
+    const bonus = Math.min(hourGap, 4);
+    adjustment += bonus;
+    factors.push({ id: 'time', label: 'Time capacity', delta: bonus });
+  }
+
+  if (option.examSensitive) {
+    if (constraints.examAttempts <= 1) {
+      adjustment -= 8;
+      factors.push({ id: 'exam', label: 'Low exam retry budget', delta: -8 });
+    } else if (constraints.examAttempts >= 3) {
+      const bonus = Math.min((constraints.examAttempts - 2) * 2, 4);
+      adjustment += bonus;
+      factors.push({ id: 'exam', label: 'Exam retry flexibility', delta: bonus });
+    }
+  }
+
+  const provincialLane = isProvincialLane(option);
+  if (constraints.relocationPreference === 'province') {
+    const delta = provincialLane ? 8 : -3;
+    adjustment += delta;
+    factors.push({ id: 'relocation', label: 'Province-focused preference', delta });
+  } else if (constraints.relocationPreference === 'federal') {
+    const delta = provincialLane ? -7 : 4;
+    adjustment += delta;
+    factors.push({ id: 'relocation', label: 'Federal-focused preference', delta });
+  }
+
+  const constraintAdjustment = clamp(Math.round(adjustment), -24, 18);
+  const score = clamp(option.score + constraintAdjustment, 1, 100);
+  const constraintFitScore = clamp(Math.round(70 + (constraintAdjustment * 2)), 12, 99);
+
+  return {
+    ...option,
+    baseScore: option.score,
+    score,
+    constraintAdjustment,
+    constraintFitScore,
+    constraintFactors: factors,
+    estimatedCostCad,
+    requiredWeeklyHours,
   };
 }
 
@@ -685,7 +792,9 @@ export function buildStrategyOptimizer({
   categoryInfo = [],
   provinces = [],
   eligibleCategoryCount = Number.NaN,
+  optimizerConstraints = DEFAULT_OPTIMIZER_CONSTRAINTS,
 }) {
+  const normalizedConstraints = normalizeOptimizerConstraints(optimizerConstraints);
   const score = toNumber(result?.total);
   const cutoff = toNumber(averageCutoff, 520);
   const gap = cutoff - score;
@@ -707,6 +816,7 @@ export function buildStrategyOptimizer({
 
   const ranked = options
     .map((option) => buildScoredOption(option, gap))
+    .map((option) => applyConstraintAwareScore(option, normalizedConstraints))
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
 
@@ -751,6 +861,7 @@ export function buildStrategyOptimizer({
       profileComplexity: signals.profileComplexity,
       languageHeadroom: signals.languageHeadroom,
     },
+    optimizerConstraints: normalizedConstraints,
     scoreWeights: SCORE_WEIGHTS,
     guidanceSummary,
   };
@@ -767,6 +878,7 @@ export function computeStrategicInsights({
   progress = {},
   enableAdvancedForecasting = false,
   eligibleCategoryCount = Number.NaN,
+  optimizerConstraints = DEFAULT_OPTIMIZER_CONSTRAINTS,
 }) {
   const strategy = buildStrategyOptimizer({
     answers,
@@ -775,6 +887,7 @@ export function computeStrategicInsights({
     categoryInfo,
     provinces,
     eligibleCategoryCount,
+    optimizerConstraints,
   });
   const actionPlan = buildNinetyDayPlan({
     suggestions,

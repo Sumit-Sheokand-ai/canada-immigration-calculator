@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   computeStrategicInsights,
+  DEFAULT_OPTIMIZER_CONSTRAINTS,
+  normalizeOptimizerConstraints,
   readActionPlanProgress,
   saveActionPlanProgress,
 } from '../utils/strategyHub';
@@ -95,8 +97,10 @@ export default function ResultsStrategicHub({
   const profileFingerprint = useMemo(() => hashAnswersFingerprint(answers), [answers]);
   const lastVisitSnapshotKey = useMemo(() => `crs-last-visit-snapshot-v1:${profileFingerprint}`, [profileFingerprint]);
   const reminderStateKey = useMemo(() => `crs-action-reminders-v1:${profileFingerprint}`, [profileFingerprint]);
+  const optimizerConstraintKey = useMemo(() => `crs-optimizer-constraints-v1:${profileFingerprint}`, [profileFingerprint]);
   const [changeSummary, setChangeSummary] = useState(null);
   const [taskReminders, setTaskReminders] = useState(() => readStorageJson(reminderStateKey, {}) || {});
+  const [optimizerConstraints, setOptimizerConstraints] = useState(() => normalizeOptimizerConstraints(DEFAULT_OPTIMIZER_CONSTRAINTS));
   const [shareStatus, setShareStatus] = useState('');
   const [selectedTwinHorizonId, setSelectedTwinHorizonId] = useState('6m');
   const eligibleCategoryCount = useMemo(
@@ -110,6 +114,10 @@ export default function ResultsStrategicHub({
   useEffect(() => {
     setTaskReminders(readStorageJson(reminderStateKey, {}) || {});
   }, [reminderStateKey]);
+  useEffect(() => {
+    const persisted = readStorageJson(optimizerConstraintKey, DEFAULT_OPTIMIZER_CONSTRAINTS);
+    setOptimizerConstraints(normalizeOptimizerConstraints(persisted));
+  }, [optimizerConstraintKey]);
   useEffect(() => {
     const refresh = () => setRuntimeFlags(readRuntimeFlags());
     window.addEventListener('crs-runtime-flags-updated', refresh);
@@ -128,7 +136,8 @@ export default function ResultsStrategicHub({
     progress: planProgress,
     enableAdvancedForecasting: runtimeFlags.enableAdvancedForecasting,
     eligibleCategoryCount,
-  }), [activeDraws, answers, averageCutoff, eligibleCategoryCount, planProgress, provinces, result, runtimeFlags.enableAdvancedForecasting, suggestions]);
+    optimizerConstraints,
+  }), [activeDraws, answers, averageCutoff, eligibleCategoryCount, optimizerConstraints, planProgress, provinces, result, runtimeFlags.enableAdvancedForecasting, suggestions]);
   useEffect(() => {
     let cancelled = false;
     const applySyncFallback = () => {
@@ -385,6 +394,7 @@ export default function ResultsStrategicHub({
     : strategy.globalRiskFlags?.some((flag) => flag.severity === 'medium')
       ? 'Moderate'
       : 'Low';
+  const activeOptimizerConstraints = strategy.optimizerConstraints || optimizerConstraints;
   const isProFirstVariant = pricingExperiment.variant === 'pro_first';
   const proCtaLabel = isProFirstVariant
     ? t('strategy.pricing.proCtaExperiment', 'Start Pro planning')
@@ -448,6 +458,35 @@ export default function ResultsStrategicHub({
         confidence_band: strategy.confidenceBand,
       });
     }
+  };
+  const updateOptimizerConstraint = (field, rawValue) => {
+    setOptimizerConstraints((prev) => {
+      const parsedValue = field === 'relocationPreference' ? rawValue : Number(rawValue);
+      const next = normalizeOptimizerConstraints({
+        ...prev,
+        [field]: parsedValue,
+      });
+      writeStorageJson(optimizerConstraintKey, next);
+      trackEvent('optimizer_constraints_updated', {
+        field,
+        budget_cad: next.budgetCad,
+        weekly_hours: next.weeklyHours,
+        exam_attempts: next.examAttempts,
+        relocation_preference: next.relocationPreference,
+      });
+      return next;
+    });
+  };
+  const resetOptimizerConstraints = () => {
+    const next = normalizeOptimizerConstraints(DEFAULT_OPTIMIZER_CONSTRAINTS);
+    setOptimizerConstraints(next);
+    writeStorageJson(optimizerConstraintKey, next);
+    trackEvent('optimizer_constraints_reset', {
+      budget_cad: next.budgetCad,
+      weekly_hours: next.weeklyHours,
+      exam_attempts: next.examAttempts,
+      relocation_preference: next.relocationPreference,
+    });
   };
 
   const toggleTask = (taskId) => {
@@ -703,6 +742,63 @@ export default function ResultsStrategicHub({
       <section className="card strategic-optimizer" id="section-optimizer">
         <h3>{t('strategy.optimizer.title', 'Strategy Optimizer')}</h3>
         <p className="cat-intro">{strategy.guidanceSummary}</p>
+        <div className="optimizer-constraint-panel">
+          <div className="optimizer-constraint-head">
+            <h4>{t('strategy.optimizer.constraintsTitle', 'Constraint inputs')}</h4>
+            <button type="button" className="action-btn" onClick={resetOptimizerConstraints}>
+              {t('strategy.optimizer.resetConstraints', 'Reset')}
+            </button>
+          </div>
+          <div className="wi-grid">
+            <label className="wi-field">
+              <span>{t('strategy.optimizer.budgetCad', 'Available budget (CAD)')}</span>
+              <select
+                value={activeOptimizerConstraints.budgetCad}
+                onChange={(event) => updateOptimizerConstraint('budgetCad', event.target.value)}
+              >
+                {[1200, 2000, 3500, 5000, 8000, 12000].map((value) => (
+                  <option key={`budget-${value}`} value={value}>{value.toLocaleString()}</option>
+                ))}
+              </select>
+            </label>
+            <label className="wi-field">
+              <span>{t('strategy.optimizer.weeklyHours', 'Weekly execution hours')}</span>
+              <select
+                value={activeOptimizerConstraints.weeklyHours}
+                onChange={(event) => updateOptimizerConstraint('weeklyHours', event.target.value)}
+              >
+                {[3, 5, 8, 12, 16, 20].map((value) => (
+                  <option key={`hours-${value}`} value={value}>{value}h / week</option>
+                ))}
+              </select>
+            </label>
+            <label className="wi-field">
+              <span>{t('strategy.optimizer.examAttempts', 'Exam retry budget')}</span>
+              <select
+                value={activeOptimizerConstraints.examAttempts}
+                onChange={(event) => updateOptimizerConstraint('examAttempts', event.target.value)}
+              >
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={`exam-${value}`} value={value}>{value} attempt{value > 1 ? 's' : ''}</option>
+                ))}
+              </select>
+            </label>
+            <label className="wi-field">
+              <span>{t('strategy.optimizer.relocationPreference', 'Relocation preference')}</span>
+              <select
+                value={activeOptimizerConstraints.relocationPreference}
+                onChange={(event) => updateOptimizerConstraint('relocationPreference', event.target.value)}
+              >
+                <option value="balanced">Balanced</option>
+                <option value="province">Province-focused</option>
+                <option value="federal">Federal-focused</option>
+              </select>
+            </label>
+          </div>
+          <p className="save-note">
+            {t('strategy.optimizer.constraintsHint', 'These constraints re-rank lanes by real-world feasibility, not just raw score gain.')}
+          </p>
+        </div>
         {strategy.top && (
           <div className="optimizer-top-callout">
             <div className="optimizer-option-head">
@@ -714,6 +810,10 @@ export default function ResultsStrategicHub({
               <span>Estimated gain: +{strategy.top.scoreGain}</span>
               <span>Expected timeline: ~{strategy.top.months} months</span>
               <span>Confidence: {strategy.top.confidence}%</span>
+              <span>Constraint fit: {strategy.top.constraintFitScore}/100</span>
+              <span>Estimated cost: {Math.round(strategy.top.estimatedCostCad || 0)} CAD</span>
+              <span>Weekly load: ~{strategy.top.requiredWeeklyHours || 0}h</span>
+              <span>Constraint adj: {strategy.top.constraintAdjustment > 0 ? '+' : ''}{strategy.top.constraintAdjustment || 0}</span>
               <EffortBadge value={strategy.top.effort} />
             </div>
             {!!strategy.top.riskFlags?.length && (
@@ -744,6 +844,10 @@ export default function ResultsStrategicHub({
                 <span>+{option.scoreGain} pts</span>
                 <span>{option.months} mo</span>
                 <span>{option.confidence}% confidence</span>
+                <span>Fit {option.constraintFitScore}/100</span>
+                <span>Cost {Math.round(option.estimatedCostCad || 0)} CAD</span>
+                <span>Load ~{option.requiredWeeklyHours || 0}h/wk</span>
+                <span>Adj {option.constraintAdjustment > 0 ? '+' : ''}{option.constraintAdjustment || 0}</span>
               </div>
             </article>
           ))}
