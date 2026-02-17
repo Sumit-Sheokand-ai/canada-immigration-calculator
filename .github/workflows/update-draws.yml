@@ -37,6 +37,8 @@ jobs:
 
       - name: Validate production build
         run: npm run build
+      - name: Validate bundle budget
+        run: npm run check:bundle
 
       - name: Check for changes
         id: changes

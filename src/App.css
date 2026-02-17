@@ -36,6 +36,36 @@
   box-shadow: 0 8px 24px var(--glow);
 }
 .skip-link:focus-visible { top: 10px; }
+.theme-toggle,
+.install-btn,
+.auth-toggle,
+.lang-select,
+.btn-start,
+.btn-next,
+.btn-back,
+.btn-resume,
+.btn-fresh,
+.btn-restart,
+.btn-toggle,
+.section-toggle,
+.action-btn {
+  min-height: 44px;
+}
+.theme-toggle:focus-visible,
+.install-btn:focus-visible,
+.auth-toggle:focus-visible,
+.lang-select:focus-visible,
+.btn-start:focus-visible,
+.btn-next:focus-visible,
+.btn-back:focus-visible,
+.btn-resume:focus-visible,
+.btn-fresh:focus-visible,
+.btn-restart:focus-visible,
+.btn-toggle:focus-visible,
+.section-toggle:focus-visible,
+.action-btn:focus-visible {
+  border-color: var(--primary);
+}
 .footer { position: relative; z-index: 2; }
 
 .anime-bg {
@@ -1039,7 +1069,7 @@
 }
 .quick-nav-grid .action-btn {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   text-align: center;
 }
 
@@ -1100,6 +1130,17 @@
   align-items: center;
   gap: 8px;
   margin: -6px 0 12px;
+}
+.data-sync-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.data-sync-note {
+  font-size: 12px;
+  color: var(--text-2);
 }
 
 .profile-compare-card .profile-compare-controls {
@@ -1836,6 +1877,48 @@
 }
 
 .unsubscribe-card { margin-top: 16px; }
+.error-boundary-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.error-boundary-card {
+  width: min(560px, 100%);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 22px;
+  background:
+    linear-gradient(140deg, var(--glass-highlight) 0%, transparent 54%),
+    linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
+  box-shadow: var(--shadow);
+}
+.error-boundary-card h1 {
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+.error-boundary-card p {
+  color: var(--text-2);
+}
+.error-boundary-message {
+  margin: 10px 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-2);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.error-boundary-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.error-boundary-actions .action-btn {
+  flex: 1 1 160px;
+}
 
 /* Resume Banner */
 .resume-banner {

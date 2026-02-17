@@ -56,6 +56,22 @@ function detectLowEndDevice() {
   const lowCores = Number.isFinite(hardwareCores) && hardwareCores > 0 && hardwareCores <= 4;
   return saveDataEnabled || lowMemory || lowCores;
 }
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+async function withRetries(task, { retries = 2, baseDelayMs = 250 } = {}) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt === retries) break;
+      await sleep(baseDelayMs * (2 ** attempt));
+    }
+  }
+  throw lastError || new Error('Retry attempts exhausted.');
+}
 
 
 export default function App() {
@@ -80,6 +96,11 @@ export default function App() {
   const [drawData, setDrawData] = useState(() => getFallbackLatestDraws());
   const [drawSource, setDrawSource] = useState('local-fallback');
   const [categoryInfo, setCategoryInfo] = useState(() => getFallbackCategoryDrawInfo());
+  const [dataSyncState, setDataSyncState] = useState(() => ({
+    syncing: false,
+    lastError: '',
+    lastSyncedAt: '',
+  }));
 
   useEffect(() => {
     if (!unsubscribeToken) return;
@@ -96,35 +117,71 @@ export default function App() {
     return () => { mounted = false; };
   }, [unsubscribeToken]);
 
-  useEffect(() => {
-    let active = true;
-    getLatestDraws()
-      .then((res) => {
-        if (!active) return;
-        if (res?.status === 'ok' && res.data) {
-          setDrawData(res.data);
-          setDrawSource(res.source || 'local-fallback');
-        }
-      })
-      .catch(() => {
-        // keep local fallback
+  const syncDataSources = useCallback(async ({ forceRefresh = false, reason = 'initial' } = {}) => {
+    setDataSyncState((prev) => ({ ...prev, syncing: true, lastError: '' }));
+    let latestError = null;
+    let categoryError = null;
+
+    try {
+      const latest = await withRetries(
+        () => getLatestDraws({ forceRefresh }),
+        { retries: 2, baseDelayMs: 250 }
+      );
+      if (latest?.status === 'ok' && latest.data) {
+        setDrawData(latest.data);
+        setDrawSource(latest.source || 'local-fallback');
+      }
+    } catch (error) {
+      latestError = error;
+      setDrawData(getFallbackLatestDraws());
+      setDrawSource('local-fallback');
+    }
+
+    try {
+      const category = await withRetries(
+        () => getCategoryDrawInfo({ forceRefresh }),
+        { retries: 2, baseDelayMs: 250 }
+      );
+      if (category?.status === 'ok' && Array.isArray(category.data) && category.data.length > 0) {
+        setCategoryInfo(category.data);
+      } else {
+        setCategoryInfo(getFallbackCategoryDrawInfo());
+      }
+    } catch (error) {
+      categoryError = error;
+      setCategoryInfo(getFallbackCategoryDrawInfo());
+    }
+
+    const degraded = !!latestError || !!categoryError;
+    setDataSyncState({
+      syncing: false,
+      lastError: degraded ? 'Live sync is currently unavailable. Showing local data mode.' : '',
+      lastSyncedAt: new Date().toISOString(),
+    });
+
+    if (degraded) {
+      trackEvent('draw_data_sync_degraded', {
+        reason,
+        latest_error: String(latestError?.message || ''),
+        category_error: String(categoryError?.message || ''),
       });
-    return () => { active = false; };
-  }, []);
-  useEffect(() => {
-    let active = true;
-    getCategoryDrawInfo()
-      .then((res) => {
-        if (!active) return;
-        if (res?.status === 'ok' && Array.isArray(res.data) && res.data.length > 0) {
-          setCategoryInfo(res.data);
-        }
-      })
-      .catch(() => {
-        // keep local fallback
+    } else {
+      trackEvent('draw_data_sync_ok', {
+        reason,
+        source: 'live',
       });
-    return () => { active = false; };
+    }
   }, []);
+  const handleRetryDataSync = useCallback(() => {
+    void syncDataSources({ forceRefresh: true, reason: 'manual_retry' });
+  }, [syncDataSources]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void syncDataSources();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [syncDataSources]);
 
   const handleStart = useCallback((resume) => {
     if (resume && shouldAutoSaveProgress) {
@@ -348,6 +405,9 @@ export default function App() {
                 drawSource={drawSource}
                 categoryInfo={categoryInfo}
                 motionIntensity={effectiveMotionIntensity}
+                onRetryDataSync={handleRetryDataSync}
+                isDataSyncing={dataSyncState.syncing}
+                dataSyncError={dataSyncState.lastError}
               />
             </Suspense>
           )}

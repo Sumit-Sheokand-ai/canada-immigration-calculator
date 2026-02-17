@@ -359,7 +359,17 @@ function useConfetti(trigger) {
 }
 
 
-export default function Results({ answers, onRestart, drawData, drawSource = 'local-fallback', categoryInfo, motionIntensity = 'full' }) {
+export default function Results({
+  answers,
+  onRestart,
+  drawData,
+  drawSource = 'local-fallback',
+  categoryInfo,
+  motionIntensity = 'full',
+  onRetryDataSync = null,
+  isDataSyncing = false,
+  dataSyncError = '',
+}) {
   const { t } = useLanguage();
   const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { user, isAuthenticated } = useAuth();
@@ -428,6 +438,7 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
     () => (activeCategoryInfo.some((cat) => cat?.source === 'supabase') ? 'Live sync' : 'Local data mode'),
     [activeCategoryInfo]
   );
+  const hasLiveSyncDegraded = drawSource !== 'supabase' || categorySource !== 'Live sync';
   const profileOptions = useMemo(
     () => [
       { id: '__current__', name: 'Current profile', score, answers },
@@ -699,6 +710,22 @@ export default function Results({ answers, onRestart, drawData, drawSource = 'lo
           Draw data source: {getDrawSourceLabel(drawSource)} · Updated {activeDraws.lastUpdated || '—'}
           <span className={`freshness-pill freshness-${drawFreshness.tier}`}>{drawFreshness.label}</span>
         </div>
+        {onRetryDataSync && (hasLiveSyncDegraded || dataSyncError) && (
+          <div className="data-sync-row">
+            <button
+              type="button"
+              className="action-btn"
+              onClick={() => {
+                onRetryDataSync();
+                trackEvent('draw_data_sync_retry_clicked', { source: 'results_status_card' });
+              }}
+              disabled={isDataSyncing}
+            >
+              {isDataSyncing ? 'Retrying live sync…' : 'Retry live sync'}
+            </button>
+            {dataSyncError && <small className="data-sync-note">{dataSyncError}</small>}
+          </div>
+        )}
         <div className="cutoff-compare">
           <CutoffBar label="Your Score" value={score} max={Math.max(score, cutoff, 600)} color="var(--primary)" />
           <CutoffBar label="Cut-off" value={cutoff} max={Math.max(score, cutoff, 600)} color="var(--surface-3)" />

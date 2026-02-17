@@ -5,6 +5,7 @@ import App from './App.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
+import AppErrorBoundary from './components/AppErrorBoundary.jsx'
 
 // Register service worker for security headers
 if ('serviceWorker' in navigator) {
@@ -22,12 +23,14 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <AuthProvider>
-      <ThemeProvider>
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>
-      </ThemeProvider>
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <App />
+          </LanguageProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </AppErrorBoundary>
   </StrictMode>,
 )
