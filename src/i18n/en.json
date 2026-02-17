@@ -46,6 +46,7 @@
   "strategy.actionCenter.comparePlans": "Compare plans",
   "strategy.actionCenter.expertCoach": "Expert strategy coach",
   "strategy.actionCenter.manageAccount": "Manage account",
+  "strategy.actionCenter.exportHandoff": "Export consultant handoff",
   "strategy.actionCenter.profileStatus": "Profile save status",
   "strategy.actionCenter.notSavedYet": "Not saved yet",
   "strategy.actionCenter.planCompletion": "90-day completion",
@@ -69,6 +70,10 @@
   "strategy.forecast.slope": "Slope/draw",
   "strategy.plan.title": "90-Day Action Plan",
   "strategy.pricing.title": "Plans & Upgrade Path",
+  "strategy.pricing.experimentLabel": "Active experiment variant",
+  "strategy.pricing.freeCta": "Continue with Free",
+  "strategy.pricing.proCtaDefault": "Go to Pro setup",
+  "strategy.pricing.proCtaExperiment": "Start Pro planning",
   "strategy.explainability.title": "Explainability & Confidence",
   "footer.copy": "Free CRS Calculator 2026 · Not affiliated with IRCC"
 }

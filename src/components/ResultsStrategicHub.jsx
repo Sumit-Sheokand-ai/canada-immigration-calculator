@@ -9,6 +9,8 @@ import {
 import { trackEvent } from '../utils/analytics';
 import { readRuntimeFlags } from '../utils/runtimeFlags';
 import { useLanguage } from '../i18n/LanguageContext';
+import { getExperimentAssignment, trackExperimentGoal } from '../utils/experiments';
+import { buildConsultantHandoffPayload, downloadConsultantHandoff } from '../utils/handoffExport';
 
 function PriorityBadge({ value }) {
   const cls = value === 'High' ? 'priority-high' : value === 'Medium' ? 'priority-medium' : 'priority-low';
@@ -52,6 +54,11 @@ export default function ResultsStrategicHub({
 }) {
   const { t } = useLanguage();
   const [runtimeFlags, setRuntimeFlags] = useState(() => readRuntimeFlags());
+  const [pricingExperiment, setPricingExperiment] = useState(() => ({
+    experimentKey: 'pricing_layout_v1',
+    variant: 'control',
+    source: 'init',
+  }));
   const strategy = useMemo(
     () => buildStrategyOptimizer({
       answers,
@@ -72,6 +79,9 @@ export default function ResultsStrategicHub({
     const refresh = () => setRuntimeFlags(readRuntimeFlags());
     window.addEventListener('crs-runtime-flags-updated', refresh);
     return () => window.removeEventListener('crs-runtime-flags-updated', refresh);
+  }, []);
+  useEffect(() => {
+    setPricingExperiment(getExperimentAssignment('pricing_layout_v1', { autoTrack: true }));
   }, []);
 
   const actionPlan = useMemo(
@@ -139,6 +149,10 @@ export default function ResultsStrategicHub({
     : strategy.globalRiskFlags?.some((flag) => flag.severity === 'medium')
       ? 'Moderate'
       : 'Low';
+  const isProFirstVariant = pricingExperiment.variant === 'pro_first';
+  const proCtaLabel = isProFirstVariant
+    ? t('strategy.pricing.proCtaExperiment', 'Start Pro planning')
+    : t('strategy.pricing.proCtaDefault', 'Go to Pro setup');
 
   const jumpFromAction = (sectionId, cta) => {
     onJumpToSection(sectionId);
@@ -146,6 +160,8 @@ export default function ResultsStrategicHub({
       cta,
       target_section: sectionId,
       confidence_band: strategy.confidenceBand,
+      experiment_key: pricingExperiment.experimentKey,
+      experiment_variant: pricingExperiment.variant,
     });
   };
 
@@ -155,6 +171,33 @@ export default function ResultsStrategicHub({
       cta: 'manage_account',
       target_section: 'account_modal',
       confidence_band: strategy.confidenceBand,
+      experiment_key: pricingExperiment.experimentKey,
+      experiment_variant: pricingExperiment.variant,
+    });
+  };
+  const handleExportHandoff = () => {
+    const payload = buildConsultantHandoffPayload({
+      answers,
+      result,
+      strategy,
+      forecast,
+      actionPlan,
+      drawData: {
+        ...activeDraws,
+        source: drawFreshness?.tier || 'unknown',
+      },
+      categoryInfo: activeCategoryInfo,
+    });
+    const ok = downloadConsultantHandoff(payload);
+    trackEvent('consultant_handoff_exported', {
+      status: ok ? 'ok' : 'failed',
+      score: Number(result?.total) || 0,
+      confidence_band: strategy.confidenceBand,
+      experiment_key: pricingExperiment.experimentKey,
+      experiment_variant: pricingExperiment.variant,
+    });
+    trackExperimentGoal('pricing_layout_v1', 'handoff_export', {
+      status: ok ? 'ok' : 'failed',
     });
   };
 
@@ -201,6 +244,9 @@ export default function ResultsStrategicHub({
           </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-pricing', 'compare_plans')}>
             {t('strategy.actionCenter.comparePlans', 'Compare plans')}
+          </button>
+          <button type="button" className="action-btn" onClick={handleExportHandoff}>
+            {t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}
           </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-coach', 'expert_strategy_coach')}>
             {t('strategy.actionCenter.expertCoach', 'Expert strategy coach')}
@@ -367,9 +413,12 @@ export default function ResultsStrategicHub({
         <div className="pricing-recommendation-banner">
           <strong>{pricingRecommendation.badge}: {normalizeTierName(pricingRecommendation.tier)}</strong>
           <p>{pricingRecommendation.rationale}</p>
+          <small className="pricing-experiment-note">
+            {t('strategy.pricing.experimentLabel', 'Active experiment variant')}: {pricingExperiment.variant}
+          </small>
         </div>
-        <div className="pricing-grid">
-          <article className={`pricing-tier ${pricingRecommendation.tier === 'free' ? 'recommended' : ''}`}>
+        <div className={`pricing-grid ${isProFirstVariant ? 'pro-first' : ''}`}>
+          <article className={`pricing-tier pricing-tier-free ${pricingRecommendation.tier === 'free' ? 'recommended' : ''}`}>
             {pricingRecommendation.tier === 'free' && <span className="pricing-reco-badge">Best fit now</span>}
             <h4>Free</h4>
             <strong>0 CAD</strong>
@@ -382,14 +431,20 @@ export default function ResultsStrategicHub({
               type="button"
               className="action-btn"
               onClick={() => {
-                trackEvent('pricing_cta_clicked', { tier: 'free', recommended: pricingRecommendation.tier === 'free' });
+                trackExperimentGoal('pricing_layout_v1', 'pricing_cta_click', { tier: 'free' });
+                trackEvent('pricing_cta_clicked', {
+                  tier: 'free',
+                  recommended: pricingRecommendation.tier === 'free',
+                  experiment_key: pricingExperiment.experimentKey,
+                  experiment_variant: pricingExperiment.variant,
+                });
                 jumpFromAction('section-optimizer', 'continue_free');
               }}
             >
-              Continue with Free
+              {t('strategy.pricing.freeCta', 'Continue with Free')}
             </button>
           </article>
-          <article className={`pricing-tier featured ${pricingRecommendation.tier === 'pro' ? 'recommended' : ''}`}>
+          <article className={`pricing-tier pricing-tier-pro featured ${pricingRecommendation.tier === 'pro' ? 'recommended' : ''}`}>
             {pricingRecommendation.tier === 'pro' && <span className="pricing-reco-badge">Recommended</span>}
             <h4>Pro Tracking</h4>
             <strong>5 CAD / month</strong>
@@ -402,11 +457,17 @@ export default function ResultsStrategicHub({
               type="button"
               className="action-btn auth-btn-primary"
               onClick={() => {
-                trackEvent('pricing_cta_clicked', { tier: 'pro_tracking', recommended: pricingRecommendation.tier === 'pro' });
+                trackExperimentGoal('pricing_layout_v1', 'pricing_cta_click', { tier: 'pro_tracking' });
+                trackEvent('pricing_cta_clicked', {
+                  tier: 'pro_tracking',
+                  recommended: pricingRecommendation.tier === 'pro',
+                  experiment_key: pricingExperiment.experimentKey,
+                  experiment_variant: pricingExperiment.variant,
+                });
                 jumpFromAction('section-coach', 'go_to_pro_setup');
               }}
             >
-              Go to Pro setup
+              {proCtaLabel}
             </button>
           </article>
         </div>

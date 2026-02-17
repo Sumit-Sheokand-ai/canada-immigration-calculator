@@ -46,6 +46,7 @@
   "strategy.actionCenter.comparePlans": "Comparer les offres",
   "strategy.actionCenter.expertCoach": "Coach stratégie expert",
   "strategy.actionCenter.manageAccount": "Gérer le compte",
+  "strategy.actionCenter.exportHandoff": "Exporter le dossier consultant",
   "strategy.actionCenter.profileStatus": "Statut d’enregistrement",
   "strategy.actionCenter.notSavedYet": "Pas encore enregistré",
   "strategy.actionCenter.planCompletion": "Progression 90 jours",
@@ -69,6 +70,10 @@
   "strategy.forecast.slope": "Pente/tirage",
   "strategy.plan.title": "Plan d’action 90 jours",
   "strategy.pricing.title": "Offres et montée en gamme",
+  "strategy.pricing.experimentLabel": "Variante d’expérience active",
+  "strategy.pricing.freeCta": "Continuer en gratuit",
+  "strategy.pricing.proCtaDefault": "Accéder à la configuration Pro",
+  "strategy.pricing.proCtaExperiment": "Démarrer la planification Pro",
   "strategy.explainability.title": "Explicabilité et confiance",
   "footer.copy": "Calculateur SRC · Non affilié à IRCC"
 }

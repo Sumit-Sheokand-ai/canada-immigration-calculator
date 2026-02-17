@@ -1441,12 +1441,20 @@
   font-size: 12px;
   color: var(--text-2);
 }
+.pricing-experiment-note {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
 .pricing-tier {
   border: 1px solid var(--surface-2);
   border-radius: 12px;
   padding: 12px;
   position: relative;
 }
+.pricing-grid.pro-first .pricing-tier-pro { order: -1; }
+.pricing-grid.pro-first .pricing-tier-free { order: 1; }
 .pricing-tier h4 { margin: 0 0 4px; }
 .pricing-tier > strong {
   font-size: 18px;
