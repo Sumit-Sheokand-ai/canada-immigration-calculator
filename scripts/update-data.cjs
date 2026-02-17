@@ -109,9 +109,13 @@ function getSupabaseHeaders() {
 }
 
 function looksLikeMissingTable(detail = "") {
-  const lower = String(detail).toLowerCase();
-  return lower.includes("relation") && lower.includes("does not exist")
-    || lower.includes("table") && lower.includes("not found");
+  const raw = String(detail || "");
+  const lower = raw.toLowerCase();
+  if (lower.includes("pgrst205")) return true;
+  if (lower.includes("could not find the table")) return true;
+  if (lower.includes("schema cache") && lower.includes("table")) return true;
+  return (lower.includes("relation") && lower.includes("does not exist"))
+    || (lower.includes("table") && lower.includes("not found"));
 }
 
 function formatRange(min, max) {
