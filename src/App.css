@@ -1308,6 +1308,59 @@
   min-width: 42px;
   text-align: right;
 }
+.digital-twin-horizon-switch {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.digital-twin-scenario-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.digital-twin-scenario {
+  border: 1px solid var(--surface-2);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface);
+}
+.digital-twin-scenario h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.digital-twin-scenario strong {
+  display: inline-block;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.digital-twin-scenario p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.digital-twin-driver-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.digital-twin-driver-list li {
+  border: 1px solid var(--surface-2);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .optimizer-top-callout {
   border: 1px solid var(--surface-2);
   border-radius: 10px;
@@ -2546,6 +2599,7 @@
   .next-task-callout { grid-template-columns: 1fr; }
   .plan-review-dates { flex-direction: column; align-items: stretch; }
   .plan-milestones { grid-template-columns: 1fr; }
+  .digital-twin-scenario-grid { grid-template-columns: 1fr; }
   .pricing-grid { grid-template-columns: 1fr; }
   .pricing-reco-badge {
     position: static;

@@ -16,6 +16,11 @@ const SCORE_WEIGHTS = {
   effort: 0.12,
   laneFit: 0.14,
 };
+const DIGITAL_TWIN_HORIZONS = [
+  { id: '3m', label: '3 months', months: 3, gainFactor: 0.35 },
+  { id: '6m', label: '6 months', months: 6, gainFactor: 0.62 },
+  { id: '12m', label: '12 months', months: 12, gainFactor: 0.88 },
+];
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -472,6 +477,142 @@ function confidenceBand(score = 0) {
   return 'Low';
 }
 
+function probabilityFromGap({ scoreGap = 0, volatility = 0, confidence = 60 }) {
+  const gapSignal = clamp((scoreGap + 80) / 160, 0, 1);
+  const volatilityPenalty = clamp((toNumber(volatility) / 120), 0, 0.26);
+  const confidenceBoost = clamp(toNumber(confidence, 60) / 100, 0, 1) * 0.2;
+  const probability = (gapSignal * 0.72) + confidenceBoost - volatilityPenalty;
+  return clamp(probability, 0.02, 0.98);
+}
+
+function projectedCutoffForHorizon({ forecast, averageCutoff, horizonMonths }) {
+  if (!forecast) return Math.round(toNumber(averageCutoff, 520));
+  const base = toNumber(forecast.projectedNextCutoff, toNumber(averageCutoff, 520));
+  const slopePerDraw = toNumber(forecast.slopePerDraw, 0);
+  const drawSteps = Math.max(Math.round(horizonMonths / 2), 1);
+  return Math.round(clamp(base + (slopePerDraw * Math.max(drawSteps - 1, 0)), 300, 800));
+}
+
+function chanceBandFromProbability(probabilityPct = 0) {
+  if (probabilityPct >= 70) return 'High';
+  if (probabilityPct >= 45) return 'Medium';
+  return 'Low';
+}
+
+export function buildInvitationDigitalTwin({
+  strategy,
+  forecast,
+  actionPlan,
+  averageCutoff,
+  userScore,
+}) {
+  const baseScore = toNumber(userScore, toNumber(strategy?.score, 0));
+  const topGain = Math.max(toNumber(strategy?.top?.scoreGain, 0), 0);
+  const completionPct = clamp(toNumber(actionPlan?.completionPct, 0), 0, 100);
+  const executionMultiplier = clamp((completionPct / 100) * 0.55 + 0.45, 0.4, 1);
+  const volatility = toNumber(forecast?.volatility, 14);
+  const confidenceScore = toNumber(forecast?.confidenceScore, strategy?.overallConfidence || 58);
+  const topLane = strategy?.top?.title || 'Primary strategy lane';
+
+  const horizons = DIGITAL_TWIN_HORIZONS.map((horizon) => {
+    const projectedCutoff = projectedCutoffForHorizon({
+      forecast,
+      averageCutoff,
+      horizonMonths: horizon.months,
+    });
+    const expectedGain = Math.round(topGain * horizon.gainFactor * executionMultiplier);
+    const expectedScore = baseScore + expectedGain;
+    const scoreGap = Math.round(expectedScore - projectedCutoff);
+
+    const baseProbability = probabilityFromGap({
+      scoreGap,
+      volatility,
+      confidence: confidenceScore,
+    });
+    const bestProbability = probabilityFromGap({
+      scoreGap: scoreGap + Math.max(Math.round(topGain * 0.35), 8),
+      volatility: volatility * 0.75,
+      confidence: confidenceScore + 8,
+    });
+    const worstProbability = probabilityFromGap({
+      scoreGap: scoreGap - Math.max(Math.round(topGain * 0.45), 10),
+      volatility: volatility * 1.25,
+      confidence: confidenceScore - 10,
+    });
+
+    const baseProbabilityPct = Math.round(baseProbability * 100);
+    const bestProbabilityPct = Math.round(bestProbability * 100);
+    const worstProbabilityPct = Math.round(worstProbability * 100);
+    const uncertaintyPct = clamp(
+      Math.round(26 + (volatility * 0.8) - (confidenceScore * 0.18)),
+      8,
+      34
+    );
+    const confidenceLowPct = clamp(Math.round(baseProbabilityPct - (uncertaintyPct / 2)), 1, 99);
+    const confidenceHighPct = clamp(Math.round(baseProbabilityPct + (uncertaintyPct / 2)), 1, 99);
+
+    return {
+      id: horizon.id,
+      label: horizon.label,
+      months: horizon.months,
+      projectedCutoff,
+      expectedScore,
+      expectedGain,
+      scoreGap,
+      baseProbabilityPct,
+      bestProbabilityPct,
+      worstProbabilityPct,
+      chanceBand: chanceBandFromProbability(baseProbabilityPct),
+      confidenceInterval: {
+        lowPct: confidenceLowPct,
+        highPct: confidenceHighPct,
+        uncertaintyPct,
+      },
+    };
+  });
+
+  const ranked = [...horizons].sort((a, b) => {
+    if (b.baseProbabilityPct !== a.baseProbabilityPct) return b.baseProbabilityPct - a.baseProbabilityPct;
+    return a.months - b.months;
+  });
+  const recommended = ranked[0] || horizons[0] || null;
+  const recommendedHorizonId = recommended?.id || '6m';
+  const confidenceBandLabel = confidenceBand(confidenceScore);
+
+  const keyDrivers = [
+    {
+      id: 'top_lane_gain',
+      label: `${topLane} expected gain`,
+      value: `+${Math.round(topGain)} pts potential`,
+      influence: topGain >= 20 ? 'positive' : 'neutral',
+    },
+    {
+      id: 'execution_cadence',
+      label: 'Execution cadence',
+      value: `${completionPct}% action-plan completion`,
+      influence: completionPct >= 55 ? 'positive' : completionPct >= 25 ? 'neutral' : 'negative',
+    },
+    {
+      id: 'draw_volatility',
+      label: 'Draw volatility pressure',
+      value: `${Number(volatility).toFixed(2)} volatility`,
+      influence: volatility <= 12 ? 'positive' : volatility <= 24 ? 'neutral' : 'negative',
+    },
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    confidenceBand: confidenceBandLabel,
+    recommendedHorizonId,
+    topLane,
+    horizons,
+    keyDrivers,
+    summary: recommended
+      ? `Best current horizon: ${recommended.label} with ${recommended.baseProbabilityPct}% base invitation probability.`
+      : 'Digital twin is preparing probability projections.',
+  };
+}
+
 export function buildOutcomeForecast({ activeDraws, userScore, baseConfidence = 60 }) {
   const series = collectRecentDrawSeries(activeDraws, 10);
   if (!series.length) return null;
@@ -648,7 +789,14 @@ export function computeStrategicInsights({
       baseConfidence: strategy.overallConfidence,
     })
     : null;
-  return { strategy, actionPlan, forecast };
+  const digitalTwin = buildInvitationDigitalTwin({
+    strategy,
+    forecast,
+    actionPlan,
+    averageCutoff,
+    userScore: result?.total || 0,
+  });
+  return { strategy, actionPlan, forecast, digitalTwin };
 }
 function createPlanTask(
   id,

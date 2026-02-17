@@ -91,12 +91,14 @@ export default function ResultsStrategicHub({
   const workerRef = useRef(null);
   const workerRequestIdRef = useRef(0);
   const [computedInsights, setComputedInsights] = useState(null);
+  const digitalTwinEventRef = useRef('');
   const profileFingerprint = useMemo(() => hashAnswersFingerprint(answers), [answers]);
   const lastVisitSnapshotKey = useMemo(() => `crs-last-visit-snapshot-v1:${profileFingerprint}`, [profileFingerprint]);
   const reminderStateKey = useMemo(() => `crs-action-reminders-v1:${profileFingerprint}`, [profileFingerprint]);
   const [changeSummary, setChangeSummary] = useState(null);
   const [taskReminders, setTaskReminders] = useState(() => readStorageJson(reminderStateKey, {}) || {});
   const [shareStatus, setShareStatus] = useState('');
+  const [selectedTwinHorizonId, setSelectedTwinHorizonId] = useState('6m');
   const eligibleCategoryCount = useMemo(
     () => activeCategoryInfo.filter((cat) => typeof cat?.check === 'function' && cat.check(answers)).length,
     [activeCategoryInfo, answers]
@@ -214,6 +216,16 @@ export default function ResultsStrategicHub({
     [actionPlanFallback, computedInsights?.actionPlan]
   );
   const forecast = computedInsights?.forecast || null;
+  const digitalTwin = computedInsights?.digitalTwin || null;
+  const recommendedTwinHorizonId = digitalTwin?.recommendedHorizonId || '';
+  const digitalTwinHorizons = useMemo(
+    () => (Array.isArray(digitalTwin?.horizons) ? digitalTwin.horizons : []),
+    [digitalTwin?.horizons]
+  );
+  const selectedTwinHorizon = useMemo(
+    () => digitalTwinHorizons.find((horizon) => horizon.id === selectedTwinHorizonId) || digitalTwinHorizons[0] || null,
+    [digitalTwinHorizons, selectedTwinHorizonId]
+  );
   const completedCount = actionPlan.completedCount || 0;
   const totalCount = actionPlan.totalCount || actionPlan.tasks.length;
   const completionPct = actionPlan.completionPct || 0;
@@ -238,6 +250,23 @@ export default function ResultsStrategicHub({
     }
     writeStorageJson(lastVisitSnapshotKey, current);
   }, [computedInsights?.strategy, lastVisitSnapshotKey, strategy.cutoff, strategy.overallConfidence, strategy.score]);
+  useEffect(() => {
+    if (!recommendedTwinHorizonId) return;
+    if (recommendedTwinHorizonId) {
+      setSelectedTwinHorizonId(recommendedTwinHorizonId);
+    }
+  }, [recommendedTwinHorizonId]);
+  useEffect(() => {
+    if (!digitalTwin) return;
+    const eventKey = `${digitalTwin.generatedAt || ''}:${digitalTwin.recommendedHorizonId || ''}:${digitalTwinHorizons.length}`;
+    if (!eventKey || eventKey === digitalTwinEventRef.current) return;
+    digitalTwinEventRef.current = eventKey;
+    trackEvent('digital_twin_rendered', {
+      recommended_horizon_id: digitalTwin.recommendedHorizonId || 'none',
+      horizon_count: digitalTwinHorizons.length,
+      confidence_band: digitalTwin.confidenceBand || 'unknown',
+    });
+  }, [digitalTwin, digitalTwinHorizons.length]);
 
   const topFactors = [
     { label: 'Core Human Capital', value: result?.breakdown?.coreHumanCapital || 0 },
@@ -470,6 +499,9 @@ export default function ResultsStrategicHub({
               {t('strategy.actionCenter.openForecast', 'Open forecast')}
             </button>
           )}
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-digital-twin', 'open_digital_twin')}>
+            {t('strategy.actionCenter.openDigitalTwin', 'Open digital twin')}
+          </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-optimizer', 'open_optimizer')}>
             {t('strategy.actionCenter.openOptimizer', 'Open strategy optimizer')}
           </button>
@@ -577,6 +609,68 @@ export default function ResultsStrategicHub({
           </ul>
         )}
       </section>
+      {digitalTwin && (
+        <section className="card strategic-digital-twin" id="section-digital-twin">
+          <h3>{t('strategy.digitalTwin.title', 'Invitation probability digital twin')}</h3>
+          <p className="cat-intro">{digitalTwin.summary}</p>
+          <div className="strategic-action-status">
+            <span>{t('strategy.digitalTwin.recommended', 'Recommended horizon')}: <strong>{digitalTwin.recommendedHorizonId?.toUpperCase?.() || '—'}</strong></span>
+            <span>{t('strategy.digitalTwin.confidenceBand', 'Model confidence')}: <strong>{digitalTwin.confidenceBand || 'Unknown'}</strong></span>
+            <span>{t('strategy.digitalTwin.topLane', 'Top lane')}: <strong>{digitalTwin.topLane || '—'}</strong></span>
+          </div>
+          <div className="digital-twin-horizon-switch">
+            {digitalTwinHorizons.map((horizon) => (
+              <button
+                key={horizon.id}
+                type="button"
+                className={`action-btn ${selectedTwinHorizon?.id === horizon.id ? 'auth-btn-primary' : ''}`.trim()}
+                onClick={() => {
+                  setSelectedTwinHorizonId(horizon.id);
+                  trackEvent('digital_twin_horizon_selected', {
+                    horizon_id: horizon.id,
+                    chance_band: horizon.chanceBand,
+                    base_probability_pct: horizon.baseProbabilityPct,
+                  });
+                }}
+              >
+                {horizon.label}
+              </button>
+            ))}
+          </div>
+          {selectedTwinHorizon && (
+            <div className="digital-twin-scenario-grid">
+              <article className="digital-twin-scenario">
+                <h4>Base scenario</h4>
+                <strong>{selectedTwinHorizon.baseProbabilityPct}%</strong>
+                <p>Projected cutoff: {selectedTwinHorizon.projectedCutoff}</p>
+                <p>Expected score: {selectedTwinHorizon.expectedScore} ({selectedTwinHorizon.scoreGap >= 0 ? '+' : ''}{selectedTwinHorizon.scoreGap} gap)</p>
+              </article>
+              <article className="digital-twin-scenario">
+                <h4>Best-case execution</h4>
+                <strong>{selectedTwinHorizon.bestProbabilityPct}%</strong>
+                <p>Assumes faster lane execution and lower draw variance.</p>
+                <p>Expected gain by horizon: +{selectedTwinHorizon.expectedGain} pts</p>
+              </article>
+              <article className="digital-twin-scenario">
+                <h4>Downside scenario</h4>
+                <strong>{selectedTwinHorizon.worstProbabilityPct}%</strong>
+                <p>Assumes execution slippage and higher draw volatility.</p>
+                <p>Confidence interval: {selectedTwinHorizon.confidenceInterval.lowPct}%–{selectedTwinHorizon.confidenceInterval.highPct}%</p>
+              </article>
+            </div>
+          )}
+          {!!digitalTwin.keyDrivers?.length && (
+            <ul className="digital-twin-driver-list">
+              {digitalTwin.keyDrivers.map((driver) => (
+                <li key={driver.id}>
+                  <span>{driver.label}</span>
+                  <strong>{driver.value}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       {runtimeFlags.enableAdvancedForecasting && forecast && (
         <section className="card strategic-forecast" id="section-forecast">
           <h3>{t('strategy.forecast.title', 'Forecast Outlook')}</h3>
