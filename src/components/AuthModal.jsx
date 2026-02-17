@@ -103,6 +103,11 @@ export default function AuthModal({ open, onClose }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedDeleteConfirmation = deleteConfirmation.trim().toUpperCase();
+  const scrollToAccountSection = (sectionId) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleSendMagicLink = async () => {
     if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
@@ -320,6 +325,20 @@ export default function AuthModal({ open, onClose }) {
               <p className="auth-note">
                 Signed in as <strong>{user.email}</strong>
               </p>
+              <div className="auth-settings-card auth-settings-section">
+                <h4>Account actions</h4>
+                <div className="auth-action-shortcuts">
+                  <button type="button" className="action-btn" onClick={() => scrollToAccountSection('auth-security')}>
+                    Change password
+                  </button>
+                  <button type="button" className="action-btn" onClick={() => scrollToAccountSection('auth-membership')}>
+                    Remove membership
+                  </button>
+                  <button type="button" className="action-btn auth-btn-danger" onClick={() => scrollToAccountSection('auth-danger-zone')}>
+                    Delete account
+                  </button>
+                </div>
+              </div>
 
               <div className="auth-settings-card auth-settings-section">
                 <h4>Account settings</h4>
@@ -384,7 +403,7 @@ export default function AuthModal({ open, onClose }) {
                 )}
               </div>
 
-              <div className="auth-settings-card auth-settings-section">
+              <div className="auth-settings-card auth-settings-section" id="auth-security">
                 <h4>Security</h4>
                 <label className="wi-field">
                   <span>New password</span>
@@ -418,7 +437,7 @@ export default function AuthModal({ open, onClose }) {
                 </div>
               </div>
 
-              <div className="auth-settings-card auth-settings-section">
+              <div className="auth-settings-card auth-settings-section" id="auth-membership">
                 <h4>Membership</h4>
                 <p className="auth-note">
                   Remove or manage your membership from the billing portal.
@@ -435,7 +454,7 @@ export default function AuthModal({ open, onClose }) {
                 </div>
               </div>
 
-              <div className="auth-settings-card auth-settings-section auth-danger-zone">
+              <div className="auth-settings-card auth-settings-section auth-danger-zone" id="auth-danger-zone">
                 <h4>Danger zone</h4>
                 <p className="auth-note">
                   This permanently deletes your account. Type <strong>{DELETE_ACCOUNT_CONFIRMATION}</strong> to confirm.

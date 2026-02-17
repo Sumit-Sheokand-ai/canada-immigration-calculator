@@ -155,8 +155,9 @@ export default function App() {
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setDeferredInstallPrompt(event);
+      if (typeof event?.prompt === 'function') {
+        setDeferredInstallPrompt(event);
+      }
     };
     const onInstalled = () => {
       setDeferredInstallPrompt(null);

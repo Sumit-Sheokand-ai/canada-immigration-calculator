@@ -5,6 +5,7 @@ import {
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const ENABLE_REMOTE_CATEGORY_CONFIG = import.meta.env.VITE_ENABLE_CATEGORY_CONFIG_REMOTE === 'true';
 let latestDrawsCache = {
   data: null,
   source: 'none',
@@ -15,6 +16,7 @@ let categoryConfigCache = {
   source: 'none',
   fetchedAt: 0,
 };
+let canQueryRemoteCategoryConfig = ENABLE_REMOTE_CATEGORY_CONFIG;
 
 function hasBasicShape(payload) {
   return !!payload
@@ -61,6 +63,16 @@ function normalizeCategoryConfig(row) {
     source: row.source || 'supabase',
     updatedAt: row.updated_at || null,
   };
+}
+function isMissingCategoryConfigTable(error) {
+  if (!error) return false;
+  const code = String(error.code || '').toUpperCase();
+  const message = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+  if (code === 'PGRST205') return true;
+  if (message.includes('could not find the table')) return true;
+  if (message.includes('category_draw_configs') && message.includes('schema cache')) return true;
+  if (message.includes('relation') && message.includes('does not exist')) return true;
+  return false;
 }
 
 function mergeCategoryDrawInfo(configRows = []) {
@@ -113,6 +125,7 @@ export function clearLatestDrawsCache() {
 }
 export function clearCategoryConfigCache() {
   categoryConfigCache = { data: null, source: 'none', fetchedAt: 0 };
+  canQueryRemoteCategoryConfig = ENABLE_REMOTE_CATEGORY_CONFIG;
 }
 
 export async function getLatestDraws({ forceRefresh = false } = {}) {
@@ -120,7 +133,7 @@ export async function getLatestDraws({ forceRefresh = false } = {}) {
     return { status: 'ok', source: latestDrawsCache.source, data: latestDrawsCache.data };
   }
 
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && supabase && canQueryRemoteCategoryConfig) {
     try {
       const { data, error } = await supabase
         .from('draw_snapshots')
@@ -165,6 +178,9 @@ export async function getCategoryDrawInfo({ forceRefresh = false } = {}) {
         .select('id,source,name,icon,description,eligibility,recent_cutoff,cutoff_range,is_active,updated_at')
         .eq('is_active', true)
         .order('updated_at', { ascending: false });
+      if (isMissingCategoryConfigTable(error)) {
+        canQueryRemoteCategoryConfig = false;
+      }
 
       if (!error && Array.isArray(data) && data.length > 0) {
         const merged = mergeCategoryDrawInfo(data);
