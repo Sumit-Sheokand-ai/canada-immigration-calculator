@@ -1,3 +1,4 @@
+import { calculate } from '../scoring/scoring.js';
 const SAVED_PROFILES_KEY = 'crs-saved-profiles-v1';
 
 function readProfilesMap() {
@@ -85,6 +86,66 @@ export function saveProfileLocal({ id, name = '', answers = {}, score = 0, email
   map[profileId] = next;
   writeProfilesMap(map);
   return next;
+}
+
+export function recalculateSavedProfilesForPolicy({ reason = 'autopilot', force = false } = {}) {
+  const map = readProfilesMap();
+  const entries = Object.entries(map || {});
+  if (!entries.length) {
+    return {
+      status: 'noop',
+      reason,
+      scanned: 0,
+      updated: 0,
+      skipped: 0,
+      policyVersion: '',
+    };
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  let latestPolicyVersion = '';
+  const recalculatedAt = new Date().toISOString();
+
+  for (const [profileId, profile] of entries) {
+    const profileAnswers = profile?.answers;
+    if (!profileAnswers || typeof profileAnswers !== 'object') {
+      skipped += 1;
+      continue;
+    }
+    const recalculated = calculate(profileAnswers);
+    const nextScore = Number(recalculated?.total || 0);
+    const nextPolicyVersion = String(recalculated?.policy?.version || '');
+    latestPolicyVersion = nextPolicyVersion || latestPolicyVersion;
+
+    const currentScore = Number(profile?.score || 0);
+    const currentPolicyVersion = String(profile?.policyVersion || '');
+    const needsUpdate = !!force || currentScore !== nextScore || currentPolicyVersion !== nextPolicyVersion;
+    if (!needsUpdate) continue;
+
+    map[profileId] = {
+      ...profile,
+      score: nextScore,
+      policyVersion: nextPolicyVersion,
+      policyEffectiveDate: recalculated?.policy?.effectiveDate || '',
+      policySource: recalculated?.policy?.source || '',
+      policyRecalculatedAt: recalculatedAt,
+    };
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    writeProfilesMap(map);
+  }
+  return {
+    status: updated > 0 ? 'updated' : 'noop',
+    reason,
+    scanned: entries.length,
+    updated,
+    skipped,
+    policyVersion: latestPolicyVersion,
+    recalculatedAt,
+  };
 }
 
 export function buildProfileShareUrl(profileId, answers) {

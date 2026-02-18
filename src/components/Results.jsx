@@ -393,6 +393,7 @@ export default function Results({
   const [coachOpen, setCoachOpen] = useState(false);
   const [profileCompareOpen, setProfileCompareOpen] = useState(false);
   const [savedProfiles, setSavedProfiles] = useState(() => listSavedProfiles());
+  const [policyRevision, setPolicyRevision] = useState(0);
   const [profileAId, setProfileAId] = useState('__current__');
   const [profileBId, setProfileBId] = useState(() => listSavedProfiles()[0]?.id || '__current__');
 
@@ -410,11 +411,29 @@ export default function Results({
     return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
-    setSavedProfiles(listSavedProfiles());
+    const refreshSavedProfiles = () => {
+      setSavedProfiles(listSavedProfiles());
+    };
+    const handlePolicySync = () => {
+      refreshSavedProfiles();
+      setPolicyRevision((prev) => prev + 1);
+    };
+
+    refreshSavedProfiles();
+    if (typeof window === 'undefined') return undefined;
+    window.addEventListener('crs-policy-ruleset-updated', handlePolicySync);
+    window.addEventListener('crs-policy-autopilot-synced', handlePolicySync);
+    window.addEventListener('storage', handlePolicySync);
+    return () => {
+      window.removeEventListener('crs-policy-ruleset-updated', handlePolicySync);
+      window.removeEventListener('crs-policy-autopilot-synced', handlePolicySync);
+      window.removeEventListener('storage', handlePolicySync);
+    };
   }, []);
 
   const result = useMemo(() => {
-    if (answers.knowsScore === 'yes') {
+    const shouldUseApproximation = answers.knowsScore === 'yes' && policyRevision >= 0;
+    if (shouldUseApproximation) {
       const approxScore = parseInt(answers.scoreRange, 10) || 400;
       return {
         total: approxScore,
@@ -423,7 +442,7 @@ export default function Results({
       };
     }
     return calculate(answers);
-  }, [answers]);
+  }, [answers, policyRevision]);
 
   const isSelfCalc = answers.knowsScore !== 'yes';
   const score = result.total;

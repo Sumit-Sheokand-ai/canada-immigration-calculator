@@ -20,6 +20,7 @@ import { readAccountSettings } from './utils/accountSettings';
 import { readRuntimeFlags } from './utils/runtimeFlags';
 import { prefetchPathCoachChunk, prefetchResultsChunk, prefetchWizardChunk } from './utils/chunkPrefetch';
 import { readConsultantHandoffFromQuery } from './utils/handoffExport';
+import { runPolicyAutopilotSync } from './utils/policyAutopilot';
 import './App.css';
 
 const STORAGE_KEY = 'crs-progress';
@@ -303,6 +304,45 @@ export default function App() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [syncDataSources]);
+  useEffect(() => {
+    try {
+      const summary = runPolicyAutopilotSync({ reason: 'app_boot' });
+      trackEvent('policy_autopilot_sync', {
+        reason: 'app_boot',
+        status: summary.status,
+        active_policy_id: summary.activePolicyId || '',
+        policy_source: summary.policySource || '',
+        changed: !!summary.changed,
+        recalculated_profiles: Number(summary.recalculation?.updated || 0),
+      });
+    } catch (error) {
+      trackError('policy_autopilot_sync_failed', error, { reason: 'app_boot' });
+    }
+  }, []);
+  useEffect(() => {
+    const onPolicyRulesetUpdated = () => {
+      try {
+        const summary = runPolicyAutopilotSync({
+          reason: 'policy_override_updated',
+          force: true,
+        });
+        trackEvent('policy_autopilot_sync', {
+          reason: 'policy_override_updated',
+          status: summary.status,
+          active_policy_id: summary.activePolicyId || '',
+          policy_source: summary.policySource || '',
+          changed: !!summary.changed,
+          recalculated_profiles: Number(summary.recalculation?.updated || 0),
+        });
+      } catch (error) {
+        trackError('policy_autopilot_sync_failed', error, { reason: 'policy_override_updated' });
+      }
+    };
+    window.addEventListener('crs-policy-ruleset-updated', onPolicyRulesetUpdated);
+    return () => {
+      window.removeEventListener('crs-policy-ruleset-updated', onPolicyRulesetUpdated);
+    };
+  }, []);
   useEffect(() => {
     if (mode === 'welcome') {
       prefetchWizardChunk({ idle: true });

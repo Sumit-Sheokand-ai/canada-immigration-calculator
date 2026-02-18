@@ -9,6 +9,7 @@ import { readAccountSettings, saveAccountSettings } from '../utils/accountSettin
 import { getCategoryDrawInfo, getLatestDraws, clearCategoryConfigCache, clearLatestDrawsCache } from '../utils/drawDataSource';
 import { clearQuestionBankCache, getQuestionBank } from '../utils/questionDataSource';
 import { readRuntimeFlags, resetRuntimeFlags, saveRuntimeFlags } from '../utils/runtimeFlags';
+import { readPolicyAutopilotState, runPolicyAutopilotSync } from '../utils/policyAutopilot';
 import {
   clearPolicyRuleSetOverride,
   getAvailablePolicyRuleSets,
@@ -57,6 +58,7 @@ export default function AuthModal({ open, onClose }) {
     questionFreshness: 'unknown',
     questionCount: 0,
     activePolicy: resolvePolicyRuleSet(),
+    policyAutopilot: readPolicyAutopilotState(),
     refreshedAt: '',
   }));
   const [newPassword, setNewPassword] = useState('');
@@ -92,6 +94,7 @@ export default function AuthModal({ open, onClose }) {
         questionFreshness: questionRes?.freshness || 'unknown',
         questionCount: Array.isArray(questionRes?.data) ? questionRes.data.length : 0,
         activePolicy: resolvePolicyRuleSet(),
+        policyAutopilot: readPolicyAutopilotState(),
         refreshedAt: new Date().toISOString(),
       });
       if (!silent) setStatus('Admin metadata refreshed.');
@@ -383,8 +386,9 @@ export default function AuthModal({ open, onClose }) {
       clearLatestDrawsCache();
       clearCategoryConfigCache();
       clearQuestionBankCache();
+      const syncSummary = runPolicyAutopilotSync({ reason: 'admin_controls_save', force: true });
       await refreshAdminMetadata({ forceRefresh: true, silent: true });
-      setStatus('Admin controls saved.');
+      setStatus(`Admin controls saved. Policy autopilot recalculated ${Number(syncSummary?.recalculation?.updated || 0)} profile(s).`);
     } catch (err) {
       setStatus(err.message || 'Could not save admin controls.');
     } finally {
@@ -402,8 +406,9 @@ export default function AuthModal({ open, onClose }) {
       clearLatestDrawsCache();
       clearCategoryConfigCache();
       clearQuestionBankCache();
+      const syncSummary = runPolicyAutopilotSync({ reason: 'admin_controls_reset', force: true });
       await refreshAdminMetadata({ forceRefresh: true, silent: true });
-      setStatus('Admin controls reset to defaults.');
+      setStatus(`Admin controls reset to defaults. Policy autopilot recalculated ${Number(syncSummary?.recalculation?.updated || 0)} profile(s).`);
     } catch (err) {
       setStatus(err.message || 'Could not reset admin controls.');
     } finally {
@@ -579,6 +584,8 @@ export default function AuthModal({ open, onClose }) {
                 </label>
                 <div className="auth-admin-meta">
                   <p><strong>Active policy:</strong> {adminMeta.activePolicy?.id || '—'} ({adminMeta.activePolicy?.source || 'unknown'})</p>
+                  <p><strong>Policy autopilot:</strong> {adminMeta.policyAutopilot?.activePolicyId || '—'} · Registry {adminMeta.policyAutopilot?.registryVersion || '—'}</p>
+                  <p><strong>Autopilot last recalculation:</strong> {adminMeta.policyAutopilot?.lastRecalculation?.recalculatedAt ? new Date(adminMeta.policyAutopilot.lastRecalculation.recalculatedAt).toLocaleString() : '—'} · Updated {Number(adminMeta.policyAutopilot?.lastRecalculation?.updated || 0)} profile(s)</p>
                   <p><strong>Draw source:</strong> {adminMeta.drawSource} ({adminMeta.drawFreshness}) · Updated {adminMeta.drawUpdatedAt}</p>
                   <p><strong>Category source:</strong> {adminMeta.categorySource} ({adminMeta.categoryFreshness}) · {adminMeta.categoryCount} categories</p>
                   <p><strong>Question bank:</strong> {adminMeta.questionSource} ({adminMeta.questionFreshness}) · {adminMeta.questionCount} steps</p>

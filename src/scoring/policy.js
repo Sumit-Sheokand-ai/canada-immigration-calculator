@@ -1,5 +1,9 @@
 import * as D from '../data/crsData.js';
 const POLICY_RULESET_OVERRIDE_KEY = 'crs-policy-ruleset-override-v1';
+export const POLICY_RULESET_REGISTRY_VERSION = '2026-02-18-v1';
+export const POLICY_RULESET_ALIASES = Object.freeze({
+  'ircc-2025-03-25-v1': 'ircc-2025-03-25-v2',
+});
 
 function parseIsoDate(value) {
   const parsed = new Date(value);
@@ -40,7 +44,21 @@ function getLatestPolicyRuleSet() {
 }
 
 function getPolicyRuleSetById(id) {
-  return CRS_POLICY_RULESETS.find((ruleSet) => ruleSet.id === id) || null;
+  const normalizedId = normalizePolicyRuleSetId(id);
+  return CRS_POLICY_RULESETS.find((ruleSet) => ruleSet.id === normalizedId) || null;
+}
+
+export function normalizePolicyRuleSetId(ruleSetId) {
+  const normalized = String(ruleSetId || '').trim();
+  if (!normalized) return '';
+  return POLICY_RULESET_ALIASES[normalized] || normalized;
+}
+export function getPolicyRuleSetRegistryMeta() {
+  return {
+    version: POLICY_RULESET_REGISTRY_VERSION,
+    aliases: { ...POLICY_RULESET_ALIASES },
+    latestRuleSetId: getLatestPolicyRuleSet()?.id || '',
+  };
 }
 
 function readPolicyOverrideId() {
@@ -48,8 +66,13 @@ function readPolicyOverrideId() {
   try {
     const raw = window.localStorage.getItem(POLICY_RULESET_OVERRIDE_KEY);
     if (!raw) return null;
-    const normalized = String(raw).trim();
-    return getPolicyRuleSetById(normalized)?.id || null;
+    const normalized = normalizePolicyRuleSetId(raw);
+    const known = getPolicyRuleSetById(normalized)?.id || null;
+    if (!known) return null;
+    if (String(raw).trim() !== known) {
+      window.localStorage.setItem(POLICY_RULESET_OVERRIDE_KEY, known);
+    }
+    return known;
   } catch {
     return null;
   }
@@ -65,7 +88,7 @@ export function readPolicyRuleSetOverride() {
 
 export function savePolicyRuleSetOverride(ruleSetId) {
   if (typeof window === 'undefined') return null;
-  const normalized = String(ruleSetId || '').trim();
+  const normalized = normalizePolicyRuleSetId(ruleSetId);
   const nextRuleSet = getPolicyRuleSetById(normalized);
   try {
     if (nextRuleSet) {
