@@ -38,8 +38,13 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
       >
         <div className="header-inner">
           <div className="logo">
-            <span className="logo-leaf">🍁</span>
-            <span>{t('header.title')}</span>
+            <span className="logo-leaf" aria-hidden="true">
+              <ion-icon name="diamond-sharp" />
+            </span>
+            <div className="logo-copy">
+              <span>{t('header.title')}</span>
+              <small>{t('header.tagline', 'Clear score. Clear plan.')}</small>
+            </div>
           </div>
           <div className="header-actions">
             {canInstallApp && (
@@ -73,7 +78,7 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
               aria-label={user ? 'Manage account' : 'Login or signup'}
               title={user ? user.email : 'Login / Signup'}
             >
-              {user ? 'Account' : 'Login'}
+                {user ? 'Account' : 'Sign in'}
             </button>
             <select
               className="lang-select"

@@ -9,7 +9,12 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import AppErrorBoundary from './components/AppErrorBoundary.jsx'
 import { trackError, trackEvent } from './utils/analytics'
 import { readRuntimeFlags } from './utils/runtimeFlags'
+import { defineCustomElements } from 'ionicons/loader'
 const loadMotionFeatures = () => import('./utils/motionFeatures.js').then((mod) => mod.default)
+
+if (typeof window !== 'undefined') {
+  defineCustomElements(window)
+}
 
 // Register service worker for security headers
 if ('serviceWorker' in navigator) {

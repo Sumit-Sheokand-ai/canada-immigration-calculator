@@ -628,57 +628,45 @@ export default function ResultsStrategicHub({
         <p className="cat-intro">{t('strategy.actionCenter.subtitle', 'Use this control center to execute the highest-impact moves with clear priority and risk visibility.')}</p>
         <div className="strategic-action-grid">
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-save', 'save_profile')}>
-            {t('strategy.actionCenter.saveProfile', 'Save profile')}
+            <span className="quick-nav-btn-content"><ion-icon name="save-sharp" aria-hidden="true" /> {t('strategy.actionCenter.saveProfile', 'Save profile')}</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-opportunity-radar', 'open_opportunity_radar')}>
+            <span className="quick-nav-btn-content"><ion-icon name="radar-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openOpportunityRadar', 'Open opportunity radar')}</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-command-center', 'open_application_command_center')}>
+            <span className="quick-nav-btn-content"><ion-icon name="checkmark-done-circle-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openCommandCenter', 'Open application command center')}</span>
           </button>
           {runtimeFlags.enableAdvancedForecasting && (
             <button type="button" className="action-btn" onClick={() => jumpFromAction('section-forecast', 'open_forecast')}>
-              {t('strategy.actionCenter.openForecast', 'Open forecast')}
+              <span className="quick-nav-btn-content"><ion-icon name="trending-up-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openForecast', 'Open forecast')}</span>
             </button>
           )}
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-digital-twin', 'open_digital_twin')}>
-            {t('strategy.actionCenter.openDigitalTwin', 'Open digital twin')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-optimizer', 'open_optimizer')}>
-            {t('strategy.actionCenter.openOptimizer', 'Open strategy optimizer')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-opportunity-radar', 'open_opportunity_radar')}>
-            {t('strategy.actionCenter.openOpportunityRadar', 'Open opportunity radar')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-command-center', 'open_application_command_center')}>
-            {t('strategy.actionCenter.openCommandCenter', 'Open application command center')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-copilot', 'open_grounded_copilot')}>
-            {t('strategy.actionCenter.openCopilot', 'Open grounded copilot')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-collaboration', 'open_collaboration_workspace')}>
-            {t('strategy.actionCenter.openCollaboration', 'Open collaboration workspace')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-community-benchmarks', 'open_community_benchmarks')}>
-            {t('strategy.actionCenter.openBenchmarks', 'Open community benchmarks')}
+            <span className="quick-nav-btn-content"><ion-icon name="git-compare-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openDigitalTwin', 'Open digital twin')}</span>
           </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-90-day-plan', 'open_90_day_plan')}>
-            {t('strategy.actionCenter.openPlan', 'Open 90-day plan')}
+            <span className="quick-nav-btn-content"><ion-icon name="calendar-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openPlan', 'Open 90-day plan')}</span>
           </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-pricing', 'compare_plans')}>
-            {t('strategy.actionCenter.comparePlans', 'Compare plans')}
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-optimizer', 'open_optimizer')}>
+            <span className="quick-nav-btn-content"><ion-icon name="options-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openOptimizer', 'Open optimizer')}</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-copilot', 'open_grounded_copilot')}>
+            <span className="quick-nav-btn-content"><ion-icon name="sparkles-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openCopilot', 'Open grounded copilot')}</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-collaboration', 'open_collaboration_workspace')}>
+            <span className="quick-nav-btn-content"><ion-icon name="people-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openCollaboration', 'Open collaboration workspace')}</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-community-benchmarks', 'open_community_benchmarks')}>
+            <span className="quick-nav-btn-content"><ion-icon name="bar-chart-sharp" aria-hidden="true" /> {t('strategy.actionCenter.openBenchmarks', 'Open community benchmarks')}</span>
           </button>
           <button type="button" className="action-btn" onClick={handleExportHandoff}>
-            {t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}
+            <span className="quick-nav-btn-content"><ion-icon name="download-sharp" aria-hidden="true" /> {t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}</span>
           </button>
           <button type="button" className="action-btn" onClick={handleCopyHandoffLink}>
-            {t('strategy.actionCenter.shareHandoff', 'Copy handoff share link')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-action-queue', 'open_action_queue')}>
-            {t('strategy.actionCenter.actionQueue', 'Smart action queue')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-coach', 'expert_strategy_coach')}>
-            {t('strategy.actionCenter.expertCoach', 'Expert strategy coach')}
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-profile-trend', 'profile_trend_timeline')}>
-            {t('strategy.actionCenter.profileTrend', 'Profile trend timeline')}
+            <span className="quick-nav-btn-content"><ion-icon name="share-social-sharp" aria-hidden="true" /> {t('strategy.actionCenter.shareHandoff', 'Copy handoff share link')}</span>
           </button>
           <button type="button" className="action-btn" onClick={openAccountFromAction}>
-            {t('strategy.actionCenter.manageAccount', 'Manage account')}
+            <span className="quick-nav-btn-content"><ion-icon name="person-circle-sharp" aria-hidden="true" /> {t('strategy.actionCenter.manageAccount', 'Manage account')}</span>
           </button>
         </div>
         <div className="strategic-action-status">
@@ -741,7 +729,7 @@ export default function ResultsStrategicHub({
                   aria-label={`Toggle reminder for ${task.title}`}
                   onClick={() => toggleTaskReminder(task.id)}
                 >
-                  {taskReminders[task.id] ? '🔔' : '🔕'}
+                  <ion-icon name={taskReminders[task.id] ? 'notifications-sharp' : 'notifications-off-sharp'} aria-hidden="true" />
                 </button>
                 <div>
                   <div className="plan-task-head">

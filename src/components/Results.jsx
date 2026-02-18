@@ -531,10 +531,10 @@ export default function Results({
   }, [cloudEnabled, isAuthenticated, user?.id]);
 
   const status = diff >= 20
-    ? { cls: 'above', marker: '+', title: 'Great News!', desc: `Your score is ${diff} points above the recent cut-off (${cutoff}). You have a strong chance of receiving an Invitation to Apply.`, color: '#22c55e' }
+    ? { cls: 'above', marker: '+', title: 'Strong range', desc: `You are ${diff} points above the recent reference cutoff (${cutoff}). Keep your profile updated and stay draw-ready.`, color: '#22c55e' }
     : diff >= -10
-      ? { cls: 'close', marker: '~', title: 'Almost There!', desc: `You're just ${Math.abs(diff)} points ${diff >= 0 ? 'above' : 'below'} the recent cut-off (${cutoff}). A few small improvements could make the difference.`, color: '#f59e0b' }
-      : { cls: 'below', marker: '—', title: 'Room to Improve', desc: `You're ${Math.abs(diff)} points below the recent cut-off (${cutoff}). Don't worry — see the suggestions below to boost your score.`, color: '#ef4444' };
+      ? { cls: 'close', marker: '~', title: 'Close range', desc: `You are ${Math.abs(diff)} points ${diff >= 0 ? 'above' : 'below'} the recent reference cutoff (${cutoff}). One or two focused upgrades can materially improve odds.`, color: '#f59e0b' }
+      : { cls: 'below', marker: '—', title: 'Build-up range', desc: `You are ${Math.abs(diff)} points below the recent reference cutoff (${cutoff}). Follow the ranked actions below to close the gap step by step.`, color: '#ef4444' };
 
   const suggestions = useMemo(() => generateSuggestions(answers, result), [answers, result]);
   const timeline = useMemo(() => estimateTimeline(result), [result]);
@@ -710,32 +710,35 @@ export default function Results({
       </Suspense>
 
       <motion.div className="card quick-nav-card" variants={fadeUp}>
-        <h3>Quick navigation</h3>
+        <h3>Start here</h3>
         <div className="quick-nav-grid">
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-action-center')}>Action center</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>Save profile</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-optimizer')}>Optimizer</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-90-day-plan')}>90-day plan</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-pricing')}>Plans</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-explainability')}>Explainability</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-profile-compare')}>Profile compare</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-profile-trend')}>Profile trend</button>
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}>Score breakdown</button>}
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}>Improve score</button>}
-          {isSelfCalc && (
-            <button
-              type="button"
-              className="action-btn"
-              onClick={() => scrollToSection('section-coach')}
-              onMouseEnter={() => prefetchPathCoachChunk()}
-              onFocus={() => prefetchPathCoachChunk()}
-            >
-              Expert strategy
-            </button>
-          )}
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}>Category draws</button>}
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-timeline')}>Timeline</button>
-          <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>Recent draws</button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-action-center')}>
+            <span className="quick-nav-btn-content"><ion-icon name="grid-sharp" aria-hidden="true" /> Action center</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-opportunity-radar')}>
+            <span className="quick-nav-btn-content"><ion-icon name="radar-sharp" aria-hidden="true" /> Opportunity radar</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-command-center')}>
+            <span className="quick-nav-btn-content"><ion-icon name="checkmark-done-circle-sharp" aria-hidden="true" /> Command center</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-90-day-plan')}>
+            <span className="quick-nav-btn-content"><ion-icon name="calendar-sharp" aria-hidden="true" /> 90-day plan</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-copilot')}>
+            <span className="quick-nav-btn-content"><ion-icon name="sparkles-sharp" aria-hidden="true" /> Grounded copilot</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>
+            <span className="quick-nav-btn-content"><ion-icon name="save-sharp" aria-hidden="true" /> Save profile</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>
+            <span className="quick-nav-btn-content"><ion-icon name="trending-up-sharp" aria-hidden="true" /> Recent draws</span>
+          </button>
+          <button type="button" className="action-btn" onClick={() => scrollToSection('section-timeline')}>
+            <span className="quick-nav-btn-content"><ion-icon name="time-sharp" aria-hidden="true" /> Timeline</span>
+          </button>
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}><span className="quick-nav-btn-content"><ion-icon name="pie-chart-sharp" aria-hidden="true" /> Score breakdown</span></button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}><span className="quick-nav-btn-content"><ion-icon name="flash-sharp" aria-hidden="true" /> Improve score</span></button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}><span className="quick-nav-btn-content"><ion-icon name="layers-sharp" aria-hidden="true" /> Category draws</span></button>}
         </div>
       </motion.div>
 

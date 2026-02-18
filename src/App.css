@@ -9,6 +9,18 @@
   isolation: isolate;
   overflow-x: clip;
 }
+.quick-nav-btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+.quick-nav-btn-content ion-icon {
+  font-size: 15px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
 .card:hover::before { opacity: 0.62; }
 .main {
   flex: 1;
@@ -287,7 +299,38 @@
   margin: 0;
   flex-shrink: 0;
 }
-.logo-leaf { font-size: 1.8rem; line-height: 1; }
+.logo-leaf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--primary);
+  border: 1px solid var(--glass-border);
+  background:
+    linear-gradient(135deg, var(--primary-a8) 0%, rgba(255,255,255,0) 64%),
+    linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
+  box-shadow: 0 8px 18px var(--glass-shadow);
+}
+.logo-leaf ion-icon { font-size: 1.15em; }
+.logo-copy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+  gap: 4px;
+}
+.logo-copy span {
+  letter-spacing: -0.01em;
+}
+.logo-copy small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
 .header-actions {
   display: flex;
   align-items: center;
@@ -518,7 +561,21 @@
 .welcome-hero { margin-bottom: 36px; }
 .hero-flag { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px; }
 .flag-bar { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--accent); }
-.flag-leaf { font-size: 36px; }
+.flag-leaf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  color: var(--primary);
+  border: 1px solid var(--glass-border);
+  background:
+    linear-gradient(135deg, var(--primary-a8) 0%, rgba(255,255,255,0) 62%),
+    linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
+  box-shadow: 0 14px 28px var(--glass-shadow);
+}
+.flag-leaf ion-icon { font-size: 1.7rem; }
 .welcome h1 { font-size: 2rem; font-weight: 700; line-height: 1.2; color: var(--text); margin-bottom: 12px; }
 .hero-sub { color: var(--text-2); font-size: 15px; max-width: 480px; margin: 0 auto; }
 
@@ -540,7 +597,20 @@
   transform: translateX(-100%); transition: transform 0.6s;
 }
 .feature-card:hover::after { transform: translateX(100%); }
-.feature-icon { font-size: 24px; }
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  color: var(--primary);
+  border: 1px solid var(--glass-border);
+  background:
+    linear-gradient(135deg, var(--primary-a8) 0%, rgba(255,255,255,0) 62%),
+    linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
+}
+.feature-icon ion-icon { font-size: 1.2rem; }
 .feature-card strong { font-size: 14px; font-weight: 600; }
 .feature-desc { font-size: 12px; color: var(--text-3); }
 
@@ -1085,7 +1155,7 @@
 .quick-nav-grid .action-btn {
   width: 100%;
   min-height: 44px;
-  text-align: center;
+  text-align: left;
 }
 
 .draw-source-pill {
@@ -1630,6 +1700,9 @@
   box-shadow: 0 0 0 2px var(--primary-a4);
 }
 .plan-task-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--surface-3);
   border-radius: 50%;
   width: 24px;
@@ -1638,6 +1711,7 @@
   color: var(--text-2);
   font-weight: 700;
 }
+.plan-task-toggle ion-icon { font-size: 14px; }
 .plan-task-head {
   display: flex;
   align-items: center;
@@ -2682,7 +2756,9 @@
   .gauge-number { font-size: 2rem; }
   .header-inner { flex-direction: column; align-items: stretch; gap: 10px; }
   .logo { margin: 0; font-size: 17px; justify-content: center; }
-  .logo-leaf { font-size: 1.5rem; }
+  .logo-leaf { width: 34px; height: 34px; font-size: 1rem; border-radius: 10px; }
+  .logo-copy { align-items: center; text-align: center; gap: 3px; }
+  .logo-copy small { font-size: 10px; }
   .header-actions { margin-left: 0; flex-wrap: wrap; justify-content: center; }
   .header-actions > * { flex: 1 1 120px; }
   .install-btn, .auth-toggle, .lang-select, .theme-toggle { min-height: 40px; padding: 8px 10px; }

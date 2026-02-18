@@ -20,10 +20,10 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
   const { t } = useLanguage();
 
   const features = [
-    { icon: 'I', iconClass: 'fi fi-score', title: t('feature.accurate'), desc: t('feature.accurateDesc') },
-    { icon: 'II', iconClass: 'fi fi-tips', title: t('feature.suggestions'), desc: t('feature.suggestionsDesc') },
-    { icon: 'III', iconClass: 'fi fi-data', title: t('feature.draws'), desc: t('feature.drawsDesc') },
-    { icon: 'IV', iconClass: 'fi fi-fast', title: t('feature.instant'), desc: t('feature.instantDesc') },
+    { icon: 'stats-chart-sharp', title: t('feature.accurate'), desc: t('feature.accurateDesc') },
+    { icon: 'flash-sharp', title: t('feature.suggestions'), desc: t('feature.suggestionsDesc') },
+    { icon: 'trending-up-sharp', title: t('feature.draws'), desc: t('feature.drawsDesc') },
+    { icon: 'shield-checkmark-sharp', title: t('feature.instant'), desc: t('feature.instantDesc') },
   ];
 
   return (
@@ -36,7 +36,9 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
     >
       <motion.div className="welcome-hero" variants={item}>
         <div className="hero-flag">
-          <span className="flag-leaf">🍁</span>
+          <span className="flag-leaf" aria-hidden="true">
+            <ion-icon name="sparkles-sharp" />
+          </span>
         </div>
         <h1>{t('welcome.heading').split('\n').map((l, i) => <span key={i}>{l}{i === 0 && <br />}</span>)}</h1>
         <p className="hero-sub">{t('welcome.sub')}</p>
@@ -64,7 +66,9 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
             variants={item}
             whileHover={prefersReducedMotion ? undefined : { y: -4, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
           >
-            <span className="feature-icon feature-num">{f.icon}</span>
+            <span className="feature-icon" aria-hidden="true">
+              <ion-icon name={f.icon} />
+            </span>
             <strong>{f.title}</strong>
             <span className="feature-desc">{f.desc}</span>
           </motion.div>
@@ -83,9 +87,7 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
             onFocus={onPrepareStart}
           >
             {t('welcome.btn')}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
+            <ion-icon name="arrow-forward-sharp" aria-hidden="true" />
           </motion.button>
         </StarBorder>
         <p className="welcome-microcopy">{t('welcome.microcopy')}</p>
