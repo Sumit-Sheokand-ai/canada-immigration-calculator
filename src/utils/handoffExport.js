@@ -67,6 +67,107 @@ function sanitizeStrategy(strategy = {}) {
   };
 }
 
+function sanitizeOpportunityRadar(opportunityRadar = null) {
+  if (!opportunityRadar) return null;
+  return {
+    readinessIndex: Number(opportunityRadar?.readinessIndex) || 0,
+    recommendedWindow: opportunityRadar?.recommendedWindow || '',
+    recommendedOpportunityId: opportunityRadar?.recommendedOpportunityId || '',
+    signals: (opportunityRadar?.signals || []).slice(0, 5).map((signal) => ({
+      id: signal.id,
+      title: signal.title,
+      lane: signal.lane,
+      opportunityScore: Number(signal.opportunityScore) || 0,
+      confidenceBand: signal.confidenceBand || 'Unknown',
+      scoreDeltaNeeded: Number(signal.scoreDeltaNeeded) || 0,
+      windowLabel: signal.windowLabel || '',
+      riskLevel: signal.riskLevel || 'unknown',
+    })),
+    alertTriggers: (opportunityRadar?.alertTriggers || []).slice(0, 4).map((trigger) => ({
+      id: trigger.id,
+      title: trigger.title,
+      trigger: trigger.trigger,
+      windowLabel: trigger.windowLabel,
+    })),
+  };
+}
+
+function sanitizeCommandCenter(commandCenter = null) {
+  if (!commandCenter) return null;
+  return {
+    readinessScore: Number(commandCenter?.readinessScore) || 0,
+    readinessBand: commandCenter?.readinessBand || 'Unknown',
+    profileCompleteness: Number(commandCenter?.profileCompleteness) || 0,
+    blockers: (commandCenter?.blockers || []).map((blocker) => ({
+      id: blocker.id,
+      label: blocker.label,
+      detail: blocker.detail,
+    })),
+    checklist: (commandCenter?.checklist || []).map((item) => ({
+      id: item.id,
+      title: item.title,
+      owner: item.owner,
+      dueWindow: item.dueWindow,
+      status: item.status,
+      evidence: item.evidence,
+    })),
+  };
+}
+
+function sanitizeCopilot(copilot = null) {
+  if (!copilot) return null;
+  return {
+    modelLabel: copilot?.modelLabel || 'Unknown',
+    groundingMode: copilot?.groundingMode || 'unknown',
+    cards: (copilot?.cards || []).map((card) => ({
+      id: card.id,
+      prompt: card.prompt,
+      response: card.response,
+      confidenceBand: card.confidenceBand,
+      quickAction: card.quickAction,
+      evidence: Array.isArray(card.evidence) ? card.evidence : [],
+    })),
+  };
+}
+
+function sanitizeCollaboration(collaboration = null) {
+  if (!collaboration) return null;
+  return {
+    workspaceId: collaboration?.workspaceId || '',
+    workspaceReadiness: Number(collaboration?.workspaceReadiness) || 0,
+    readinessBand: collaboration?.readinessBand || 'Unknown',
+    packageStatus: collaboration?.packageStatus || 'unknown',
+    reviewChecklist: (collaboration?.reviewChecklist || []).map((item) => ({
+      id: item.id,
+      label: item.label,
+      status: item.status,
+      detail: item.detail,
+    })),
+    collaborationNotes: Array.isArray(collaboration?.collaborationNotes) ? collaboration.collaborationNotes : [],
+  };
+}
+
+function sanitizeCommunityBenchmarks(communityBenchmarks = null) {
+  if (!communityBenchmarks) return null;
+  return {
+    percentile: Number(communityBenchmarks?.percentile) || 0,
+    benchmarkBand: communityBenchmarks?.benchmarkBand || 'Unknown',
+    cohort: communityBenchmarks?.cohort || null,
+    summary: communityBenchmarks?.summary || '',
+    comparison: (communityBenchmarks?.comparison || []).map((item) => ({
+      id: item.id,
+      label: item.label,
+      score: Number(item.score) || 0,
+      isUser: !!item.isUser,
+    })),
+    leverageSignals: (communityBenchmarks?.leverageSignals || []).map((signal) => ({
+      id: signal.id,
+      label: signal.label,
+      headroom: Number(signal.headroom) || 0,
+    })),
+  };
+}
+
 function sanitizeActionPlan(actionPlan = {}) {
   return {
     completionPct: Number(actionPlan?.completionPct) || 0,
@@ -98,6 +199,11 @@ export function buildConsultantHandoffPayload({
   strategy = {},
   forecast = null,
   actionPlan = {},
+  opportunityRadar = null,
+  commandCenter = null,
+  copilot = null,
+  collaboration = null,
+  communityBenchmarks = null,
   drawData = {},
   categoryInfo = [],
 } = {}) {
@@ -119,6 +225,11 @@ export function buildConsultantHandoffPayload({
     scoreBreakdown: result?.breakdown || {},
     scoreDetails: result?.details || {},
     strategy: sanitizeStrategy(strategy),
+    opportunityRadar: sanitizeOpportunityRadar(opportunityRadar),
+    commandCenter: sanitizeCommandCenter(commandCenter),
+    copilot: sanitizeCopilot(copilot),
+    collaboration: sanitizeCollaboration(collaboration),
+    communityBenchmarks: sanitizeCommunityBenchmarks(communityBenchmarks),
     forecast: forecast
       ? {
         trendLabel: forecast.trendLabel,

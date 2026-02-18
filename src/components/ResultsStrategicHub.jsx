@@ -33,6 +33,11 @@ function confidenceClass(value = '') {
   if (value === 'Medium') return 'assumption-medium';
   return 'assumption-low';
 }
+function commandStatusClass(value = 'in_progress') {
+  if (value === 'ready') return 'command-ready';
+  if (value === 'blocked') return 'command-blocked';
+  return 'command-progress';
+}
 
 function normalizeTierName(value) {
   if (value === 'free') return 'Free';
@@ -98,8 +103,10 @@ export default function ResultsStrategicHub({
   const lastVisitSnapshotKey = useMemo(() => `crs-last-visit-snapshot-v1:${profileFingerprint}`, [profileFingerprint]);
   const reminderStateKey = useMemo(() => `crs-action-reminders-v1:${profileFingerprint}`, [profileFingerprint]);
   const optimizerConstraintKey = useMemo(() => `crs-optimizer-constraints-v1:${profileFingerprint}`, [profileFingerprint]);
+  const commandChecklistStateKey = useMemo(() => `crs-command-center-checklist-v1:${profileFingerprint}`, [profileFingerprint]);
   const [changeSummary, setChangeSummary] = useState(null);
   const [taskReminders, setTaskReminders] = useState(() => readStorageJson(reminderStateKey, {}) || {});
+  const [commandChecklistState, setCommandChecklistState] = useState(() => readStorageJson(commandChecklistStateKey, {}) || {});
   const [optimizerConstraints, setOptimizerConstraints] = useState(() => normalizeOptimizerConstraints(DEFAULT_OPTIMIZER_CONSTRAINTS));
   const [shareStatus, setShareStatus] = useState('');
   const [selectedTwinHorizonId, setSelectedTwinHorizonId] = useState('6m');
@@ -114,6 +121,9 @@ export default function ResultsStrategicHub({
   useEffect(() => {
     setTaskReminders(readStorageJson(reminderStateKey, {}) || {});
   }, [reminderStateKey]);
+  useEffect(() => {
+    setCommandChecklistState(readStorageJson(commandChecklistStateKey, {}) || {});
+  }, [commandChecklistStateKey]);
   useEffect(() => {
     const persisted = readStorageJson(optimizerConstraintKey, DEFAULT_OPTIMIZER_CONSTRAINTS);
     setOptimizerConstraints(normalizeOptimizerConstraints(persisted));
@@ -226,6 +236,11 @@ export default function ResultsStrategicHub({
   );
   const forecast = computedInsights?.forecast || null;
   const digitalTwin = computedInsights?.digitalTwin || null;
+  const opportunityRadar = computedInsights?.opportunityRadar || null;
+  const commandCenter = computedInsights?.commandCenter || null;
+  const copilot = computedInsights?.copilot || null;
+  const collaboration = computedInsights?.collaboration || null;
+  const communityBenchmarks = computedInsights?.communityBenchmarks || null;
   const recommendedTwinHorizonId = digitalTwin?.recommendedHorizonId || '';
   const digitalTwinHorizons = useMemo(
     () => (Array.isArray(digitalTwin?.horizons) ? digitalTwin.horizons : []),
@@ -238,6 +253,18 @@ export default function ResultsStrategicHub({
   const completedCount = actionPlan.completedCount || 0;
   const totalCount = actionPlan.totalCount || actionPlan.tasks.length;
   const completionPct = actionPlan.completionPct || 0;
+  const commandChecklistItems = useMemo(
+    () => (commandCenter?.checklist || []).map((item) => {
+      const userMarkedDone = !!commandChecklistState[item.id];
+      return {
+        ...item,
+        userMarkedDone,
+        effectiveStatus: userMarkedDone ? 'ready' : item.status,
+      };
+    }),
+    [commandCenter?.checklist, commandChecklistState]
+  );
+  const commandChecklistReadyCount = commandChecklistItems.filter((item) => item.effectiveStatus === 'ready').length;
   useEffect(() => {
     if (!computedInsights?.strategy) return;
     const previous = readStorageJson(lastVisitSnapshotKey, null);
@@ -276,6 +303,43 @@ export default function ResultsStrategicHub({
       confidence_band: digitalTwin.confidenceBand || 'unknown',
     });
   }, [digitalTwin, digitalTwinHorizons.length]);
+  useEffect(() => {
+    if (!opportunityRadar) return;
+    trackEvent('opportunity_radar_rendered', {
+      signal_count: opportunityRadar.signals?.length || 0,
+      readiness_index: Number(opportunityRadar.readinessIndex || 0),
+      recommended_window: opportunityRadar.recommendedWindow || 'unknown',
+    });
+  }, [opportunityRadar]);
+  useEffect(() => {
+    if (!commandCenter) return;
+    trackEvent('application_command_center_rendered', {
+      readiness_score: Number(commandCenter.readinessScore || 0),
+      blocker_count: commandCenter.blockers?.length || 0,
+      checklist_count: commandCenter.checklist?.length || 0,
+    });
+  }, [commandCenter]);
+  useEffect(() => {
+    if (!copilot) return;
+    trackEvent('grounded_copilot_rendered', {
+      card_count: copilot.cards?.length || 0,
+      grounding_mode: copilot.groundingMode || 'unknown',
+    });
+  }, [copilot]);
+  useEffect(() => {
+    if (!collaboration) return;
+    trackEvent('consultant_collaboration_workspace_rendered', {
+      readiness_score: Number(collaboration.workspaceReadiness || 0),
+      package_status: collaboration.packageStatus || 'unknown',
+    });
+  }, [collaboration]);
+  useEffect(() => {
+    if (!communityBenchmarks) return;
+    trackEvent('community_benchmark_rendered', {
+      percentile: Number(communityBenchmarks.percentile || 0),
+      benchmark_band: communityBenchmarks.benchmarkBand || 'unknown',
+    });
+  }, [communityBenchmarks]);
 
   const topFactors = [
     { label: 'Core Human Capital', value: result?.breakdown?.coreHumanCapital || 0 },
@@ -354,12 +418,31 @@ export default function ResultsStrategicHub({
     strategy,
     forecast,
     actionPlan,
+    opportunityRadar,
+    commandCenter,
+    copilot,
+    collaboration,
+    communityBenchmarks,
     drawData: {
       ...activeDraws,
       source: drawFreshness?.tier || 'unknown',
     },
     categoryInfo: activeCategoryInfo,
-  }), [actionPlan, activeCategoryInfo, activeDraws, answers, drawFreshness?.tier, forecast, result, strategy]);
+  }), [
+    actionPlan,
+    activeCategoryInfo,
+    activeDraws,
+    answers,
+    collaboration,
+    commandCenter,
+    communityBenchmarks,
+    copilot,
+    drawFreshness?.tier,
+    forecast,
+    opportunityRadar,
+    result,
+    strategy,
+  ]);
   const trendMaxScore = Math.max(...profileTrendPoints.map((point) => point.score || 0), 600);
 
   const pricingRecommendation = useMemo(() => {
@@ -477,6 +560,20 @@ export default function ResultsStrategicHub({
       return next;
     });
   };
+  const toggleCommandChecklistItem = (itemId) => {
+    setCommandChecklistState((prev) => {
+      const next = {
+        ...prev,
+        [itemId]: !prev[itemId],
+      };
+      writeStorageJson(commandChecklistStateKey, next);
+      trackEvent('application_command_checklist_toggled', {
+        item_id: itemId,
+        marked_done: !!next[itemId],
+      });
+      return next;
+    });
+  };
   const resetOptimizerConstraints = () => {
     const next = normalizeOptimizerConstraints(DEFAULT_OPTIMIZER_CONSTRAINTS);
     setOptimizerConstraints(next);
@@ -544,6 +641,21 @@ export default function ResultsStrategicHub({
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-optimizer', 'open_optimizer')}>
             {t('strategy.actionCenter.openOptimizer', 'Open strategy optimizer')}
           </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-opportunity-radar', 'open_opportunity_radar')}>
+            {t('strategy.actionCenter.openOpportunityRadar', 'Open opportunity radar')}
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-command-center', 'open_application_command_center')}>
+            {t('strategy.actionCenter.openCommandCenter', 'Open application command center')}
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-copilot', 'open_grounded_copilot')}>
+            {t('strategy.actionCenter.openCopilot', 'Open grounded copilot')}
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-collaboration', 'open_collaboration_workspace')}>
+            {t('strategy.actionCenter.openCollaboration', 'Open collaboration workspace')}
+          </button>
+          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-community-benchmarks', 'open_community_benchmarks')}>
+            {t('strategy.actionCenter.openBenchmarks', 'Open community benchmarks')}
+          </button>
           <button type="button" className="action-btn" onClick={() => jumpFromAction('section-90-day-plan', 'open_90_day_plan')}>
             {t('strategy.actionCenter.openPlan', 'Open 90-day plan')}
           </button>
@@ -574,6 +686,9 @@ export default function ResultsStrategicHub({
           <span>{t('strategy.actionCenter.planCompletion', '90-day completion')}: <strong>{completionPct}%</strong> ({completedCount}/{totalCount})</span>
           <span>{t('strategy.actionCenter.confidence', 'Confidence')}: <strong>{strategy.confidenceBand}</strong> ({strategy.overallConfidence} / 100)</span>
           <span>{t('strategy.actionCenter.riskLevel', 'Risk level')}: <strong>{riskLevelLabel}</strong></span>
+          {!!commandCenter && <span>Command readiness: <strong>{commandCenter.readinessScore}/100</strong></span>}
+          {!!opportunityRadar && <span>Radar readiness: <strong>{opportunityRadar.readinessIndex}/100</strong></span>}
+          {!!communityBenchmarks && <span>Benchmark percentile: <strong>P{communityBenchmarks.percentile}</strong></span>}
         </div>
         {shareStatus && <p className="save-note">{shareStatus}</p>}
         {actionPlan.nextBestTask && (
@@ -648,6 +763,199 @@ export default function ResultsStrategicHub({
           </ul>
         )}
       </section>
+      {opportunityRadar && (
+        <section className="card strategic-opportunity-radar" id="section-opportunity-radar">
+          <h3>{t('strategy.radar.title', 'Opportunity Radar')}</h3>
+          <p className="cat-intro">{opportunityRadar.summary}</p>
+          <div className="strategic-action-status">
+            <span>Readiness index: <strong>{opportunityRadar.readinessIndex}/100</strong></span>
+            <span>Recommended window: <strong>{opportunityRadar.recommendedWindow || '—'}</strong></span>
+            <span>Signals detected: <strong>{opportunityRadar.signals?.length || 0}</strong></span>
+          </div>
+          {!!opportunityRadar.alertTriggers?.length && (
+            <ul className="opportunity-trigger-list">
+              {opportunityRadar.alertTriggers.map((trigger) => (
+                <li key={trigger.id}>
+                  <strong>{trigger.title}</strong>
+                  <span>{trigger.trigger}</span>
+                  <small>{trigger.windowLabel}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!!opportunityRadar.signals?.length && (
+            <div className="optimizer-options">
+              {opportunityRadar.signals.map((signal, idx) => (
+                <article key={signal.id} className="optimizer-option">
+                  <div className="optimizer-option-head">
+                    <strong>{idx + 1}. {signal.title}</strong>
+                    <span className="optimizer-score">{signal.opportunityScore}/100</span>
+                  </div>
+                  <p>{signal.whyNow}</p>
+                  <div className="optimizer-meta">
+                    <span>Lane: {signal.lane}</span>
+                    <span>Window: {signal.windowLabel}</span>
+                    <span>Gap to trigger: {signal.scoreDeltaNeeded}</span>
+                    <span>Confidence: {signal.confidenceBand}</span>
+                    <span>Risk: {signal.riskLevel}</span>
+                  </div>
+                  <small className="plan-task-metric">Next action: {signal.nextAction}</small>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      {commandCenter && (
+        <section className="card strategic-command-center" id="section-command-center">
+          <h3>{t('strategy.command.title', 'Application Command Center')}</h3>
+          <p className="cat-intro">{commandCenter.summary}</p>
+          <div className="strategic-action-status">
+            <span>Readiness: <strong>{commandCenter.readinessScore}/100 ({commandCenter.readinessBand})</strong></span>
+            <span>Checklist: <strong>{commandChecklistReadyCount}/{commandChecklistItems.length}</strong></span>
+            <span>Profile completeness: <strong>{commandCenter.profileCompleteness}%</strong></span>
+          </div>
+          {!!commandCenter.blockers?.length && (
+            <ul className="risk-indicator-list">
+              {commandCenter.blockers.map((blocker) => (
+                <li key={blocker.id}>
+                  <div>
+                    <strong>{blocker.label}</strong>
+                    <small>{blocker.detail}</small>
+                  </div>
+                  <RiskBadge value="high" />
+                </li>
+              ))}
+            </ul>
+          )}
+          {!!commandChecklistItems.length && (
+            <ul className="command-center-list">
+              {commandChecklistItems.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="plan-task-toggle"
+                    aria-label={`Toggle ${item.title}`}
+                    onClick={() => toggleCommandChecklistItem(item.id)}
+                  >
+                    {item.userMarkedDone ? '✓' : '○'}
+                  </button>
+                  <div>
+                    <div className="plan-task-head">
+                      <strong>{item.title}</strong>
+                      <span className={`command-status-badge ${commandStatusClass(item.effectiveStatus)}`}>{item.effectiveStatus.replace('_', ' ')}</span>
+                    </div>
+                    <p>{item.evidence}</p>
+                    <div className="optimizer-meta">
+                      <span>Owner: {item.owner}</span>
+                      <span>Due: {item.dueWindow}</span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      {copilot && (
+        <section className="card strategic-copilot" id="section-copilot">
+          <h3>{t('strategy.copilot.title', 'AI Strategy Copilot (Grounded)')}</h3>
+          <p className="cat-intro">
+            Grounding mode: <strong>{copilot.groundingMode}</strong>. Responses are generated from your active profile and forecast context.
+          </p>
+          {!!copilot.cards?.length && (
+            <div className="copilot-card-grid">
+              {copilot.cards.map((card) => (
+                <article key={card.id} className="copilot-card">
+                  <h4>{card.prompt}</h4>
+                  <p>{card.response}</p>
+                  <div className="optimizer-meta">
+                    <span>Confidence: {card.confidenceBand}</span>
+                    <button
+                      type="button"
+                      className="action-btn"
+                      onClick={() => jumpFromAction(card.quickAction || 'section-action-center', `copilot_jump_${card.id}`)}
+                    >
+                      Open related section
+                    </button>
+                  </div>
+                  <ul className="copilot-evidence-list">
+                    {(card.evidence || []).map((line) => (
+                      <li key={`${card.id}-${line}`}>{line}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      {collaboration && (
+        <section className="card strategic-collaboration" id="section-collaboration">
+          <h3>{t('strategy.collaboration.title', 'Consultant Collaboration Workspace')}</h3>
+          <p className="cat-intro">
+            Workspace <strong>{collaboration.workspaceId}</strong> · Status <strong>{collaboration.packageStatus}</strong>
+          </p>
+          <div className="strategic-action-status">
+            <span>Workspace readiness: <strong>{collaboration.workspaceReadiness}/100</strong></span>
+            <span>Checklist items: <strong>{collaboration.reviewChecklist?.length || 0}</strong></span>
+          </div>
+          {!!collaboration.reviewChecklist?.length && (
+            <ul className="collaboration-checklist">
+              {collaboration.reviewChecklist.map((item) => (
+                <li key={item.id}>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <p>{item.detail}</p>
+                  </div>
+                  <span className={`command-status-badge ${commandStatusClass(item.status)}`}>{item.status.replace('_', ' ')}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!!collaboration.collaborationNotes?.length && (
+            <ul className="copilot-evidence-list">
+              {collaboration.collaborationNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
+          <div className="strategic-action-grid">
+            <button type="button" className="action-btn" onClick={handleExportHandoff}>
+              Export collaboration package
+            </button>
+            <button type="button" className="action-btn" onClick={handleCopyHandoffLink}>
+              Copy collaboration share link
+            </button>
+          </div>
+        </section>
+      )}
+      {communityBenchmarks && (
+        <section className="card strategic-community-benchmarks" id="section-community-benchmarks">
+          <h3>{t('strategy.community.title', 'Community Benchmark Intelligence')}</h3>
+          <p className="cat-intro">{communityBenchmarks.summary}</p>
+          <div className="strategic-action-status">
+            <span>Percentile: <strong>P{communityBenchmarks.percentile}</strong></span>
+            <span>Band: <strong>{communityBenchmarks.benchmarkBand}</strong></span>
+            <span>Cohort: <strong>{communityBenchmarks.cohort?.ageBand || '—'} · {communityBenchmarks.cohort?.educationTier || '—'}</strong></span>
+          </div>
+          <ul className="community-benchmark-list">
+            {(communityBenchmarks.comparison || []).map((item) => (
+              <li key={item.id} className={item.isUser ? 'current' : ''}>
+                <span>{item.label}</span>
+                <strong>{item.score}</strong>
+              </li>
+            ))}
+          </ul>
+          {!!communityBenchmarks.leverageSignals?.length && (
+            <div className="optimizer-meta">
+              {communityBenchmarks.leverageSignals.map((signal) => (
+                <span key={signal.id}>{signal.label}: {signal.headroom}% headroom</span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       {digitalTwin && (
         <section className="card strategic-digital-twin" id="section-digital-twin">
           <h3>{t('strategy.digitalTwin.title', 'Invitation probability digital twin')}</h3>

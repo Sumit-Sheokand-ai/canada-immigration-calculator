@@ -1308,6 +1308,107 @@
   min-width: 42px;
   text-align: right;
 }
+.opportunity-trigger-list,
+.command-center-list,
+.collaboration-checklist,
+.community-benchmark-list,
+.copilot-evidence-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.opportunity-trigger-list li,
+.command-center-list li,
+.collaboration-checklist li,
+.community-benchmark-list li,
+.copilot-evidence-list li {
+  border: 1px solid var(--surface-2);
+  border-radius: 10px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.opportunity-trigger-list li,
+.collaboration-checklist li,
+.community-benchmark-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.opportunity-trigger-list li span,
+.collaboration-checklist li p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.opportunity-trigger-list li small {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.command-center-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.command-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.command-status-badge.command-ready {
+  border-color: #16a34a4d;
+  background: #16a34a1a;
+  color: #16a34a;
+}
+.command-status-badge.command-progress {
+  border-color: #f59e0b4d;
+  background: #f59e0b1a;
+  color: #f59e0b;
+}
+.command-status-badge.command-blocked {
+  border-color: #ef44444d;
+  background: #ef44441a;
+  color: #ef4444;
+}
+.copilot-card-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.copilot-card {
+  border: 1px solid var(--surface-2);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface);
+}
+.copilot-card h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.copilot-card p {
+  margin: 0 0 8px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.copilot-evidence-list li {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.community-benchmark-list li.current {
+  border-color: var(--primary-a8);
+  box-shadow: 0 0 0 2px var(--primary-a4);
+}
 .digital-twin-horizon-switch {
   margin-top: 10px;
   display: flex;

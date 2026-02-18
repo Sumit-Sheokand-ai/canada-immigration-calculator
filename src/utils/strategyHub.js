@@ -867,6 +867,506 @@ export function buildStrategyOptimizer({
   };
 }
 
+function statusScore(status = 'in_progress') {
+  if (status === 'ready') return 100;
+  if (status === 'blocked') return 28;
+  return 62;
+}
+
+function laneNextAction(option = {}) {
+  const lane = String(option.lane || '').toLowerCase();
+  if (lane.includes('provincial')) return 'Shortlist province streams and prep EOI documents this week.';
+  if (lane.includes('category')) return 'Align profile to category thresholds and track next category rounds.';
+  if (lane.includes('language')) return 'Book exam slot and run a focused weekly language sprint.';
+  return 'Execute the next milestone from your primary lane playbook.';
+}
+
+function laneWindowDays(option = {}, gap = 0) {
+  const lane = String(option.lane || '').toLowerCase();
+  let days = lane.includes('provincial') ? 45 : lane.includes('category') ? 21 : 28;
+  const months = toNumber(option.months, 6);
+  if (months <= 3) days -= 6;
+  if (months >= 9) days += 10;
+  if (gap > 35) days += 7;
+  if (gap <= 5) days -= 3;
+  return clamp(Math.round(days), 10, 90);
+}
+
+function formatOpportunityWindow(days = 0) {
+  if (days <= 14) return 'Next 2 weeks';
+  if (days <= 30) return 'Next 30 days';
+  if (days <= 60) return 'Next 1-2 months';
+  return 'Next quarter';
+}
+
+function scoreBandFromValue(value = 0) {
+  if (value >= 78) return 'High';
+  if (value >= 56) return 'Medium';
+  return 'Low';
+}
+
+export function buildOpportunityRadar({
+  strategy,
+  forecast = null,
+  averageCutoff = 0,
+  userScore = 0,
+  eligibleCategoryCount = 0,
+}) {
+  const ranked = Array.isArray(strategy?.ranked) ? strategy.ranked : [];
+  const score = toNumber(userScore, toNumber(strategy?.score, 0));
+  const cutoff = toNumber(averageCutoff, toNumber(strategy?.cutoff, 520));
+  const gap = Math.max(Math.round(cutoff - score), 0);
+  const forecastConfidence = toNumber(forecast?.confidenceScore, toNumber(strategy?.overallConfidence, 58));
+  const trendDirection = forecast?.trendDirection || 'stable';
+
+  const laneSignals = ranked.slice(0, 4).map((option, idx) => {
+    const laneWindowDaysValue = laneWindowDays(option, gap);
+    const deltaNeeded = Math.max(cutoff - (score + toNumber(option.scoreGain, 0)), 0);
+    const urgencyScore = clamp(100 - Math.round(deltaNeeded * 1.7), 12, 100);
+    const opportunityScore = clamp(
+      Math.round(
+        (toNumber(option.score, 0) * 0.54)
+        + (toNumber(option.constraintFitScore, 60) * 0.18)
+        + (forecastConfidence * 0.18)
+        + (urgencyScore * 0.1)
+        - (toNumber(option.riskPenalty, 0) * 0.35)
+      ),
+      1,
+      99
+    );
+    const riskLevel = (option.riskFlags || []).some((flag) => flag.severity === 'high')
+      ? 'high'
+      : (option.riskFlags || []).some((flag) => flag.severity === 'medium')
+        ? 'medium'
+        : 'low';
+    return {
+      id: `opportunity-${option.id || idx}`,
+      title: option.title,
+      lane: option.lane,
+      whyNow: option.reason,
+      opportunityScore,
+      confidenceBand: scoreBandFromValue(opportunityScore),
+      scoreDeltaNeeded: Math.round(deltaNeeded),
+      windowDays: laneWindowDaysValue,
+      windowLabel: formatOpportunityWindow(laneWindowDaysValue),
+      trendDirection,
+      nextAction: laneNextAction(option),
+      riskLevel,
+    };
+  });
+
+  const categorySignal = eligibleCategoryCount > 0
+    ? [{
+      id: 'opportunity-category-eligibility',
+      title: 'Category-eligible window',
+      lane: 'Category Draws',
+      whyNow: `You currently match ${eligibleCategoryCount} category stream(s), which can create faster draw pathways.`,
+      opportunityScore: clamp(58 + (eligibleCategoryCount * 6) - Math.min(gap, 25), 28, 92),
+      confidenceBand: eligibleCategoryCount >= 3 ? 'High' : 'Medium',
+      scoreDeltaNeeded: Math.max(gap - 12, 0),
+      windowDays: gap <= 15 ? 18 : 28,
+      windowLabel: gap <= 15 ? 'Immediate window' : 'Next 30 days',
+      trendDirection,
+      nextAction: 'Prioritize category-specific actions and monitor nearest category rounds.',
+      riskLevel: gap > 30 ? 'medium' : 'low',
+    }]
+    : [];
+
+  const signals = [...laneSignals, ...categorySignal]
+    .sort((a, b) => b.opportunityScore - a.opportunityScore)
+    .slice(0, 5);
+  const top = signals[0] || null;
+  const readinessIndex = signals.length
+    ? Math.round(signals.slice(0, 3).reduce((sum, signal) => sum + signal.opportunityScore, 0) / Math.min(signals.length, 3))
+    : 0;
+
+  const alertTriggers = signals.slice(0, 3).map((signal) => ({
+    id: `trigger-${signal.id}`,
+    title: signal.title,
+    trigger: signal.scoreDeltaNeeded <= 0
+      ? 'Activate immediately when next draw opens.'
+      : `Activate when remaining gap is ≤ ${Math.max(signal.scoreDeltaNeeded - 5, 0)} points.`,
+    windowLabel: signal.windowLabel,
+  }));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    readinessIndex,
+    recommendedOpportunityId: top?.id || '',
+    recommendedWindow: top?.windowLabel || 'No opportunity window detected',
+    trendDirection,
+    summary: top
+      ? `${top.title} is your best near-term opportunity (${top.opportunityScore}/100) in the ${top.windowLabel.toLowerCase()}.`
+      : 'Opportunity radar is waiting for additional profile signals.',
+    signals,
+    alertTriggers,
+  };
+}
+
+function computeAnswerCompleteness(answers = {}) {
+  const requiredKeys = [
+    'age',
+    'education',
+    'pathway',
+    'canadianWorkExp',
+    'foreignWorkExp',
+    'langTestType',
+  ];
+  const filled = requiredKeys.filter((key) => {
+    const value = answers?.[key];
+    if (value == null) return false;
+    if (typeof value === 'string') return value.trim() !== '';
+    return true;
+  }).length;
+  return requiredKeys.length > 0 ? Math.round((filled / requiredKeys.length) * 100) : 0;
+}
+
+function buildCommandChecklist({
+  actionPlan,
+  strategy,
+  opportunityRadar,
+  profileCompleteness,
+  gap,
+}) {
+  const tasks = Array.isArray(actionPlan?.tasks) ? actionPlan.tasks : [];
+  const hasPrimaryTaskDone = toNumber(actionPlan?.completedCount, 0) > 0;
+  const hasFallbackLane = !!strategy?.nextBest;
+  const hasOpportunity = Array.isArray(opportunityRadar?.signals) && opportunityRadar.signals.length > 0;
+
+  const baselineStatus = profileCompleteness >= 80 ? 'ready' : profileCompleteness >= 55 ? 'in_progress' : 'blocked';
+  const docPackStatus = profileCompleteness >= 85 ? 'ready' : profileCompleteness >= 60 ? 'in_progress' : 'blocked';
+  const fallbackStatus = hasFallbackLane ? 'ready' : gap > 20 ? 'blocked' : 'in_progress';
+  const monitorStatus = hasOpportunity ? 'ready' : 'in_progress';
+  const sprintTask = tasks.find((task) => task.priority === 'High') || tasks[0];
+
+  return [
+    {
+      id: 'cmd-baseline',
+      title: 'Lock baseline profile + target score',
+      owner: 'Candidate',
+      dueWindow: sprintTask?.dateWindow || 'This week',
+      status: hasPrimaryTaskDone ? 'ready' : baselineStatus,
+      evidence: hasPrimaryTaskDone ? 'At least one high-priority plan task completed.' : 'Save baseline and confirm target delta.',
+    },
+    {
+      id: 'cmd-primary-lane',
+      title: `Execute primary lane: ${strategy?.top?.title || 'Top strategy lane'}`,
+      owner: 'Candidate',
+      dueWindow: strategy?.top?.months ? `~${strategy.top.months} months` : 'Next 30 days',
+      status: hasPrimaryTaskDone ? 'in_progress' : 'blocked',
+      evidence: strategy?.top?.reason || 'Primary lane rationale unavailable.',
+    },
+    {
+      id: 'cmd-doc-pack',
+      title: 'Prepare application document command pack',
+      owner: 'Candidate + Consultant',
+      dueWindow: 'Days 30-60',
+      status: docPackStatus,
+      evidence: `Profile completeness ${profileCompleteness}%.`,
+    },
+    {
+      id: 'cmd-fallback',
+      title: 'Activate backup lane contingency',
+      owner: 'Consultant',
+      dueWindow: 'Before day 60',
+      status: fallbackStatus,
+      evidence: hasFallbackLane ? `Backup lane ready: ${strategy?.nextBest?.title}.` : 'Backup lane not selected yet.',
+    },
+    {
+      id: 'cmd-monitor',
+      title: 'Monitor upcoming draw windows and trigger rules',
+      owner: 'Candidate',
+      dueWindow: opportunityRadar?.recommendedWindow || 'Weekly',
+      status: monitorStatus,
+      evidence: hasOpportunity
+        ? `${opportunityRadar?.signals?.length || 0} opportunity signal(s) detected.`
+        : 'No radar opportunity signals detected yet.',
+    },
+  ];
+}
+
+export function buildApplicationCommandCenter({
+  answers,
+  result,
+  strategy,
+  actionPlan,
+  opportunityRadar,
+}) {
+  const score = toNumber(result?.total, toNumber(strategy?.score, 0));
+  const cutoff = toNumber(strategy?.cutoff, 0);
+  const gap = Math.max(cutoff - score, 0);
+  const profileCompleteness = computeAnswerCompleteness(answers);
+  const checklist = buildCommandChecklist({
+    actionPlan,
+    strategy,
+    opportunityRadar,
+    profileCompleteness,
+    gap,
+  });
+  const blockers = [];
+  if (gap > 35) blockers.push({ id: 'blocker-gap', label: 'Large score gap', detail: `Gap remains ${Math.round(gap)} points.` });
+  if ((strategy?.profileSignals?.minLanguageClb || 0) > 0 && (strategy?.profileSignals?.minLanguageClb || 0) < 7) {
+    blockers.push({ id: 'blocker-language-floor', label: 'Language floor below CLB 7', detail: 'Language score floor can limit lane viability.' });
+  }
+  if (profileCompleteness < 60) {
+    blockers.push({ id: 'blocker-profile-completeness', label: 'Profile completeness is low', detail: `Completeness is ${profileCompleteness}%; fill missing profile fields.` });
+  }
+
+  const checklistScore = checklist.length
+    ? Math.round(checklist.reduce((sum, item) => sum + statusScore(item.status), 0) / checklist.length)
+    : 0;
+  const readinessScore = clamp(
+    Math.round(
+      (checklistScore * 0.45)
+      + (toNumber(actionPlan?.completionPct, 0) * 0.35)
+      + (toNumber(strategy?.overallConfidence, 0) * 0.2)
+      - Math.min(blockers.length * 6, 18)
+    ),
+    0,
+    100
+  );
+
+  return {
+    generatedAt: new Date().toISOString(),
+    readinessScore,
+    readinessBand: scoreBandFromValue(readinessScore),
+    blockers,
+    profileCompleteness,
+    checklist,
+    summary: readinessScore >= 75
+      ? 'Application command center is in strong shape for near-term execution.'
+      : readinessScore >= 55
+        ? 'Application command center is progressing, with a few blockers to clear.'
+        : 'Application command center needs foundational fixes before aggressive execution.',
+  };
+}
+
+function buildEvidenceLines({ strategy, forecast, digitalTwin, commandCenter, opportunityRadar }) {
+  return [
+    `Top lane: ${strategy?.top?.title || 'N/A'} (${toNumber(strategy?.top?.score, 0)}/100)`,
+    `Confidence: ${strategy?.confidenceBand || 'Unknown'} (${toNumber(strategy?.overallConfidence, 0)}/100)`,
+    `Forecast next cutoff: ${toNumber(forecast?.projectedNextCutoff, toNumber(strategy?.cutoff, 0))}`,
+    `Digital twin recommendation: ${(digitalTwin?.recommendedHorizonId || 'n/a').toUpperCase?.() || 'N/A'}`,
+    `Command readiness: ${toNumber(commandCenter?.readinessScore, 0)}/100`,
+    `Opportunity radar top window: ${opportunityRadar?.recommendedWindow || 'N/A'}`,
+  ];
+}
+
+export function buildGroundedStrategyCopilot({
+  strategy,
+  forecast,
+  actionPlan,
+  digitalTwin,
+  commandCenter,
+  opportunityRadar,
+}) {
+  const nextTask = actionPlan?.nextBestTask;
+  const top = strategy?.top;
+  const radarTop = opportunityRadar?.signals?.[0];
+  const evidence = buildEvidenceLines({ strategy, forecast, digitalTwin, commandCenter, opportunityRadar });
+
+  const cards = [
+    {
+      id: 'copilot-weekly-focus',
+      prompt: 'What should I execute this week?',
+      response: nextTask
+        ? `Execute "${nextTask.title}" first, then continue "${top?.title || 'your primary lane'}".`
+        : `Prioritize "${top?.title || 'your primary lane'}" this week and close one blocker.`,
+      confidenceBand: scoreBandFromValue(toNumber(strategy?.overallConfidence, 0)),
+      evidence: [
+        evidence[0],
+        `Next task: ${nextTask?.title || 'none'}`,
+        `Action-plan completion: ${toNumber(actionPlan?.completionPct, 0)}%`,
+      ],
+      quickAction: 'section-90-day-plan',
+    },
+    {
+      id: 'copilot-gap-clarity',
+      prompt: 'How close am I to the likely draw threshold?',
+      response: `Your current gap is ${Math.round(Math.max(toNumber(strategy?.gap, 0), 0))} points versus the average cutoff snapshot.`,
+      confidenceBand: scoreBandFromValue(toNumber(forecast?.confidenceScore, toNumber(strategy?.overallConfidence, 0))),
+      evidence: [
+        `Current score: ${toNumber(strategy?.score, 0)}`,
+        `Cutoff reference: ${toNumber(strategy?.cutoff, 0)}`,
+        `Forecast next cutoff: ${toNumber(forecast?.projectedNextCutoff, toNumber(strategy?.cutoff, 0))}`,
+      ],
+      quickAction: 'section-forecast',
+    },
+    {
+      id: 'copilot-opportunity-window',
+      prompt: 'Where is the fastest opportunity window?',
+      response: radarTop
+        ? `${radarTop.title} is the top opportunity (${radarTop.opportunityScore}/100) in the ${radarTop.windowLabel.toLowerCase()}.`
+        : 'No high-confidence radar window yet; continue strengthening your top lane.',
+      confidenceBand: radarTop?.confidenceBand || 'Low',
+      evidence: [
+        `Radar readiness index: ${toNumber(opportunityRadar?.readinessIndex, 0)}/100`,
+        `Recommended window: ${opportunityRadar?.recommendedWindow || 'none'}`,
+        `Top lane fit: ${toNumber(top?.constraintFitScore, 0)}/100`,
+      ],
+      quickAction: 'section-opportunity-radar',
+    },
+    {
+      id: 'copilot-risk-control',
+      prompt: 'What is my biggest execution risk right now?',
+      response: commandCenter?.blockers?.[0]
+        ? `${commandCenter.blockers[0].label}. Address this before scaling to secondary lanes.`
+        : 'No major blockers detected. Keep execution cadence and monitor draw updates.',
+      confidenceBand: scoreBandFromValue(toNumber(commandCenter?.readinessScore, 0)),
+      evidence: [
+        `Command readiness: ${toNumber(commandCenter?.readinessScore, 0)}/100`,
+        `Blocker count: ${commandCenter?.blockers?.length || 0}`,
+        `Global risk flags: ${strategy?.globalRiskFlags?.length || 0}`,
+      ],
+      quickAction: 'section-command-center',
+    },
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    modelLabel: 'Grounded Strategy Copilot',
+    groundingMode: 'deterministic_rulepack_v1',
+    cards,
+    evidence,
+  };
+}
+
+export function buildConsultantCollaborationWorkspace({
+  answers,
+  result,
+  strategy,
+  actionPlan,
+  commandCenter,
+  copilot,
+}) {
+  const workspaceId = `ws-${hashAnswers(answers).slice(0, 10)}`;
+  const reviewChecklist = [
+    {
+      id: 'collab-policy',
+      label: 'Policy snapshot attached',
+      status: result?.policy?.version ? 'ready' : 'blocked',
+      detail: result?.policy?.version
+        ? `Using ${result.policy.version} (${result.policy.source || 'unknown source'})`
+        : 'No policy snapshot found in result payload.',
+    },
+    {
+      id: 'collab-lane',
+      label: 'Top lane rationale documented',
+      status: strategy?.top?.reason ? 'ready' : 'in_progress',
+      detail: strategy?.top?.reason || 'Top lane rationale missing.',
+    },
+    {
+      id: 'collab-action-plan',
+      label: 'Action milestones assigned',
+      status: (actionPlan?.tasks?.length || 0) >= 3 ? 'ready' : 'in_progress',
+      detail: `${actionPlan?.tasks?.length || 0} tasks available for consultant review.`,
+    },
+    {
+      id: 'collab-copilot',
+      label: 'Grounded advisory briefs prepared',
+      status: (copilot?.cards?.length || 0) >= 3 ? 'ready' : 'in_progress',
+      detail: `${copilot?.cards?.length || 0} copilot brief(s) generated.`,
+    },
+  ];
+
+  const checklistScore = reviewChecklist.length
+    ? Math.round(reviewChecklist.reduce((sum, item) => sum + statusScore(item.status), 0) / reviewChecklist.length)
+    : 0;
+  const workspaceReadiness = clamp(
+    Math.round(
+      (checklistScore * 0.5)
+      + (toNumber(commandCenter?.readinessScore, 0) * 0.25)
+      + (toNumber(actionPlan?.completionPct, 0) * 0.25)
+    ),
+    0,
+    100
+  );
+
+  const collaborationNotes = [
+    'Attach latest language test receipts and booking confirmations.',
+    'Highlight any province-specific ties or mobility constraints.',
+    'Confirm which lane is fallback if primary timeline slips by >20%.',
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    workspaceId,
+    workspaceReadiness,
+    readinessBand: scoreBandFromValue(workspaceReadiness),
+    packageStatus: workspaceReadiness >= 72 ? 'review_ready' : workspaceReadiness >= 52 ? 'needs_follow_up' : 'draft',
+    reviewChecklist,
+    collaborationNotes,
+  };
+}
+
+function benchmarkLabel(percentile = 0) {
+  if (percentile >= 90) return 'Top decile';
+  if (percentile >= 75) return 'Upper quartile';
+  if (percentile >= 50) return 'Above median';
+  if (percentile >= 30) return 'Emerging tier';
+  return 'Early tier';
+}
+
+export function buildCommunityBenchmarkIntelligence({
+  answers,
+  result,
+  strategy,
+}) {
+  const score = toNumber(result?.total, toNumber(strategy?.score, 0));
+  const age = toInt(answers?.age, 30);
+  const education = String(answers?.education || '');
+  const minLanguageClb = toNumber(strategy?.profileSignals?.minLanguageClb, 0);
+  const canadianWorkExp = toInt(answers?.canadianWorkExp, 0);
+  const hasFrench = answers?.hasFrench === 'yes' || answers?.firstOfficialLanguage === 'french';
+
+  const educationBoost = {
+    secondary: 0,
+    one_year_post: 12,
+    two_year_post: 18,
+    bachelors: 26,
+    two_or_more: 34,
+    masters: 45,
+    doctoral: 52,
+  }[education] || 22;
+  const ageAdjustment = age >= 39 ? -20 : age >= 35 ? -10 : age <= 24 ? -8 : 0;
+  const languageBoost = minLanguageClb >= 9 ? 38 : minLanguageClb >= 7 ? 24 : minLanguageClb >= 5 ? 10 : 0;
+  const canadianWorkBoost = clamp(canadianWorkExp * 8, 0, 24);
+  const frenchBoost = hasFrench ? 18 : 0;
+
+  const cohortMedian = Math.round(460 + educationBoost + ageAdjustment + languageBoost + canadianWorkBoost + frenchBoost);
+  const cohortP75 = cohortMedian + 28;
+  const cohortP90 = cohortMedian + 52;
+  const percentile = clamp(Math.round(50 + ((score - cohortMedian) / 2.1)), 1, 99);
+  const benchmarkBand = benchmarkLabel(percentile);
+
+  const comparison = [
+    { id: 'benchmark-p50', label: 'Cohort median (P50)', score: cohortMedian },
+    { id: 'benchmark-p75', label: 'Upper quartile (P75)', score: cohortP75 },
+    { id: 'benchmark-p90', label: 'Top decile (P90)', score: cohortP90 },
+    { id: 'benchmark-user', label: 'Your current score', score, isUser: true },
+  ];
+
+  const leverageSignals = (strategy?.bottlenecks || []).map((item) => ({
+    id: `benchmark-lever-${item.key}`,
+    label: item.label,
+    headroom: toNumber(item.headroom, 0),
+  }));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    percentile,
+    benchmarkBand,
+    cohort: {
+      ageBand: age < 25 ? '18-24' : age < 30 ? '25-29' : age < 35 ? '30-34' : age < 40 ? '35-39' : '40+',
+      educationTier: education || 'unknown',
+      languageFloor: minLanguageClb,
+    },
+    comparison,
+    leverageSignals,
+    summary: `You are in the ${benchmarkBand.toLowerCase()} at approximately P${percentile} against an anonymized peer cohort baseline.`,
+  };
+}
+
 export function computeStrategicInsights({
   answers,
   result,
@@ -909,7 +1409,52 @@ export function computeStrategicInsights({
     averageCutoff,
     userScore: result?.total || 0,
   });
-  return { strategy, actionPlan, forecast, digitalTwin };
+  const opportunityRadar = buildOpportunityRadar({
+    strategy,
+    forecast,
+    averageCutoff,
+    userScore: result?.total || 0,
+    eligibleCategoryCount,
+  });
+  const commandCenter = buildApplicationCommandCenter({
+    answers,
+    result,
+    strategy,
+    actionPlan,
+    opportunityRadar,
+  });
+  const copilot = buildGroundedStrategyCopilot({
+    strategy,
+    forecast,
+    actionPlan,
+    digitalTwin,
+    commandCenter,
+    opportunityRadar,
+  });
+  const collaboration = buildConsultantCollaborationWorkspace({
+    answers,
+    result,
+    strategy,
+    actionPlan,
+    commandCenter,
+    copilot,
+  });
+  const communityBenchmarks = buildCommunityBenchmarkIntelligence({
+    answers,
+    result,
+    strategy,
+  });
+  return {
+    strategy,
+    actionPlan,
+    forecast,
+    digitalTwin,
+    opportunityRadar,
+    commandCenter,
+    copilot,
+    collaboration,
+    communityBenchmarks,
+  };
 }
 function createPlanTask(
   id,
