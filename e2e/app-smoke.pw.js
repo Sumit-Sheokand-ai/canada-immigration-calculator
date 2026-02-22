@@ -49,6 +49,7 @@ test('wizard progress resume banner appears after reload', async ({ page }) => {
 
 test('header theme and language controls are interactive', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('ion-icon.hydrated').first()).toBeVisible();
   const root = page.locator('html');
   const initialTheme = await root.getAttribute('data-theme');
   await page.locator('.theme-toggle').click();

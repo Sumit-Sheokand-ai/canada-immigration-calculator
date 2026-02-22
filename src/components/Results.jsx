@@ -95,6 +95,7 @@ function ScoreGauge({ score, statusColor, reduceMotion = false }) {
         />
       </svg>
       <div className="gauge-text">
+        <div className="gauge-label">Your CRS score</div>
         <div className="gauge-number" aria-live="polite"><AnimatedNumber value={score} reduceMotion={reduceMotion} /></div>
         <div className="gauge-max">/ 1,200</div>
       </div>
@@ -711,6 +712,7 @@ export default function Results({
 
       <motion.div className="card quick-nav-card" variants={fadeUp}>
         <h3>Start here</h3>
+        <p className="quick-nav-help">Follow these sections in order for the clearest plan.</p>
         <div className="quick-nav-grid">
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-action-center')}>
             <span className="quick-nav-btn-content"><ion-icon name="grid-sharp" aria-hidden="true" /> Action center</span>
@@ -743,6 +745,7 @@ export default function Results({
       </motion.div>
 
       <motion.div className={`card status-card ${status.cls}-card`} variants={fadeUp}>
+        <p className="status-kicker">Current standing</p>
         <div className="status-header"><span className={`status-marker ${status.cls}`}>{status.marker}</span> <strong>{status.title}</strong></div>
         <p className="status-desc">{status.desc}</p>
         <div className={`draw-source-pill ${getDrawSourceClass(drawSource)}`}>

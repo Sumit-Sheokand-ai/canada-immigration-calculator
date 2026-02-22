@@ -644,83 +644,16 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    const hasFinePointer = window.matchMedia?.('(pointer: fine)')?.matches;
-    const enabled = effectiveMotionIntensity !== 'off' && !prefersReduced && !!hasFinePointer;
-
-    if (!enabled) {
-      root.style.setProperty('--pointer-x', '50%');
-      root.style.setProperty('--pointer-y', '40%');
-      root.style.setProperty('--pointer-glow', '0');
-      return undefined;
-    }
-    root.style.setProperty('--pointer-glow', effectiveMotionIntensity === 'subtle' ? '0.45' : '1');
-
-    let rafId = 0;
-    let currentX = 50;
-    let currentY = 40;
-    let targetX = 50;
-    let targetY = 40;
-
-    const tick = () => {
-      currentX += (targetX - currentX) * 0.12;
-      currentY += (targetY - currentY) * 0.12;
-      root.style.setProperty('--pointer-x', `${currentX.toFixed(2)}%`);
-      root.style.setProperty('--pointer-y', `${currentY.toFixed(2)}%`);
-      if (Math.abs(targetX - currentX) > 0.05 || Math.abs(targetY - currentY) > 0.05) {
-        rafId = window.requestAnimationFrame(tick);
-      } else {
-        rafId = 0;
-      }
-    };
-
-    const schedule = () => {
-      if (!rafId) rafId = window.requestAnimationFrame(tick);
-    };
-
-    const onPointerMove = (event) => {
-      targetX = (event.clientX / window.innerWidth) * 100;
-      targetY = (event.clientY / window.innerHeight) * 100;
-      schedule();
-    };
-
-    const onPointerLeave = () => {
-      targetX = 50;
-      targetY = 40;
-      schedule();
-    };
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('pointerleave', onPointerLeave, { passive: true });
-
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerleave', onPointerLeave);
-      if (rafId) window.cancelAnimationFrame(rafId);
-    };
+    root.style.setProperty('--pointer-x', '50%');
+    root.style.setProperty('--pointer-y', '40%');
+    root.style.setProperty('--pointer-glow', effectiveMotionIntensity === 'off' ? '0' : '0.18');
   }, [effectiveMotionIntensity]);
 
   return (
     <div className="app">
       <div className="anime-bg" aria-hidden="true">
         <span className="anime-bg-aurora anime-bg-aurora--one" />
-        <span className="anime-bg-aurora anime-bg-aurora--two" />
-        <span className="anime-bg-aurora anime-bg-aurora--three" />
-        <span className="anime-bg-grid" />
-        <span className="anime-bg-noise" />
-        <span className="anime-bg-pointer-glow" />
-        <span className="anime-bg-flare" />
         <span className="anime-bg-vignette" />
-        <div className="anime-bg-sparks">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
       </div>
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <Header
