@@ -9,67 +9,7 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import AppErrorBoundary from './components/AppErrorBoundary.jsx'
 import { trackError, trackEvent } from './utils/analytics'
 import { readRuntimeFlags } from './utils/runtimeFlags'
-import { defineCustomElements } from 'ionicons/loader'
-import { addIcons, setAssetPath } from 'ionicons'
-import {
-  arrowForwardSharp,
-  barChartSharp,
-  calendarSharp,
-  checkmarkDoneCircleSharp,
-  diamondSharp,
-  downloadSharp,
-  flashSharp,
-  gitCompareSharp,
-  gridSharp,
-  layersSharp,
-  notificationsOffSharp,
-  notificationsSharp,
-  optionsSharp,
-  peopleSharp,
-  personCircleSharp,
-  pieChartSharp,
-  radioSharp,
-  saveSharp,
-  shareSocialSharp,
-  shieldCheckmarkSharp,
-  sparklesSharp,
-  statsChartSharp,
-  timeSharp,
-  trendingUpSharp,
-} from 'ionicons/icons'
 const loadMotionFeatures = () => import('./utils/motionFeatures.js').then((mod) => mod.default)
-const ION_ICON_REGISTRY = {
-  'arrow-forward-sharp': arrowForwardSharp,
-  'bar-chart-sharp': barChartSharp,
-  'calendar-sharp': calendarSharp,
-  'checkmark-done-circle-sharp': checkmarkDoneCircleSharp,
-  'diamond-sharp': diamondSharp,
-  'download-sharp': downloadSharp,
-  'flash-sharp': flashSharp,
-  'git-compare-sharp': gitCompareSharp,
-  'grid-sharp': gridSharp,
-  'layers-sharp': layersSharp,
-  'notifications-off-sharp': notificationsOffSharp,
-  'notifications-sharp': notificationsSharp,
-  'options-sharp': optionsSharp,
-  'people-sharp': peopleSharp,
-  'person-circle-sharp': personCircleSharp,
-  'pie-chart-sharp': pieChartSharp,
-  'radar-sharp': radioSharp,
-  'save-sharp': saveSharp,
-  'share-social-sharp': shareSocialSharp,
-  'shield-checkmark-sharp': shieldCheckmarkSharp,
-  'sparkles-sharp': sparklesSharp,
-  'stats-chart-sharp': statsChartSharp,
-  'time-sharp': timeSharp,
-  'trending-up-sharp': trendingUpSharp,
-}
-
-if (typeof window !== 'undefined') {
-  setAssetPath('/')
-  defineCustomElements(window)
-  addIcons(ION_ICON_REGISTRY)
-}
 
 // Register service worker for security headers
 if ('serviceWorker' in navigator) {

@@ -16,7 +16,7 @@
   justify-content: center;
   width: 100%;
 }
-.quick-nav-btn-content ion-icon {
+.quick-nav-btn-content .svg-icon {
   font-size: 15px;
   color: var(--primary);
   flex-shrink: 0;
@@ -282,7 +282,7 @@
   background: var(--surface);
   box-shadow: none;
 }
-.logo-leaf ion-icon { font-size: 1.15em; }
+.logo-leaf .svg-icon { font-size: 1.15em; }
 .logo-copy {
   display: inline-flex;
   flex-direction: column;
@@ -540,7 +540,7 @@
     linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
   box-shadow: 0 14px 28px var(--glass-shadow);
 }
-.flag-leaf ion-icon { font-size: 1.7rem; }
+.flag-leaf .svg-icon { font-size: 1.7rem; }
 .welcome h1 { font-size: 2.15rem; font-weight: 700; line-height: 1.18; color: var(--text); margin-bottom: 14px; }
 .hero-sub { color: var(--text-2); font-size: 16px; line-height: 1.65; max-width: 560px; margin: 0 auto; }
 
@@ -570,7 +570,7 @@
   border: 1px solid var(--surface-2);
   background: var(--surface);
 }
-.feature-icon ion-icon { font-size: 1.2rem; }
+.feature-icon .svg-icon { font-size: 1.2rem; }
 .feature-card strong { font-size: 15px; font-weight: 600; }
 .feature-desc { font-size: 13px; line-height: 1.55; color: var(--text-3); }
 
@@ -1679,7 +1679,7 @@
   color: var(--text-2);
   font-weight: 700;
 }
-.plan-task-toggle ion-icon { font-size: 14px; }
+.plan-task-toggle .svg-icon { font-size: 14px; }
 .plan-task-head {
   display: flex;
   align-items: center;

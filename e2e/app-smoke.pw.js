@@ -2,11 +2,27 @@ import { expect, test } from '@playwright/test';
 
 async function ensureStepAnswered(page) {
   const nextButton = page.locator('.wizard-nav .btn-next').first();
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 14; i += 1) {
     if (await nextButton.isEnabled()) return;
-    const firstUnselected = page.locator('.step-wrap .opt-btn:not(.selected)').first();
-    if ((await firstUnselected.count()) === 0) break;
-    await firstUnselected.click();
+    const groups = page.locator('.step-wrap .question-group');
+    const groupCount = await groups.count();
+    let clicked = false;
+    if (groupCount > 0) {
+      for (let g = 0; g < groupCount; g += 1) {
+        const group = groups.nth(g);
+        if ((await group.locator('.opt-btn.selected').count()) > 0) continue;
+        const option = group.locator('.opt-btn').first();
+        if ((await option.count()) === 0) continue;
+        await option.click();
+        clicked = true;
+        break;
+      }
+    }
+    if (!clicked) {
+      const firstUnselected = page.locator('.step-wrap .opt-btn:not(.selected)').first();
+      if ((await firstUnselected.count()) === 0) break;
+      await firstUnselected.click();
+    }
     await page.waitForTimeout(40);
   }
 }
@@ -49,7 +65,7 @@ test('wizard progress resume banner appears after reload', async ({ page }) => {
 
 test('header theme and language controls are interactive', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('ion-icon.hydrated').first()).toBeVisible();
+  await expect(page.locator('.logo-leaf .svg-icon').first()).toBeVisible();
   const root = page.locator('html');
   const initialTheme = await root.getAttribute('data-theme');
   await page.locator('.theme-toggle').click();

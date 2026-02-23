@@ -1,4 +1,13 @@
+import { useMemo } from 'react';
 import { m as motion, useReducedMotion } from 'framer-motion';
+import {
+  arrowForwardSharp,
+  flashSharp,
+  shieldCheckmarkSharp,
+  sparklesSharp,
+  statsChartSharp,
+  trendingUpSharp,
+} from 'ionicons/icons';
 import { useLanguage } from '../i18n/LanguageContext';
 import StarBorder from './StarBorder';
 
@@ -14,16 +23,33 @@ const item = {
 function sourceLabel(source) {
   return source === 'supabase' ? 'Live sync' : 'Local data mode';
 }
+function iconDataToSvgMarkup(iconData) {
+  if (typeof iconData !== 'string') return '';
+  const commaIndex = iconData.indexOf(',');
+  if (commaIndex === -1) return '';
+  return decodeURIComponent(iconData.slice(commaIndex + 1));
+}
+function SvgIcon({ icon, className = '' }) {
+  const markup = useMemo(() => iconDataToSvgMarkup(icon), [icon]);
+  if (!markup) return null;
+  return (
+    <span
+      className={`svg-icon ${className}`.trim()}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
 
 export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasSaved, drawData, drawSource = 'local-fallback', motionIntensity = 'full' }) {
   const prefersReducedMotion = useReducedMotion() || motionIntensity !== 'full';
   const { t } = useLanguage();
 
   const features = [
-    { icon: 'stats-chart-sharp', title: t('feature.accurate'), desc: t('feature.accurateDesc') },
-    { icon: 'flash-sharp', title: t('feature.suggestions'), desc: t('feature.suggestionsDesc') },
-    { icon: 'trending-up-sharp', title: t('feature.draws'), desc: t('feature.drawsDesc') },
-    { icon: 'shield-checkmark-sharp', title: t('feature.instant'), desc: t('feature.instantDesc') },
+    { icon: statsChartSharp, title: t('feature.accurate'), desc: t('feature.accurateDesc') },
+    { icon: flashSharp, title: t('feature.suggestions'), desc: t('feature.suggestionsDesc') },
+    { icon: trendingUpSharp, title: t('feature.draws'), desc: t('feature.drawsDesc') },
+    { icon: shieldCheckmarkSharp, title: t('feature.instant'), desc: t('feature.instantDesc') },
   ];
 
   return (
@@ -37,7 +63,7 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
       <motion.div className="welcome-hero" variants={item}>
         <div className="hero-flag">
           <span className="flag-leaf" aria-hidden="true">
-            <ion-icon name="sparkles-sharp" />
+            <SvgIcon icon={sparklesSharp} />
           </span>
         </div>
         <h1>{t('welcome.heading').split('\n').map((l, i) => <span key={i}>{l}{i === 0 && <br />}</span>)}</h1>
@@ -67,7 +93,7 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
             whileHover={prefersReducedMotion ? undefined : { y: -4, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
           >
             <span className="feature-icon" aria-hidden="true">
-              <ion-icon name={f.icon} />
+              <SvgIcon icon={f.icon} />
             </span>
             <strong>{f.title}</strong>
             <span className="feature-desc">{f.desc}</span>
@@ -87,7 +113,7 @@ export default function WelcomeScreen({ onStart, onPrepareStart = () => {}, hasS
             onFocus={onPrepareStart}
           >
             {t('welcome.btn')}
-            <ion-icon name="arrow-forward-sharp" aria-hidden="true" />
+            <SvgIcon icon={arrowForwardSharp} className="btn-start-icon" />
           </motion.button>
         </StarBorder>
         <p className="welcome-microcopy">{t('welcome.microcopy')}</p>

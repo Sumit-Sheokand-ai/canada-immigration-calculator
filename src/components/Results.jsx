@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
 import { prefetchPathCoachChunk } from '../utils/chunkPrefetch';
 import Loader from './Loader';
+import Icon from './Icon';
 const PathCoach = lazy(() => import('./PathCoach'));
 const ResultsStrategicHub = lazy(() => import('./ResultsStrategicHub'));
 
@@ -715,32 +716,32 @@ export default function Results({
         <p className="quick-nav-help">Follow these sections in order for the clearest plan.</p>
         <div className="quick-nav-grid">
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-action-center')}>
-            <span className="quick-nav-btn-content"><ion-icon name="grid-sharp" aria-hidden="true" /> Action center</span>
+            <span className="quick-nav-btn-content"><Icon name="grid-sharp" /> Action center</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-opportunity-radar')}>
-            <span className="quick-nav-btn-content"><ion-icon name="radar-sharp" aria-hidden="true" /> Opportunity radar</span>
+            <span className="quick-nav-btn-content"><Icon name="radar-sharp" /> Opportunity radar</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-command-center')}>
-            <span className="quick-nav-btn-content"><ion-icon name="checkmark-done-circle-sharp" aria-hidden="true" /> Command center</span>
+            <span className="quick-nav-btn-content"><Icon name="checkmark-done-circle-sharp" /> Command center</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-90-day-plan')}>
-            <span className="quick-nav-btn-content"><ion-icon name="calendar-sharp" aria-hidden="true" /> 90-day plan</span>
+            <span className="quick-nav-btn-content"><Icon name="calendar-sharp" /> 90-day plan</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-copilot')}>
-            <span className="quick-nav-btn-content"><ion-icon name="sparkles-sharp" aria-hidden="true" /> Grounded copilot</span>
+            <span className="quick-nav-btn-content"><Icon name="sparkles-sharp" /> Grounded copilot</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>
-            <span className="quick-nav-btn-content"><ion-icon name="save-sharp" aria-hidden="true" /> Save profile</span>
+            <span className="quick-nav-btn-content"><Icon name="save-sharp" /> Save profile</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>
-            <span className="quick-nav-btn-content"><ion-icon name="trending-up-sharp" aria-hidden="true" /> Recent draws</span>
+            <span className="quick-nav-btn-content"><Icon name="trending-up-sharp" /> Recent draws</span>
           </button>
           <button type="button" className="action-btn" onClick={() => scrollToSection('section-timeline')}>
-            <span className="quick-nav-btn-content"><ion-icon name="time-sharp" aria-hidden="true" /> Timeline</span>
+            <span className="quick-nav-btn-content"><Icon name="time-sharp" /> Timeline</span>
           </button>
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}><span className="quick-nav-btn-content"><ion-icon name="pie-chart-sharp" aria-hidden="true" /> Score breakdown</span></button>}
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}><span className="quick-nav-btn-content"><ion-icon name="flash-sharp" aria-hidden="true" /> Improve score</span></button>}
-          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}><span className="quick-nav-btn-content"><ion-icon name="layers-sharp" aria-hidden="true" /> Category draws</span></button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}><span className="quick-nav-btn-content"><Icon name="pie-chart-sharp" /> Score breakdown</span></button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}><span className="quick-nav-btn-content"><Icon name="flash-sharp" /> Improve score</span></button>}
+          {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}><span className="quick-nav-btn-content"><Icon name="layers-sharp" /> Category draws</span></button>}
         </div>
       </motion.div>
 

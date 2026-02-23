@@ -5,6 +5,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
 import { prefetchAuthModalChunk } from '../utils/chunkPrefetch';
+import Icon from './Icon';
 const AuthModal = lazy(() => import('./AuthModal'));
 
 const langLabels = { en: 'EN', fr: 'FR' };
@@ -39,7 +40,7 @@ export default function Header({ canInstallApp = false, onInstallApp = () => {},
         <div className="header-inner">
           <div className="logo">
             <span className="logo-leaf" aria-hidden="true">
-              <ion-icon name="diamond-sharp" />
+              <Icon name="diamond-sharp" />
             </span>
             <div className="logo-copy">
               <span>{t('header.title')}</span>
