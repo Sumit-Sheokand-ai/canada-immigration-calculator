@@ -112,7 +112,7 @@ ion-icon {
   height: 1em;
   color: currentColor;
   vertical-align: -0.12em;
-  contain: strict;
+  line-height: 1;
 }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
   outline: 2px solid var(--primary);

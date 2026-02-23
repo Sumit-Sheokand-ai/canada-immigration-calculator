@@ -10,7 +10,7 @@ import AppErrorBoundary from './components/AppErrorBoundary.jsx'
 import { trackError, trackEvent } from './utils/analytics'
 import { readRuntimeFlags } from './utils/runtimeFlags'
 import { defineCustomElements } from 'ionicons/loader'
-import { addIcons } from 'ionicons'
+import { addIcons, setAssetPath } from 'ionicons'
 import {
   arrowForwardSharp,
   barChartSharp,
@@ -66,6 +66,7 @@ const ION_ICON_REGISTRY = {
 }
 
 if (typeof window !== 'undefined') {
+  setAssetPath('/')
   defineCustomElements(window)
   addIcons(ION_ICON_REGISTRY)
 }
