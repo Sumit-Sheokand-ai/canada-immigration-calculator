@@ -13,40 +13,41 @@ import { useAuth } from '../context/AuthContext';
 import { trackEvent } from '../utils/analytics';
 import { prefetchPathCoachChunk } from '../utils/chunkPrefetch';
 import Loader from './Loader';
-import Icon from './Icon';
 const PathCoach = lazy(() => import('./PathCoach'));
 const ResultsStrategicHub = lazy(() => import('./ResultsStrategicHub'));
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
-const RESULTS_TAB_ITEMS = [
-  { key: 'action', label: 'Action hub', helper: 'Prioritized next actions and execution workspace.' },
-  { key: 'profile', label: 'Profile plan', helper: 'Your standing, profile setup, and score improvement tools.' },
-  { key: 'market', label: 'Draw insights', helper: 'Recent draw trends, timelines, and program reference data.' },
+const NAVIGATOR_TAB_ITEMS = [
+  { key: 'save_profile', label: 'Save profile', helper: 'Store this profile and alerts in one place.' },
+  { key: 'open_opportunity_radar', label: 'Open opportunity radar', helper: 'See current windows, triggers, and lane opportunities.' },
+  { key: 'open_command_center', label: 'Open command center', helper: 'Track readiness blockers and checklist execution.' },
+  { key: 'open_forecast', label: 'Open forecast', helper: 'Review projected cutoffs, trend slope, and confidence.' },
+  { key: 'open_digital_twin', label: 'Open digital twin', helper: 'Compare invitation probability across horizons.' },
+  { key: 'open_90_day_plan', label: 'Open 90-day plan', helper: 'Follow milestone-based tasks with measurable outcomes.' },
+  { key: 'open_optimizer', label: 'Open optimizer', helper: 'Adjust constraints and compare ranked strategy options.' },
+  { key: 'open_grounded_copilot', label: 'Open grounded copilot', helper: 'Use profile-grounded assistant recommendations.' },
+  { key: 'open_collaboration_workspace', label: 'Open collaboration workspace', helper: 'Prepare consultant-ready collaboration assets.' },
+  { key: 'open_community_benchmarks', label: 'Open community benchmarks', helper: 'Benchmark your profile versus cohort signals.' },
+  { key: 'export_consultant_file', label: 'Export consultant file', helper: 'Download a handoff package for review.' },
+  { key: 'copy_handoff_share_link', label: 'Copy handoff share link', helper: 'Copy a shareable consultant handoff link.' },
 ];
 const SECTION_TAB_MAP = {
-  'section-action-center': 'action',
-  'section-action-queue': 'action',
-  'section-opportunity-radar': 'action',
-  'section-command-center': 'action',
-  'section-copilot': 'action',
-  'section-collaboration': 'action',
-  'section-community-benchmarks': 'action',
-  'section-digital-twin': 'action',
-  'section-forecast': 'action',
-  'section-optimizer': 'action',
-  'section-90-day-plan': 'action',
-  'section-pricing': 'action',
-  'section-profile-trend': 'action',
-  'section-explainability': 'action',
-  'section-save': 'profile',
-  'section-profile-compare': 'profile',
-  'section-breakdown': 'profile',
-  'section-improve': 'profile',
-  'section-coach': 'profile',
-  'section-category': 'profile',
-  'section-timeline': 'market',
-  'section-draws': 'market',
+  'section-save': 'save_profile',
+  'section-opportunity-radar': 'open_opportunity_radar',
+  'section-command-center': 'open_command_center',
+  'section-forecast': 'open_forecast',
+  'section-digital-twin': 'open_digital_twin',
+  'section-90-day-plan': 'open_90_day_plan',
+  'section-action-queue': 'open_90_day_plan',
+  'section-optimizer': 'open_optimizer',
+  'section-pricing': 'open_optimizer',
+  'section-explainability': 'open_optimizer',
+  'section-copilot': 'open_grounded_copilot',
+  'section-collaboration': 'open_collaboration_workspace',
+  'section-community-benchmarks': 'open_community_benchmarks',
+  'section-handoff-export': 'export_consultant_file',
+  'section-handoff-share': 'copy_handoff_share_link',
 };
 
 function getDrawSourceLabel(source) {
@@ -417,7 +418,7 @@ export default function Results({
     [categoryInfo]
   );
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeNavigatorTab, setActiveNavigatorTab] = useState('save_profile');
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -593,7 +594,7 @@ export default function Results({
   const provinces = useMemo(() => (isSelfCalc ? recommendProvinces(answers) : []), [answers, isSelfCalc]);
   const showConfetti = !prefersReducedMotion && !loading && diff >= 20;
   const confettiRef = useConfetti(showConfetti);
-  const activeTabMeta = RESULTS_TAB_ITEMS.find((tab) => tab.key === activeTab) || RESULTS_TAB_ITEMS[0];
+  const activeNavigatorMeta = NAVIGATOR_TAB_ITEMS.find((tab) => tab.key === activeNavigatorTab) || NAVIGATOR_TAB_ITEMS[0];
 
 
   const handleSaveProfile = async () => {
@@ -684,9 +685,9 @@ export default function Results({
     trackEvent('results_pdf_print_clicked', { score });
     window.print();
   };
-  const switchResultsTab = (nextTab, source = 'manual') => {
-    if (!nextTab || nextTab === activeTab) return;
-    setActiveTab(nextTab);
+  const switchNavigatorTab = (nextTab, source = 'manual') => {
+    if (!nextTab || nextTab === activeNavigatorTab) return;
+    setActiveNavigatorTab(nextTab);
     trackEvent('results_tab_changed', { tab: nextTab, source });
   };
   const scrollSectionIntoView = (sectionId, attempt = 0) => {
@@ -700,13 +701,13 @@ export default function Results({
   };
   const scrollToSection = (sectionId) => {
     const nextTab = SECTION_TAB_MAP[sectionId];
-    if (nextTab) switchResultsTab(nextTab, 'section_jump');
-    if (nextTab && nextTab !== activeTab) {
+    if (nextTab) switchNavigatorTab(nextTab, 'section_jump');
+    if (nextTab && nextTab !== activeNavigatorTab) {
       window.setTimeout(() => scrollSectionIntoView(sectionId), 140);
     } else {
       scrollSectionIntoView(sectionId);
     }
-    trackEvent('results_section_jump', { section_id: sectionId, tab: nextTab || activeTab });
+    trackEvent('results_section_jump', { section_id: sectionId, tab: nextTab || activeNavigatorTab });
   };
   const openAccountModal = () => {
     window.dispatchEvent(new CustomEvent('crs-open-account-modal'));
@@ -738,84 +739,47 @@ export default function Results({
         </button>
       </motion.div>
 
-      <motion.div className="results-tab-strip" variants={fadeUp} role="tablist" aria-label="Results sections">
-        {RESULTS_TAB_ITEMS.map((tab) => (
+      <motion.div className="results-tab-strip" variants={fadeUp} role="tablist" aria-label="Navigator sections">
+        {NAVIGATOR_TAB_ITEMS.map((tab) => (
           <button
             key={tab.key}
             type="button"
             role="tab"
-            className={`results-tab-btn ${activeTab === tab.key ? 'active' : ''}`.trim()}
-            aria-selected={activeTab === tab.key}
+            className={`results-tab-btn ${activeNavigatorTab === tab.key ? 'active' : ''}`.trim()}
+            aria-selected={activeNavigatorTab === tab.key}
             aria-controls={`results-tab-panel-${tab.key}`}
-            onClick={() => switchResultsTab(tab.key, 'tab_click')}
+            onClick={() => switchNavigatorTab(tab.key, 'tab_click')}
           >
             {tab.label}
           </button>
         ))}
       </motion.div>
-      <motion.p className="results-tab-helper" variants={fadeUp}>{activeTabMeta.helper}</motion.p>
-
-      {activeTab === 'action' && (
-        <div role="tabpanel" id="results-tab-panel-action" aria-label="Action hub">
-          <Suspense fallback={(
-            <div className="card">
-              <SectionLoadShell message="Loading action center and strategy insights…" />
-            </div>
-          )}
-          >
-            <ResultsStrategicHub
-              answers={answers}
-              result={result}
-              suggestions={suggestions}
-              averageCutoff={activeDraws.averageCutoff}
-              activeDraws={activeDraws}
-              activeCategoryInfo={activeCategoryInfo}
-              provinces={provinces}
-              drawFreshness={drawFreshness}
-              categoryFreshness={categoryFreshness}
-              saveStatus={saveStatus}
-              onJumpToSection={scrollToSection}
-              onOpenAccount={openAccountModal}
-            />
-          </Suspense>
-
-          <motion.div className="card quick-nav-card" variants={fadeUp}>
-            <h3>Quick navigator</h3>
-            <p className="quick-nav-help">Jump directly to the section you want. Tabs auto-switch when needed.</p>
-            <div className="quick-nav-grid">
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-action-center')}>
-                <span className="quick-nav-btn-content"><Icon name="grid-sharp" /> Action center</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-opportunity-radar')}>
-                <span className="quick-nav-btn-content"><Icon name="radar-sharp" /> Opportunity radar</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-command-center')}>
-                <span className="quick-nav-btn-content"><Icon name="checkmark-done-circle-sharp" /> Command center</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-90-day-plan')}>
-                <span className="quick-nav-btn-content"><Icon name="calendar-sharp" /> 90-day plan</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-copilot')}>
-                <span className="quick-nav-btn-content"><Icon name="sparkles-sharp" /> Grounded copilot</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-save')}>
-                <span className="quick-nav-btn-content"><Icon name="save-sharp" /> Save profile</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-draws')}>
-                <span className="quick-nav-btn-content"><Icon name="trending-up-sharp" /> Recent draws</span>
-              </button>
-              <button type="button" className="action-btn" onClick={() => scrollToSection('section-timeline')}>
-                <span className="quick-nav-btn-content"><Icon name="time-sharp" /> Timeline</span>
-              </button>
-              {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-breakdown')}><span className="quick-nav-btn-content"><Icon name="pie-chart-sharp" /> Score breakdown</span></button>}
-              {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-improve')}><span className="quick-nav-btn-content"><Icon name="flash-sharp" /> Improve score</span></button>}
-              {isSelfCalc && <button type="button" className="action-btn" onClick={() => scrollToSection('section-category')}><span className="quick-nav-btn-content"><Icon name="layers-sharp" /> Category draws</span></button>}
-            </div>
-          </motion.div>
+      <motion.p className="results-tab-helper" variants={fadeUp}>{activeNavigatorMeta.helper}</motion.p>
+      <Suspense fallback={(
+        <div className="card">
+          <SectionLoadShell message="Loading action center and strategy insights…" />
         </div>
       )}
+      >
+        <ResultsStrategicHub
+          answers={answers}
+          result={result}
+          suggestions={suggestions}
+          averageCutoff={activeDraws.averageCutoff}
+          activeDraws={activeDraws}
+          activeCategoryInfo={activeCategoryInfo}
+          provinces={provinces}
+          drawFreshness={drawFreshness}
+          categoryFreshness={categoryFreshness}
+          saveStatus={saveStatus}
+          activeNavigatorTab={activeNavigatorTab}
+          onNavigatorTabChange={switchNavigatorTab}
+          onJumpToSection={scrollToSection}
+          onOpenAccount={openAccountModal}
+        />
+      </Suspense>
 
-      {activeTab === 'profile' && (
+      {activeNavigatorTab === 'save_profile' && (
         <div role="tabpanel" id="results-tab-panel-profile" aria-label="Profile plan">
       <motion.div className={`card status-card ${status.cls}-card`} variants={fadeUp}>
         <p className="status-kicker">Current standing</p>
@@ -1212,7 +1176,7 @@ export default function Results({
         </div>
       )}
 
-      {activeTab === 'market' && (
+      {activeNavigatorTab === 'open_community_benchmarks' && (
         <div role="tabpanel" id="results-tab-panel-market" aria-label="Draw insights">
       <motion.div className="card" variants={fadeUp} id="section-timeline">
         <h3>{t('results.timeline')}</h3>

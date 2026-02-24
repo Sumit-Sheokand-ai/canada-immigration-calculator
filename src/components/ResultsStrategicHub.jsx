@@ -13,6 +13,20 @@ import { getExperimentAssignment, trackExperimentGoal } from '../utils/experimen
 import { buildConsultantHandoffPayload, buildConsultantHandoffShareUrl, downloadConsultantHandoff } from '../utils/handoffExport';
 import { listSavedProfiles } from '../utils/profileStore';
 import Icon from './Icon';
+const NAVIGATOR_ACTION_ITEMS = [
+  { key: 'save_profile', label: 'Save profile' },
+  { key: 'open_opportunity_radar', label: 'Open opportunity radar' },
+  { key: 'open_command_center', label: 'Open command center' },
+  { key: 'open_forecast', label: 'Open forecast' },
+  { key: 'open_digital_twin', label: 'Open digital twin' },
+  { key: 'open_90_day_plan', label: 'Open 90-day plan' },
+  { key: 'open_optimizer', label: 'Open optimizer' },
+  { key: 'open_grounded_copilot', label: 'Open grounded copilot' },
+  { key: 'open_collaboration_workspace', label: 'Open collaboration workspace' },
+  { key: 'open_community_benchmarks', label: 'Open community benchmarks' },
+  { key: 'export_consultant_file', label: 'Export consultant file' },
+  { key: 'copy_handoff_share_link', label: 'Copy handoff share link' },
+];
 
 function PriorityBadge({ value }) {
   const cls = value === 'High' ? 'priority-high' : value === 'Medium' ? 'priority-medium' : 'priority-low';
@@ -84,6 +98,8 @@ export default function ResultsStrategicHub({
   drawFreshness,
   categoryFreshness,
   saveStatus,
+  activeNavigatorTab = 'save_profile',
+  onNavigatorTabChange,
   onJumpToSection,
   onOpenAccount,
 }) {
@@ -483,6 +499,18 @@ export default function ResultsStrategicHub({
   const proCtaLabel = isProFirstVariant
     ? t('strategy.pricing.proCtaExperiment', 'Start Pro planning')
     : t('strategy.pricing.proCtaDefault', 'Go to Pro setup');
+  const isSaveProfileTab = activeNavigatorTab === 'save_profile';
+  const isOpportunityRadarTab = activeNavigatorTab === 'open_opportunity_radar';
+  const isCommandCenterTab = activeNavigatorTab === 'open_command_center';
+  const isForecastTab = activeNavigatorTab === 'open_forecast';
+  const isDigitalTwinTab = activeNavigatorTab === 'open_digital_twin';
+  const isPlanTab = activeNavigatorTab === 'open_90_day_plan';
+  const isOptimizerTab = activeNavigatorTab === 'open_optimizer';
+  const isCopilotTab = activeNavigatorTab === 'open_grounded_copilot';
+  const isCollaborationTab = activeNavigatorTab === 'open_collaboration_workspace';
+  const isBenchmarksTab = activeNavigatorTab === 'open_community_benchmarks';
+  const isExportTab = activeNavigatorTab === 'export_consultant_file';
+  const isShareTab = activeNavigatorTab === 'copy_handoff_share_link';
 
   const jumpFromAction = (sectionId, cta) => {
     onJumpToSection(sectionId);
@@ -627,49 +655,29 @@ export default function ResultsStrategicHub({
       <section className="card strategic-action-center" id="section-action-center">
         <h3>{t('strategy.actionCenter.title', 'Action Center')}</h3>
         <p className="cat-intro">{t('strategy.actionCenter.subtitle', 'Use this control center to execute the highest-impact moves with clear priority and risk visibility.')}</p>
-        <div className="strategic-action-grid">
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-save', 'save_profile')}>
-            <span className="quick-nav-btn-content"><Icon name="save-sharp" /> {t('strategy.actionCenter.saveProfile', 'Save profile')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-opportunity-radar', 'open_opportunity_radar')}>
-            <span className="quick-nav-btn-content"><Icon name="radar-sharp" /> {t('strategy.actionCenter.openOpportunityRadar', 'Open opportunity radar')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-command-center', 'open_application_command_center')}>
-            <span className="quick-nav-btn-content"><Icon name="checkmark-done-circle-sharp" /> {t('strategy.actionCenter.openCommandCenter', 'Open application command center')}</span>
-          </button>
-          {runtimeFlags.enableAdvancedForecasting && (
-            <button type="button" className="action-btn" onClick={() => jumpFromAction('section-forecast', 'open_forecast')}>
-              <span className="quick-nav-btn-content"><Icon name="trending-up-sharp" /> {t('strategy.actionCenter.openForecast', 'Open forecast')}</span>
+        <div className="results-tab-strip" role="tablist" aria-label="Action center navigation tabs">
+          {NAVIGATOR_ACTION_ITEMS.filter((item) => runtimeFlags.enableAdvancedForecasting || item.key !== 'open_forecast').map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              className={`results-tab-btn ${activeNavigatorTab === item.key ? 'active' : ''}`.trim()}
+              aria-selected={activeNavigatorTab === item.key}
+              onClick={() => {
+                onNavigatorTabChange?.(item.key, 'action_center_tab');
+                trackEvent('action_center_tab_clicked', {
+                  tab_key: item.key,
+                  confidence_band: strategy.confidenceBand,
+                  experiment_key: pricingExperiment.experimentKey,
+                  experiment_variant: pricingExperiment.variant,
+                });
+              }}
+            >
+              {item.label}
             </button>
-          )}
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-digital-twin', 'open_digital_twin')}>
-            <span className="quick-nav-btn-content"><Icon name="git-compare-sharp" /> {t('strategy.actionCenter.openDigitalTwin', 'Open digital twin')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-90-day-plan', 'open_90_day_plan')}>
-            <span className="quick-nav-btn-content"><Icon name="calendar-sharp" /> {t('strategy.actionCenter.openPlan', 'Open 90-day plan')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-optimizer', 'open_optimizer')}>
-            <span className="quick-nav-btn-content"><Icon name="options-sharp" /> {t('strategy.actionCenter.openOptimizer', 'Open optimizer')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-copilot', 'open_grounded_copilot')}>
-            <span className="quick-nav-btn-content"><Icon name="sparkles-sharp" /> {t('strategy.actionCenter.openCopilot', 'Open grounded copilot')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-collaboration', 'open_collaboration_workspace')}>
-            <span className="quick-nav-btn-content"><Icon name="people-sharp" /> {t('strategy.actionCenter.openCollaboration', 'Open collaboration workspace')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={() => jumpFromAction('section-community-benchmarks', 'open_community_benchmarks')}>
-            <span className="quick-nav-btn-content"><Icon name="bar-chart-sharp" /> {t('strategy.actionCenter.openBenchmarks', 'Open community benchmarks')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={handleExportHandoff}>
-            <span className="quick-nav-btn-content"><Icon name="download-sharp" /> {t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={handleCopyHandoffLink}>
-            <span className="quick-nav-btn-content"><Icon name="share-social-sharp" /> {t('strategy.actionCenter.shareHandoff', 'Copy handoff share link')}</span>
-          </button>
-          <button type="button" className="action-btn" onClick={openAccountFromAction}>
-            <span className="quick-nav-btn-content"><Icon name="person-circle-sharp" /> {t('strategy.actionCenter.manageAccount', 'Manage account')}</span>
-          </button>
+          ))}
         </div>
+        <p className="results-tab-helper">Use tabs to focus on one workspace at a time.</p>
         <div className="strategic-action-status">
           <span>{t('strategy.actionCenter.profileStatus', 'Profile save status')}: <strong>{saveStatus || t('strategy.actionCenter.notSavedYet', 'Not saved yet')}</strong></span>
           <span>{t('strategy.actionCenter.planCompletion', '90-day completion')}: <strong>{completionPct}%</strong> ({completedCount}/{totalCount})</span>
@@ -697,7 +705,42 @@ export default function ResultsStrategicHub({
           </div>
         )}
       </section>
-      {changeSummary && (
+      {isSaveProfileTab && (
+        <section className="card" id="section-save-bridge">
+          <h3>Save profile</h3>
+          <p className="cat-intro">Use the save panel below to store your current profile and draw alerts.</p>
+          <div className="strategic-action-grid">
+            <button type="button" className="action-btn" onClick={() => jumpFromAction('section-save', 'save_profile')}>
+              Open save panel
+            </button>
+            <button type="button" className="action-btn" onClick={openAccountFromAction}>
+              {t('strategy.actionCenter.manageAccount', 'Manage account')}
+            </button>
+          </div>
+          {!!saveStatus && <p className="save-note">{saveStatus}</p>}
+        </section>
+      )}
+      {isExportTab && (
+        <section className="card" id="section-handoff-export">
+          <h3>{t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}</h3>
+          <p className="cat-intro">Generate a structured consultant handoff package from your current profile and strategy model.</p>
+          <button type="button" className="action-btn auth-btn-primary" onClick={handleExportHandoff}>
+            Download consultant file
+          </button>
+          {!!shareStatus && <p className="save-note">{shareStatus}</p>}
+        </section>
+      )}
+      {isShareTab && (
+        <section className="card" id="section-handoff-share">
+          <h3>{t('strategy.actionCenter.shareHandoff', 'Copy handoff share link')}</h3>
+          <p className="cat-intro">Copy a secure handoff URL to share this profile package with your consultant.</p>
+          <button type="button" className="action-btn auth-btn-primary" onClick={handleCopyHandoffLink}>
+            Copy share link
+          </button>
+          {!!shareStatus && <p className="save-note">{shareStatus}</p>}
+        </section>
+      )}
+      {isSaveProfileTab && changeSummary && (
         <section className="card change-since-last-card">
           <h3>{t('strategy.changes.title', 'Since your last visit')}</h3>
           <div className="strategic-action-status">
@@ -712,6 +755,7 @@ export default function ResultsStrategicHub({
           )}
         </section>
       )}
+      {isPlanTab && (
       <section className="card strategic-action-queue" id="section-action-queue">
         <h3>{t('strategy.queue.title', 'Smart action queue')}</h3>
         <p className="cat-intro">
@@ -752,7 +796,8 @@ export default function ResultsStrategicHub({
           </ul>
         )}
       </section>
-      {opportunityRadar && (
+      )}
+      {isOpportunityRadarTab && opportunityRadar && (
         <section className="card strategic-opportunity-radar" id="section-opportunity-radar">
           <h3>{t('strategy.radar.title', 'Opportunity Radar')}</h3>
           <p className="cat-intro">{opportunityRadar.summary}</p>
@@ -795,7 +840,7 @@ export default function ResultsStrategicHub({
           )}
         </section>
       )}
-      {commandCenter && (
+      {isCommandCenterTab && commandCenter && (
         <section className="card strategic-command-center" id="section-command-center">
           <h3>{t('strategy.command.title', 'Application Command Center')}</h3>
           <p className="cat-intro">{commandCenter.summary}</p>
@@ -846,7 +891,7 @@ export default function ResultsStrategicHub({
           )}
         </section>
       )}
-      {copilot && (
+      {isCopilotTab && copilot && (
         <section className="card strategic-copilot" id="section-copilot">
           <h3>{t('strategy.copilot.title', 'AI Strategy Copilot (Grounded)')}</h3>
           <p className="cat-intro">
@@ -879,7 +924,7 @@ export default function ResultsStrategicHub({
           )}
         </section>
       )}
-      {collaboration && (
+      {isCollaborationTab && collaboration && (
         <section className="card strategic-collaboration" id="section-collaboration">
           <h3>{t('strategy.collaboration.title', 'Consultant Collaboration Workspace')}</h3>
           <p className="cat-intro">
@@ -919,7 +964,7 @@ export default function ResultsStrategicHub({
           </div>
         </section>
       )}
-      {communityBenchmarks && (
+      {isBenchmarksTab && communityBenchmarks && (
         <section className="card strategic-community-benchmarks" id="section-community-benchmarks">
           <h3>{t('strategy.community.title', 'Community Benchmark Intelligence')}</h3>
           <p className="cat-intro">{communityBenchmarks.summary}</p>
@@ -945,7 +990,7 @@ export default function ResultsStrategicHub({
           )}
         </section>
       )}
-      {digitalTwin && (
+      {isDigitalTwinTab && digitalTwin && (
         <section className="card strategic-digital-twin" id="section-digital-twin">
           <h3>{t('strategy.digitalTwin.title', 'Invitation probability digital twin')}</h3>
           <p className="cat-intro">{digitalTwin.summary}</p>
@@ -1007,7 +1052,7 @@ export default function ResultsStrategicHub({
           )}
         </section>
       )}
-      {runtimeFlags.enableAdvancedForecasting && forecast && (
+      {isForecastTab && runtimeFlags.enableAdvancedForecasting && forecast && (
         <section className="card strategic-forecast" id="section-forecast">
           <h3>{t('strategy.forecast.title', 'Forecast Outlook')}</h3>
           <p className="cat-intro">{t('strategy.forecast.subtitle', 'Projection based on recent draw cutoffs, volatility, and freshness of available data.')}</p>
@@ -1036,6 +1081,7 @@ export default function ResultsStrategicHub({
         </section>
       )}
 
+      {isOptimizerTab && (
       <section className="card strategic-optimizer" id="section-optimizer">
         <h3>{t('strategy.optimizer.title', 'Strategy Optimizer')}</h3>
         <p className="cat-intro">{strategy.guidanceSummary}</p>
@@ -1150,7 +1196,9 @@ export default function ResultsStrategicHub({
           ))}
         </div>
       </section>
+      )}
 
+      {isPlanTab && (
       <section className="card strategic-plan" id="section-90-day-plan">
         <h3>{t('strategy.plan.title', '90-Day Action Plan')}</h3>
         <p className="cat-intro">Execution-focused milestones with calendar windows, measurable outcomes, and fallback controls.</p>
@@ -1200,7 +1248,9 @@ export default function ResultsStrategicHub({
           })}
         </ul>
       </section>
+      )}
 
+      {isOptimizerTab && (
       <section className="card strategic-pricing" id="section-pricing">
         <h3>{t('strategy.pricing.title', 'Plans & Upgrade Path')}</h3>
         <p className="cat-intro">Choose support depth based on your current gap, risk profile, and execution complexity.</p>
@@ -1266,7 +1316,9 @@ export default function ResultsStrategicHub({
           </article>
         </div>
       </section>
+      )}
 
+      {isSaveProfileTab && (
       <section className="card strategic-profile-trend" id="section-profile-trend">
         <h3>{t('strategy.trend.title', 'Profile trend timeline')}</h3>
         <p className="cat-intro">{t('strategy.trend.subtitle', 'Track score movement across your saved snapshots and current profile.')}</p>
@@ -1290,7 +1342,9 @@ export default function ResultsStrategicHub({
           </ul>
         )}
       </section>
+      )}
 
+      {isOptimizerTab && (
       <section className="card strategic-explainability" id="section-explainability">
         <h3>{t('strategy.explainability.title', 'Explainability & Confidence')}</h3>
         <p className="cat-intro">Structured reasoning for lane ranking, confidence, and risk assumptions.</p>
@@ -1376,6 +1430,7 @@ export default function ResultsStrategicHub({
           </article>
         </div>
       </section>
+      )}
     </>
   );
 }
