@@ -785,6 +785,41 @@
    ═══════════════════════════════════════════ */
 .results { padding-top: 12px; }
 .results [id^='section-'] { scroll-margin-top: 96px; }
+.results-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.results-tab-btn {
+  border: 1px solid var(--surface-2);
+  background: var(--surface);
+  color: var(--text-2);
+  border-radius: 999px;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background var(--dur-med) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-emphasized);
+}
+.results-tab-btn:hover {
+  border-color: var(--surface-3);
+  color: var(--text);
+}
+.results-tab-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.results-tab-helper {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-3);
+}
 
 /* Score Hero */
 .score-hero { display: flex; justify-content: center; margin-bottom: 28px; }
@@ -2752,6 +2787,8 @@
   .action-btn { min-height: 44px; padding: 11px 12px; font-size: 13.5px; }
   .result-actions .action-btn,
   .save-actions .action-btn { width: 100%; justify-content: center; }
+  .results-tab-strip { display: grid; grid-template-columns: 1fr; }
+  .results-tab-btn { width: 100%; justify-content: center; }
   .quick-nav-grid { grid-template-columns: 1fr; }
   .wizard-nav { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
   .wizard-nav .btn-back,
