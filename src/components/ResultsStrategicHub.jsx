@@ -84,7 +84,6 @@ export default function ResultsStrategicHub({
   drawFreshness,
   categoryFreshness,
   saveStatus,
-  activeNavigatorTab = 'save_profile',
   onJumpToSection,
   onOpenAccount,
 }) {
@@ -477,18 +476,18 @@ export default function ResultsStrategicHub({
   const proCtaLabel = isProFirstVariant
     ? t('strategy.pricing.proCtaExperiment', 'Start Pro planning')
     : t('strategy.pricing.proCtaDefault', 'Go to Pro setup');
-  const isSaveProfileTab = activeNavigatorTab === 'save_profile';
-  const isOpportunityRadarTab = activeNavigatorTab === 'open_opportunity_radar';
-  const isCommandCenterTab = activeNavigatorTab === 'open_command_center';
-  const isForecastTab = activeNavigatorTab === 'open_forecast';
-  const isDigitalTwinTab = activeNavigatorTab === 'open_digital_twin';
-  const isPlanTab = activeNavigatorTab === 'open_90_day_plan';
-  const isOptimizerTab = activeNavigatorTab === 'open_optimizer';
-  const isCopilotTab = activeNavigatorTab === 'open_grounded_copilot';
-  const isCollaborationTab = activeNavigatorTab === 'open_collaboration_workspace';
-  const isBenchmarksTab = activeNavigatorTab === 'open_community_benchmarks';
-  const isExportTab = activeNavigatorTab === 'export_consultant_file';
-  const isShareTab = activeNavigatorTab === 'copy_handoff_share_link';
+  const isSaveProfileTab = true;
+  const isOpportunityRadarTab = false;
+  const isCommandCenterTab = false;
+  const isForecastTab = false;
+  const isDigitalTwinTab = false;
+  const isPlanTab = false;
+  const isOptimizerTab = false;
+  const isCopilotTab = false;
+  const isCollaborationTab = false;
+  const isBenchmarksTab = false;
+  const isExportTab = false;
+  const isShareTab = false;
 
   const jumpFromAction = (sectionId, cta) => {
     onJumpToSection(sectionId);
@@ -632,7 +631,7 @@ export default function ResultsStrategicHub({
     <>
       {isSaveProfileTab && (
         <section className="card" id="section-save-bridge">
-          <h3>Save profile</h3>
+          <h3>Profile workspace</h3>
           <p className="cat-intro">Use the save panel below to store your current profile and draw alerts.</p>
           <div className="strategic-action-grid">
             <button type="button" className="action-btn" onClick={() => jumpFromAction('section-save', 'save_profile')}>
