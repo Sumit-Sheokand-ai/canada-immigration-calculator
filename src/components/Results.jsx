@@ -709,10 +709,6 @@ export default function Results({
     }
     trackEvent('results_section_jump', { section_id: sectionId, tab: nextTab || activeNavigatorTab });
   };
-  const openAccountModal = () => {
-    window.dispatchEvent(new CustomEvent('crs-open-account-modal'));
-    trackEvent('account_modal_open_requested', { source: 'results_action_center' });
-  };
 
   useEffect(() => {
     if (loading) return;
@@ -771,11 +767,9 @@ export default function Results({
           provinces={provinces}
           drawFreshness={drawFreshness}
           categoryFreshness={categoryFreshness}
-          saveStatus={saveStatus}
           activeNavigatorTab={activeNavigatorTab}
           onNavigatorTabChange={switchNavigatorTab}
           onJumpToSection={scrollToSection}
-          onOpenAccount={openAccountModal}
         />
       </Suspense>
 

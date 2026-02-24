@@ -83,10 +83,8 @@ export default function ResultsStrategicHub({
   provinces,
   drawFreshness,
   categoryFreshness,
-  saveStatus,
   activeNavigatorTab = 'save_profile',
   onJumpToSection,
-  onOpenAccount,
 }) {
   const { t } = useLanguage();
   const [runtimeFlags, setRuntimeFlags] = useState(() => readRuntimeFlags());
@@ -501,16 +499,6 @@ export default function ResultsStrategicHub({
     });
   };
 
-  const openAccountFromAction = () => {
-    onOpenAccount?.();
-    trackEvent('action_center_cta_clicked', {
-      cta: 'manage_account',
-      target_section: 'account_modal',
-      confidence_band: strategy.confidenceBand,
-      experiment_key: pricingExperiment.experimentKey,
-      experiment_variant: pricingExperiment.variant,
-    });
-  };
   const handleExportHandoff = () => {
     const ok = downloadConsultantHandoff(handoffPayload);
     setShareStatus(ok ? 'Handoff file downloaded.' : 'Could not generate handoff file.');
@@ -630,21 +618,6 @@ export default function ResultsStrategicHub({
 
   return (
     <>
-      {isSaveProfileTab && (
-        <section className="card" id="section-save-bridge">
-          <h3>Save profile</h3>
-          <p className="cat-intro">Use the save panel below to store your current profile and draw alerts.</p>
-          <div className="strategic-action-grid">
-            <button type="button" className="action-btn" onClick={() => jumpFromAction('section-save', 'save_profile')}>
-              Open save panel
-            </button>
-            <button type="button" className="action-btn" onClick={openAccountFromAction}>
-              {t('strategy.actionCenter.manageAccount', 'Manage account')}
-            </button>
-          </div>
-          {!!saveStatus && <p className="save-note">{saveStatus}</p>}
-        </section>
-      )}
       {isExportTab && (
         <section className="card" id="section-handoff-export">
           <h3>{t('strategy.actionCenter.exportHandoff', 'Export consultant handoff')}</h3>
@@ -879,14 +852,6 @@ export default function ResultsStrategicHub({
               ))}
             </ul>
           )}
-          <div className="strategic-action-grid">
-            <button type="button" className="action-btn" onClick={handleExportHandoff}>
-              Export collaboration package
-            </button>
-            <button type="button" className="action-btn" onClick={handleCopyHandoffLink}>
-              Copy collaboration share link
-            </button>
-          </div>
         </section>
       )}
       {isBenchmarksTab && communityBenchmarks && (
