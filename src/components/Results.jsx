@@ -757,7 +757,7 @@ export default function Results({
       <motion.p className="results-tab-helper" variants={fadeUp}>{activeNavigatorMeta.helper}</motion.p>
       <Suspense fallback={(
         <div className="card">
-          <SectionLoadShell message="Loading action center and strategy insights…" />
+          <SectionLoadShell message="Loading strategy insights…" />
         </div>
       )}
       >

@@ -13,20 +13,6 @@ import { getExperimentAssignment, trackExperimentGoal } from '../utils/experimen
 import { buildConsultantHandoffPayload, buildConsultantHandoffShareUrl, downloadConsultantHandoff } from '../utils/handoffExport';
 import { listSavedProfiles } from '../utils/profileStore';
 import Icon from './Icon';
-const NAVIGATOR_ACTION_ITEMS = [
-  { key: 'save_profile', label: 'Save profile' },
-  { key: 'open_opportunity_radar', label: 'Open opportunity radar' },
-  { key: 'open_command_center', label: 'Open command center' },
-  { key: 'open_forecast', label: 'Open forecast' },
-  { key: 'open_digital_twin', label: 'Open digital twin' },
-  { key: 'open_90_day_plan', label: 'Open 90-day plan' },
-  { key: 'open_optimizer', label: 'Open optimizer' },
-  { key: 'open_grounded_copilot', label: 'Open grounded copilot' },
-  { key: 'open_collaboration_workspace', label: 'Open collaboration workspace' },
-  { key: 'open_community_benchmarks', label: 'Open community benchmarks' },
-  { key: 'export_consultant_file', label: 'Export consultant file' },
-  { key: 'copy_handoff_share_link', label: 'Copy handoff share link' },
-];
 
 function PriorityBadge({ value }) {
   const cls = value === 'High' ? 'priority-high' : value === 'Medium' ? 'priority-medium' : 'priority-low';
@@ -99,7 +85,6 @@ export default function ResultsStrategicHub({
   categoryFreshness,
   saveStatus,
   activeNavigatorTab = 'save_profile',
-  onNavigatorTabChange,
   onJumpToSection,
   onOpenAccount,
 }) {
@@ -267,8 +252,6 @@ export default function ResultsStrategicHub({
     () => digitalTwinHorizons.find((horizon) => horizon.id === selectedTwinHorizonId) || digitalTwinHorizons[0] || null,
     [digitalTwinHorizons, selectedTwinHorizonId]
   );
-  const completedCount = actionPlan.completedCount || 0;
-  const totalCount = actionPlan.totalCount || actionPlan.tasks.length;
   const completionPct = actionPlan.completionPct || 0;
   const commandChecklistItems = useMemo(
     () => (commandCenter?.checklist || []).map((item) => {
@@ -489,11 +472,6 @@ export default function ResultsStrategicHub({
     };
   }, [strategy.gap, strategy.globalRiskFlags, strategy.profileSignals?.profileComplexity, strategy.top?.effort]);
 
-  const riskLevelLabel = strategy.globalRiskFlags?.some((flag) => flag.severity === 'high')
-    ? 'Elevated'
-    : strategy.globalRiskFlags?.some((flag) => flag.severity === 'medium')
-      ? 'Moderate'
-      : 'Low';
   const activeOptimizerConstraints = strategy.optimizerConstraints || optimizerConstraints;
   const isProFirstVariant = pricingExperiment.variant === 'pro_first';
   const proCtaLabel = isProFirstVariant
@@ -652,58 +630,6 @@ export default function ResultsStrategicHub({
 
   return (
     <>
-      <section className="card strategic-action-center" id="section-action-center">
-        <p className="cat-intro">{t('strategy.actionCenter.subtitle', 'Use this control center to execute the highest-impact moves with clear priority and risk visibility.')}</p>
-        <div className="results-tab-strip" role="tablist" aria-label="Navigation tabs">
-          {NAVIGATOR_ACTION_ITEMS.filter((item) => runtimeFlags.enableAdvancedForecasting || item.key !== 'open_forecast').map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              className={`results-tab-btn ${activeNavigatorTab === item.key ? 'active' : ''}`.trim()}
-              aria-selected={activeNavigatorTab === item.key}
-              onClick={() => {
-                onNavigatorTabChange?.(item.key, 'action_center_tab');
-                trackEvent('action_center_tab_clicked', {
-                  tab_key: item.key,
-                  confidence_band: strategy.confidenceBand,
-                  experiment_key: pricingExperiment.experimentKey,
-                  experiment_variant: pricingExperiment.variant,
-                });
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <p className="results-tab-helper">Use tabs to focus on one workspace at a time.</p>
-        <div className="strategic-action-status">
-          <span>{t('strategy.actionCenter.profileStatus', 'Profile save status')}: <strong>{saveStatus || t('strategy.actionCenter.notSavedYet', 'Not saved yet')}</strong></span>
-          <span>{t('strategy.actionCenter.planCompletion', '90-day completion')}: <strong>{completionPct}%</strong> ({completedCount}/{totalCount})</span>
-          <span>{t('strategy.actionCenter.confidence', 'Confidence')}: <strong>{strategy.confidenceBand}</strong> ({strategy.overallConfidence} / 100)</span>
-          <span>{t('strategy.actionCenter.riskLevel', 'Risk level')}: <strong>{riskLevelLabel}</strong></span>
-          {!!commandCenter && <span>Command readiness: <strong>{commandCenter.readinessScore}/100</strong></span>}
-          {!!opportunityRadar && <span>Radar readiness: <strong>{opportunityRadar.readinessIndex}/100</strong></span>}
-          {!!communityBenchmarks && <span>Benchmark percentile: <strong>P{communityBenchmarks.percentile}</strong></span>}
-        </div>
-        {shareStatus && <p className="save-note">{shareStatus}</p>}
-        {actionPlan.nextBestTask && (
-          <div className="next-task-callout">
-            <div>
-              <strong>{t('strategy.actionCenter.nextTask', 'Next best task')}: {actionPlan.nextBestTask.title}</strong>
-              <p>{actionPlan.nextBestTask.dateWindow} · {actionPlan.nextBestTask.weekWindow}</p>
-              <small>{actionPlan.nextBestTask.successMetric}</small>
-            </div>
-            <button
-              type="button"
-              className="action-btn auth-btn-primary"
-              onClick={() => jumpFromAction('section-90-day-plan', 'next_best_task')}
-            >
-              {t('strategy.actionCenter.startTask', 'Start task')}
-            </button>
-          </div>
-        )}
-      </section>
       {isSaveProfileTab && (
         <section className="card" id="section-save-bridge">
           <h3>Save profile</h3>
@@ -907,7 +833,7 @@ export default function ResultsStrategicHub({
                     <button
                       type="button"
                       className="action-btn"
-                      onClick={() => jumpFromAction(card.quickAction || 'section-action-center', `copilot_jump_${card.id}`)}
+                      onClick={() => jumpFromAction(card.quickAction || 'section-90-day-plan', `copilot_jump_${card.id}`)}
                     >
                       Open related section
                     </button>
