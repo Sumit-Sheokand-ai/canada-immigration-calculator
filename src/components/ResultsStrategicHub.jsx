@@ -653,9 +653,8 @@ export default function ResultsStrategicHub({
   return (
     <>
       <section className="card strategic-action-center" id="section-action-center">
-        <h3>{t('strategy.actionCenter.title', 'Action Center')}</h3>
         <p className="cat-intro">{t('strategy.actionCenter.subtitle', 'Use this control center to execute the highest-impact moves with clear priority and risk visibility.')}</p>
-        <div className="results-tab-strip" role="tablist" aria-label="Action center navigation tabs">
+        <div className="results-tab-strip" role="tablist" aria-label="Navigation tabs">
           {NAVIGATOR_ACTION_ITEMS.filter((item) => runtimeFlags.enableAdvancedForecasting || item.key !== 'open_forecast').map((item) => (
             <button
               key={item.key}
