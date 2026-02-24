@@ -18,6 +18,37 @@ const ResultsStrategicHub = lazy(() => import('./ResultsStrategicHub'));
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 18 } } };
+const NAVIGATOR_TAB_ITEMS = [
+  { key: 'save_profile', label: 'Save profile', helper: 'Store this profile and alerts in one place.' },
+  { key: 'open_opportunity_radar', label: 'Open opportunity radar', helper: 'See current windows, triggers, and lane opportunities.' },
+  { key: 'open_command_center', label: 'Open command center', helper: 'Track readiness blockers and checklist execution.' },
+  { key: 'open_forecast', label: 'Open forecast', helper: 'Review projected cutoffs, trend slope, and confidence.' },
+  { key: 'open_digital_twin', label: 'Open digital twin', helper: 'Compare invitation probability across horizons.' },
+  { key: 'open_90_day_plan', label: 'Open 90-day plan', helper: 'Follow milestone-based tasks with measurable outcomes.' },
+  { key: 'open_optimizer', label: 'Open optimizer', helper: 'Adjust constraints and compare ranked strategy options.' },
+  { key: 'open_grounded_copilot', label: 'Open grounded copilot', helper: 'Use profile-grounded assistant recommendations.' },
+  { key: 'open_collaboration_workspace', label: 'Open collaboration workspace', helper: 'Prepare consultant-ready collaboration assets.' },
+  { key: 'open_community_benchmarks', label: 'Open community benchmarks', helper: 'Benchmark your profile versus cohort signals.' },
+  { key: 'export_consultant_file', label: 'Export consultant file', helper: 'Download a handoff package for review.' },
+  { key: 'copy_handoff_share_link', label: 'Copy handoff share link', helper: 'Copy a shareable consultant handoff link.' },
+];
+const SECTION_TAB_MAP = {
+  'section-save': 'save_profile',
+  'section-opportunity-radar': 'open_opportunity_radar',
+  'section-command-center': 'open_command_center',
+  'section-forecast': 'open_forecast',
+  'section-digital-twin': 'open_digital_twin',
+  'section-90-day-plan': 'open_90_day_plan',
+  'section-action-queue': 'open_90_day_plan',
+  'section-optimizer': 'open_optimizer',
+  'section-pricing': 'open_optimizer',
+  'section-explainability': 'open_optimizer',
+  'section-copilot': 'open_grounded_copilot',
+  'section-collaboration': 'open_collaboration_workspace',
+  'section-community-benchmarks': 'open_community_benchmarks',
+  'section-handoff-export': 'export_consultant_file',
+  'section-handoff-share': 'copy_handoff_share_link',
+};
 
 function getDrawSourceLabel(source) {
   if (source === 'supabase') return 'Live sync';
@@ -387,6 +418,7 @@ export default function Results({
     [categoryInfo]
   );
   const [loading, setLoading] = useState(true);
+  const [activeNavigatorTab, setActiveNavigatorTab] = useState('save_profile');
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -562,6 +594,7 @@ export default function Results({
   const provinces = useMemo(() => (isSelfCalc ? recommendProvinces(answers) : []), [answers, isSelfCalc]);
   const showConfetti = !prefersReducedMotion && !loading && diff >= 20;
   const confettiRef = useConfetti(showConfetti);
+  const activeNavigatorMeta = NAVIGATOR_TAB_ITEMS.find((tab) => tab.key === activeNavigatorTab) || NAVIGATOR_TAB_ITEMS[0];
 
 
   const handleSaveProfile = async () => {
@@ -652,6 +685,11 @@ export default function Results({
     trackEvent('results_pdf_print_clicked', { score });
     window.print();
   };
+  const switchNavigatorTab = (nextTab, source = 'manual') => {
+    if (!nextTab || nextTab === activeNavigatorTab) return;
+    setActiveNavigatorTab(nextTab);
+    trackEvent('results_tab_changed', { tab: nextTab, source });
+  };
   const scrollSectionIntoView = (sectionId, attempt = 0) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -662,8 +700,14 @@ export default function Results({
     window.setTimeout(() => scrollSectionIntoView(sectionId, attempt + 1), 80);
   };
   const scrollToSection = (sectionId) => {
-    scrollSectionIntoView(sectionId);
-    trackEvent('results_section_jump', { section_id: sectionId });
+    const nextTab = SECTION_TAB_MAP[sectionId];
+    if (nextTab) switchNavigatorTab(nextTab, 'section_jump');
+    if (nextTab && nextTab !== activeNavigatorTab) {
+      window.setTimeout(() => scrollSectionIntoView(sectionId), 140);
+    } else {
+      scrollSectionIntoView(sectionId);
+    }
+    trackEvent('results_section_jump', { section_id: sectionId, tab: nextTab || activeNavigatorTab });
   };
   const openAccountModal = () => {
     window.dispatchEvent(new CustomEvent('crs-open-account-modal'));
@@ -694,6 +738,23 @@ export default function Results({
           {t('results.pdf')}
         </button>
       </motion.div>
+
+      <motion.div className="results-tab-strip" variants={fadeUp} role="tablist" aria-label="Navigator sections">
+        {NAVIGATOR_TAB_ITEMS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            className={`results-tab-btn ${activeNavigatorTab === tab.key ? 'active' : ''}`.trim()}
+            aria-selected={activeNavigatorTab === tab.key}
+            aria-controls={`results-tab-panel-${tab.key}`}
+            onClick={() => switchNavigatorTab(tab.key, 'tab_click')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </motion.div>
+      <motion.p className="results-tab-helper" variants={fadeUp}>{activeNavigatorMeta.helper}</motion.p>
       <Suspense fallback={(
         <div className="card">
           <SectionLoadShell message="Loading strategy insights…" />
@@ -711,10 +772,15 @@ export default function Results({
           drawFreshness={drawFreshness}
           categoryFreshness={categoryFreshness}
           saveStatus={saveStatus}
+          activeNavigatorTab={activeNavigatorTab}
+          onNavigatorTabChange={switchNavigatorTab}
           onJumpToSection={scrollToSection}
           onOpenAccount={openAccountModal}
         />
       </Suspense>
+
+      {activeNavigatorTab === 'save_profile' && (
+        <div role="tabpanel" id="results-tab-panel-profile" aria-label="Profile plan">
       <motion.div className={`card status-card ${status.cls}-card`} variants={fadeUp}>
         <p className="status-kicker">Current standing</p>
         <div className="status-header"><span className={`status-marker ${status.cls}`}>{status.marker}</span> <strong>{status.title}</strong></div>
@@ -1107,6 +1173,11 @@ export default function Results({
           </AnimatePresence>
         </motion.div>
       )}
+        </div>
+      )}
+
+      {activeNavigatorTab === 'open_community_benchmarks' && (
+        <div role="tabpanel" id="results-tab-panel-market" aria-label="Draw insights">
       <motion.div className="card" variants={fadeUp} id="section-timeline">
         <h3>{t('results.timeline')}</h3>
         <div className={`timeline-badge tl-${status.cls}`}>
@@ -1165,6 +1236,8 @@ export default function Results({
           <h3>{pwInfo.name} Requirements</h3>
           <ul className="pathway-list">{pwInfo.requirements.map((r, i) => <li key={i}>{r}</li>)}</ul>
         </motion.div>
+      )}
+        </div>
       )}
 
       <motion.div className="card disclaimer" variants={fadeUp}>
