@@ -176,7 +176,7 @@ export const nocTEER = [
 ];
 
 export const latestDraws = {
-  lastUpdated: "2026-04-17",
+  lastUpdated: "2026-04-18",
   generalProgram: [
     { date: "2026-04-14", score: 515, invitations: 2000, program: "Canadian Experience Class" },
     { date: "2026-03-31", score: 509, invitations: 2250, program: "Canadian Experience Class" },
