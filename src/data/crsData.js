@@ -176,7 +176,7 @@ export const nocTEER = [
 ];
 
 export const latestDraws = {
-  lastUpdated: "2026-09-16",
+  lastUpdated: "2026-09-17",
   generalProgram: [
     { date: "2026-09-15", score: 519, invitations: 2000, program: "Canadian Experience Class" },
     { date: "2026-09-01", score: 521, invitations: 2000, program: "Canadian Experience Class" },
@@ -186,13 +186,13 @@ export const latestDraws = {
     { date: "2026-07-07", score: 517, invitations: 2000, program: "Canadian Experience Class" },
   ],
   categoryBased: [
+    { date: "2026-09-16", score: 389, invitations: 250, program: "Senior managers with Canadian Work Experience," },
     { date: "2026-09-04", score: 475, invitations: 3500, program: "Healthcare and Social Services Occupations," },
     { date: "2026-09-03", score: 198, invitations: 229, program: "Physicians with Canadian Work Experience," },
     { date: "2026-08-19", score: 382, invitations: 5000, program: "French-Language proficiency" },
     { date: "2026-08-07", score: 470, invitations: 300, program: "Transport Occupations," },
     { date: "2026-08-06", score: 391, invitations: 5000, program: "French-Language proficiency" },
     { date: "2026-07-23", score: 368, invitations: 4, program: "Skilled Military Recruits," },
-    { date: "2026-07-22", score: 399, invitations: 5000, program: "French-Language proficiency" },
   ],
   pnpDraws: [
     { date: "2026-09-14", score: 734, invitations: 576, program: "Provincial Nominee Program" },
