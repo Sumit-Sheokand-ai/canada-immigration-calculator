@@ -176,14 +176,14 @@ export const nocTEER = [
 ];
 
 export const latestDraws = {
-  lastUpdated: "2026-09-28",
+  lastUpdated: "2026-09-29",
   generalProgram: [
+    { date: "2026-09-29", score: 518, invitations: 2000, program: "Canadian Experience Class" },
     { date: "2026-09-15", score: 519, invitations: 2000, program: "Canadian Experience Class" },
     { date: "2026-09-01", score: 521, invitations: 2000, program: "Canadian Experience Class" },
     { date: "2026-08-18", score: 523, invitations: 1000, program: "Canadian Experience Class" },
     { date: "2026-08-05", score: 516, invitations: 3000, program: "Canadian Experience Class" },
     { date: "2026-07-21", score: 516, invitations: 2000, program: "Canadian Experience Class" },
-    { date: "2026-07-07", score: 517, invitations: 2000, program: "Canadian Experience Class" },
   ],
   categoryBased: [
     { date: "2026-09-16", score: 389, invitations: 250, program: "Senior managers with Canadian Work Experience," },
