@@ -176,7 +176,7 @@ export const nocTEER = [
 ];
 
 export const latestDraws = {
-  lastUpdated: "2026-10-12",
+  lastUpdated: "2026-10-13",
   generalProgram: [
     { date: "2026-09-29", score: 518, invitations: 2000, program: "Canadian Experience Class" },
     { date: "2026-09-15", score: 519, invitations: 2000, program: "Canadian Experience Class" },
@@ -195,13 +195,13 @@ export const latestDraws = {
     { date: "2026-08-06", score: 391, invitations: 5000, program: "French-Language proficiency" },
   ],
   pnpDraws: [
+    { date: "2026-10-13", score: 772, invitations: 752, program: "Provincial Nominee Program" },
     { date: "2026-09-28", score: 725, invitations: 733, program: "Provincial Nominee Program" },
     { date: "2026-09-14", score: 734, invitations: 576, program: "Provincial Nominee Program" },
     { date: "2026-08-31", score: 697, invitations: 562, program: "Provincial Nominee Program" },
     { date: "2026-08-17", score: 760, invitations: 442, program: "Provincial Nominee Program" },
-    { date: "2026-08-04", score: 768, invitations: 507, program: "Provincial Nominee Program" },
   ],
-  pnpRanges: { low: 697, high: 768, note: "PNP candidates receive +600 CRS. Typical base: 80–250." },
+  pnpRanges: { low: 697, high: 772, note: "PNP candidates receive +600 CRS. Typical base: 80–250." },
   averageCutoff: 519,
 };
 
