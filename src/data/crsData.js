@@ -176,7 +176,7 @@ export const nocTEER = [
 ];
 
 export const latestDraws = {
-  lastUpdated: "2026-10-26",
+  lastUpdated: "2026-10-27",
   generalProgram: [
     { date: "2026-10-15", score: 519, invitations: 2500, program: "Canadian Experience Class" },
     { date: "2026-09-29", score: 518, invitations: 2000, program: "Canadian Experience Class" },
@@ -186,20 +186,20 @@ export const latestDraws = {
     { date: "2026-08-05", score: 516, invitations: 3000, program: "Canadian Experience Class" },
   ],
   categoryBased: [
+    { date: "2026-10-27", score: 407, invitations: 5000, program: "French-Language proficiency" },
     { date: "2026-10-16", score: 435, invitations: 5000, program: "French-Language proficiency" },
     { date: "2026-10-01", score: 476, invitations: 3500, program: "Trades Occupations," },
     { date: "2026-09-16", score: 389, invitations: 250, program: "Senior managers with Canadian Work Experience," },
     { date: "2026-09-04", score: 475, invitations: 3500, program: "Healthcare and Social Services Occupations," },
     { date: "2026-09-03", score: 198, invitations: 229, program: "Physicians with Canadian Work Experience," },
     { date: "2026-08-19", score: 382, invitations: 5000, program: "French-Language proficiency" },
-    { date: "2026-08-07", score: 470, invitations: 300, program: "Transport Occupations," },
   ],
   pnpDraws: [
+    { date: "2026-10-26", score: 761, invitations: 792, program: "Provincial Nominee Program" },
     { date: "2026-10-13", score: 772, invitations: 752, program: "Provincial Nominee Program" },
     { date: "2026-09-28", score: 725, invitations: 733, program: "Provincial Nominee Program" },
     { date: "2026-09-14", score: 734, invitations: 576, program: "Provincial Nominee Program" },
     { date: "2026-08-31", score: 697, invitations: 562, program: "Provincial Nominee Program" },
-    { date: "2026-08-17", score: 760, invitations: 442, program: "Provincial Nominee Program" },
   ],
   pnpRanges: { low: 697, high: 772, note: "PNP candidates receive +600 CRS. Typical base: 80–250." },
   averageCutoff: 519,
